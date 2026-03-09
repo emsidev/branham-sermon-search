@@ -19,6 +19,12 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        link: "hsl(var(--link))",
+        "hover-row": "hsl(var(--hover-row))",
+        "filter-badge": {
+          DEFAULT: "hsl(var(--filter-badge))",
+          foreground: "hsl(var(--filter-badge-foreground))",
+        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
