@@ -132,13 +132,19 @@ export async function fetchSermonById(id: string): Promise<Sermon | null> {
   return data;
 }
 
-export async function fetchAdjacentSermons(date: string): Promise<{ prev: Sermon | null; next: Sermon | null }> {
+interface AdjacentSermon {
+  id: string;
+  title: string;
+  date: string;
+}
+
+export async function fetchAdjacentSermons(date: string): Promise<{ prev: AdjacentSermon | null; next: AdjacentSermon | null }> {
   const [prevRes, nextRes] = await Promise.all([
     supabase.from('sermons').select('id,title,date').lt('date', date).order('date', { ascending: false }).limit(1),
     supabase.from('sermons').select('id,title,date').gt('date', date).order('date', { ascending: true }).limit(1),
   ]);
   return {
-    prev: prevRes.data?.[0] || null,
-    next: nextRes.data?.[0] || null,
+    prev: (prevRes.data?.[0] as AdjacentSermon) || null,
+    next: (nextRes.data?.[0] as AdjacentSermon) || null,
   };
 }
