@@ -6,11 +6,17 @@ import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
 import MetadataCard from '@/components/MetadataCard';
 
+interface AdjacentSermon {
+  id: string;
+  title: string;
+  date: string;
+}
+
 export default function SermonDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [sermon, setSermon] = useState<Sermon | null>(null);
-  const [adjacent, setAdjacent] = useState<{ prev: Sermon | null; next: Sermon | null }>({ prev: null, next: null });
+  const [adjacent, setAdjacent] = useState<{ prev: AdjacentSermon | null; next: AdjacentSermon | null }>({ prev: null, next: null });
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
   const { play } = useAudioPlayer();
