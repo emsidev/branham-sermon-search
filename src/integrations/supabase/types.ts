@@ -14,7 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      sermons: {
+        Row: {
+          audio_url: string | null
+          city: string | null
+          content_hash: string | null
+          created_at: string
+          date: string
+          duration: string | null
+          fts: unknown
+          id: string
+          location: string | null
+          scraped_at: string | null
+          scripture: string | null
+          source_url: string | null
+          state: string | null
+          tags: string[] | null
+          title: string
+          transcript: string | null
+          year: number | null
+        }
+        Insert: {
+          audio_url?: string | null
+          city?: string | null
+          content_hash?: string | null
+          created_at?: string
+          date: string
+          duration?: string | null
+          fts?: unknown
+          id: string
+          location?: string | null
+          scraped_at?: string | null
+          scripture?: string | null
+          source_url?: string | null
+          state?: string | null
+          tags?: string[] | null
+          title: string
+          transcript?: string | null
+          year?: number | null
+        }
+        Update: {
+          audio_url?: string | null
+          city?: string | null
+          content_hash?: string | null
+          created_at?: string
+          date?: string
+          duration?: string | null
+          fts?: unknown
+          id?: string
+          location?: string | null
+          scraped_at?: string | null
+          scripture?: string | null
+          source_url?: string | null
+          state?: string | null
+          tags?: string[] | null
+          title?: string
+          transcript?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
