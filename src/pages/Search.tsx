@@ -6,8 +6,9 @@ import { useSermons, type SearchHit } from '@/hooks/useSermons';
 import SearchHitsTable from '@/components/SearchHitsTable';
 import SearchHitsCards from '@/components/SearchHitsCards';
 import SermonPagination from '@/components/SermonPagination';
-import { buildSermonHitHref, escapeRegExp, sanitizeSearchSnippet } from '@/lib/search';
+import { buildSermonHitHref, escapeRegExp, formatMatchSourceLabel, sanitizeSearchSnippet } from '@/lib/search';
 import { getInstantSearchEnabled } from '@/lib/preferences';
+import { formatDate } from '@/lib/utils';
 
 const SORT_OPTIONS: Array<{ value: 'relevance-desc' | 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc'; label: string }> = [
   { value: 'relevance-desc', label: 'Relevance' },
@@ -237,20 +238,39 @@ export default function SearchPage() {
               <section className="mt-8">
                 <Link
                   to={exactTitleHitHref}
-                  className="group block rounded-xl border border-border bg-card px-5 py-4 transition-colors hover:border-border/80"
-                  style={{ backgroundImage: 'var(--exact-card-gradient)' }}
+                  className="group block rounded-xl border border-border bg-card px-6 py-5 transition-all duration-150 hover:ring-1 hover:ring-ring/15 [background-image:var(--exact-card-gradient)]"
                   data-testid="exact-title-card"
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="font-mono text-sm text-muted-foreground">Book title match</p>
-                      <h2 className="truncate font-mono text-lg font-semibold text-foreground transition-colors group-hover:text-[hsl(var(--link))]">
-                        {exactTitleHit.title}
-                      </h2>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <h2 className="truncate font-mono text-lg font-semibold text-foreground transition-colors group-hover:text-[hsl(var(--link))]">
+                          {exactTitleHit.title}
+                        </h2>
+                        <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-mono lowercase text-foreground">
+                          exact
+                        </span>
+                      </div>
                     </div>
-                    <span className="shrink-0 text-xs font-mono text-muted-foreground transition-colors group-hover:text-foreground">
-                      open
+                    <span className="shrink-0 pt-0.5 font-mono text-sm text-muted-foreground">
+                      {exactTitleHit.sermon_code || '-'}
                     </span>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-4 text-xs font-mono text-muted-foreground">
+                    <span>{formatDate(exactTitleHit.date)}</span>
+                    <span className="truncate text-right">
+                      {formatMatchSourceLabel(exactTitleHit.match_source, exactTitleHit.paragraph_number, exactTitleHit.printed_paragraph_number)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 border-t border-border/75 pt-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
+                      <span className="rounded-md border border-border/90 bg-background/60 px-2 py-0.5">
+                        {exactTitleHit.location || 'Unknown location'}
+                      </span>
+                    </div>
                   </div>
                 </Link>
               </section>

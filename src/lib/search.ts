@@ -187,8 +187,6 @@ export function formatMatchSourceLabel(
   source: string | null | undefined,
   paragraphNumber: number | null | undefined,
   printedParagraphNumber?: number | null,
-  chunkIndex?: number | null,
-  chunkTotal?: number | null
 ): string {
   if (source === 'paragraph_text') {
     const paragraphLabel = paragraphNumber ? `Paragraph ${paragraphNumber}` : 'Paragraph';
@@ -200,14 +198,6 @@ export function formatMatchSourceLabel(
       ? ` [PDF ${printedParagraphNumber}]`
       : '';
 
-    if (
-      chunkIndex != null &&
-      chunkTotal != null &&
-      chunkIndex > 0 &&
-      chunkTotal > 1
-    ) {
-      return `${paragraphLabel}${printedSuffix} (${chunkIndex}/${chunkTotal})`;
-    }
     return `${paragraphLabel}${printedSuffix}`;
   }
   if (source === 'title') {
