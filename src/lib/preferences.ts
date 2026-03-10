@@ -1,4 +1,5 @@
 export const INSTANT_SEARCH_STORAGE_KEY = 'message-search.instant-search-enabled';
+export const THEME_STORAGE_KEY = 'message-search.theme';
 
 export function getInstantSearchEnabled(defaultValue = true): boolean {
   if (typeof window === 'undefined') {

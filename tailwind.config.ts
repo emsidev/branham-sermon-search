@@ -1,4 +1,7 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
+
+const colorVar = (token: string) => `oklch(var(${token}) / <alpha-value>)`;
 
 export default {
   darkMode: ["class"],
@@ -14,54 +17,63 @@ export default {
     },
     extend: {
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        link: "hsl(var(--link))",
-        "hover-row": "hsl(var(--hover-row))",
+        bg: colorVar("--bg"),
+        "bg-subtle": colorVar("--bg-subtle"),
+        "bg-muted": colorVar("--bg-muted"),
+        "bg-elevated": colorVar("--bg-elevated"),
+        fg: colorVar("--fg"),
+        "fg-muted": colorVar("--fg-muted"),
+        "fg-subtle": colorVar("--fg-subtle"),
+        border: colorVar("--border"),
+        "border-subtle": colorVar("--border-subtle"),
+        "border-hover": colorVar("--border-hover"),
+        input: colorVar("--input"),
+        ring: colorVar("--ring"),
+        background: colorVar("--background"),
+        foreground: colorVar("--foreground"),
+        link: colorVar("--link"),
+        "hover-row": colorVar("--hover-row"),
         "filter-badge": {
-          DEFAULT: "hsl(var(--filter-badge))",
-          foreground: "hsl(var(--filter-badge-foreground))",
+          DEFAULT: colorVar("--filter-badge"),
+          foreground: colorVar("--filter-badge-foreground"),
         },
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: colorVar("--primary"),
+          foreground: colorVar("--primary-foreground"),
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: colorVar("--secondary"),
+          foreground: colorVar("--secondary-foreground"),
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+          DEFAULT: colorVar("--destructive"),
+          foreground: colorVar("--destructive-foreground"),
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: colorVar("--muted"),
+          foreground: colorVar("--muted-foreground"),
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: colorVar("--accent"),
+          foreground: colorVar("--accent-foreground"),
         },
         popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+          DEFAULT: colorVar("--popover"),
+          foreground: colorVar("--popover-foreground"),
         },
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: colorVar("--card"),
+          foreground: colorVar("--card-foreground"),
         },
         sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
+          DEFAULT: colorVar("--sidebar-background"),
+          foreground: colorVar("--sidebar-foreground"),
+          primary: colorVar("--sidebar-primary"),
+          "primary-foreground": colorVar("--sidebar-primary-foreground"),
+          accent: colorVar("--sidebar-accent"),
+          "accent-foreground": colorVar("--sidebar-accent-foreground"),
+          border: colorVar("--sidebar-border"),
+          ring: colorVar("--sidebar-ring"),
         },
       },
       borderRadius: {
@@ -93,5 +105,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

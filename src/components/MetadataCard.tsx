@@ -36,10 +36,14 @@ function MetaRow({ icon: Icon, label, value, mono, copyable }: { icon: React.Ele
 
 export default function MetadataCard({ date, location, scripture, duration, tags }: MetadataCardProps) {
   let formattedDate = date;
-  try { formattedDate = format(parseISO(date), 'MMMM d, yyyy'); } catch {}
+  try {
+    formattedDate = format(parseISO(date), 'MMMM d, yyyy');
+  } catch {
+    formattedDate = date;
+  }
 
   return (
-    <div className="border border-border rounded-md p-4 space-y-0">
+    <div className="surface-card rounded-lg p-4 space-y-0">
       <MetaRow icon={Calendar} label="Date" value={formattedDate} />
       {location && <MetaRow icon={MapPin} label="Location" value={location} />}
       {scripture && <MetaRow icon={BookOpen} label="Scripture" value={scripture} mono copyable />}
@@ -50,7 +54,7 @@ export default function MetadataCard({ date, location, scripture, duration, tags
           <span className="text-xs text-muted-foreground w-20 shrink-0">Tags</span>
           <div className="flex flex-wrap gap-1">
             {tags.map(tag => (
-              <span key={tag} className="rounded-full bg-[hsl(var(--filter-badge))] text-[hsl(var(--filter-badge-foreground))] px-2 py-0.5 text-xs font-mono">
+              <span key={tag} className="rounded-full bg-filter-badge px-2 py-0.5 text-xs font-mono text-filter-badge-foreground">
                 {tag}
               </span>
             ))}

@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SermonDetail from './SermonDetail';
@@ -19,14 +19,11 @@ vi.mock('@/components/SermonBreadcrumb', () => ({
   default: () => <div data-testid="breadcrumb" />,
 }));
 
-vi.mock('@/components/MetadataCard', () => ({
-  default: () => <div data-testid="metadata-card" />,
-}));
-
 const sermonDetailFixture = {
   id: 'sermon-1',
   sermon_code: '65-1010',
   title: 'Leadership',
+  summary: 'A compact summary of the sermon content.',
   date: '1965-10-10',
   year: 1965,
   location: 'Jeffersonville, IN',
@@ -106,5 +103,17 @@ describe('SermonDetail', () => {
 
     expect(scrolledTexts[0]).toBe('I am looking forward');
     scrollSpy.mockRestore();
+  });
+
+  it('renders summary and compact metadata strip', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sermon-summary')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('A compact summary of the sermon content.')).toBeInTheDocument();
+    expect(screen.getByTestId('sermon-meta-strip')).toBeInTheDocument();
+    expect(screen.getByText('Date')).toBeInTheDocument();
   });
 });

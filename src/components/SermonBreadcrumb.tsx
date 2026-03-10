@@ -10,11 +10,11 @@ interface SermonBreadcrumbProps {
 export default function SermonBreadcrumb({ year, title }: SermonBreadcrumbProps) {
   return (
     <nav className="flex items-center gap-1 text-xs font-mono text-muted-foreground overflow-hidden">
-      <Link to="/" className="text-[hsl(var(--link))] hover:underline shrink-0">branham-sermons</Link>
+      <Link to="/" className="text-link hover:underline shrink-0">the table search</Link>
       <ChevronRight className="h-3 w-3 shrink-0" />
       {year && (
         <>
-          <Link to={`/?year=${year}`} className="text-[hsl(var(--link))] hover:underline shrink-0">{year}</Link>
+          <Link to={`/?year=${year}`} className="text-link hover:underline shrink-0">{year}</Link>
           <ChevronRight className="h-3 w-3 shrink-0" />
         </>
       )}

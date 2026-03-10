@@ -5,6 +5,7 @@ import { useSermons } from '@/hooks/useSermons';
 import { useKeyboardNav } from '@/hooks/useKeyboardNav';
 import { runWithViewTransition } from '@/lib/viewTransition';
 import { getInstantSearchEnabled, setInstantSearchEnabled } from '@/lib/preferences';
+import type { HomeSearchTransitionState } from '@/lib/searchNavigation';
 
 function formatBuildDate(value: string): string {
   const parsed = new Date(value);
@@ -26,6 +27,8 @@ export default function Index() {
   const [query, setQuery] = useState('');
   const [instantSearchEnabled, setInstantSearchEnabledState] = useState(() => getInstantSearchEnabled());
   const searchRef = useRef<HTMLInputElement>(null);
+  const isComposingRef = useRef(false);
+  const searchRequestIdRef = useRef(0);
   const buildDateLabel = useMemo(() => formatBuildDate(__APP_BUILD_DATE__), []);
 
   useKeyboardNav({
@@ -38,12 +41,21 @@ export default function Index() {
     settingsShortcutHref: '/settings',
   });
 
-  const handleSearchSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedQuery = query.trim();
+  const buildHomeTransitionState = useCallback((caret?: number): HomeSearchTransitionState => {
+    const fallbackCaret = query.length;
+    const numericCaret = typeof caret === 'number' && Number.isFinite(caret) ? Math.floor(caret) : fallbackCaret;
+    return {
+      source: 'home',
+      autofocus: true,
+      caret: Math.max(0, numericCaret),
+      requestId: `home-search-${Date.now()}-${searchRequestIdRef.current++}`,
+    };
+  }, [query.length]);
+
+  const navigateToSearch = useCallback((rawQuery: string, caret?: number): boolean => {
+    const trimmedQuery = rawQuery.trim();
     if (!trimmedQuery) {
-      searchRef.current?.focus();
-      return;
+      return false;
     }
 
     const params = new URLSearchParams({
@@ -51,31 +63,52 @@ export default function Index() {
       sort: 'relevance-desc',
       view: 'card',
     });
-    runWithViewTransition(() => {
-      navigate(`/search?${params.toString()}`);
-    });
-  }, [navigate, query]);
 
-  const handleSearchInputChange = useCallback((value: string) => {
-    setQuery(value);
+    runWithViewTransition(() => {
+      navigate(`/search?${params.toString()}`, {
+        state: buildHomeTransitionState(caret),
+      });
+    });
+    return true;
+  }, [buildHomeTransitionState, navigate]);
+
+  const handleSearchSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const caret = searchRef.current?.selectionStart ?? query.length;
+    if (!navigateToSearch(query, caret)) {
+      searchRef.current?.focus();
+    }
+  }, [navigateToSearch, query]);
+
+  const handleSearchInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setQuery(nextValue);
     if (!instantSearchEnabled) {
       return;
     }
 
-    const trimmedQuery = value.trim();
-    if (!trimmedQuery) {
+    if (isComposingRef.current || event.nativeEvent.isComposing) {
       return;
     }
 
-    const params = new URLSearchParams({
-      q: trimmedQuery,
-      sort: 'relevance-desc',
-      view: 'card',
-    });
-    runWithViewTransition(() => {
-      navigate(`/search?${params.toString()}`);
-    });
-  }, [instantSearchEnabled, navigate]);
+    const caret = event.target.selectionStart ?? nextValue.length;
+    navigateToSearch(nextValue, caret);
+  }, [instantSearchEnabled, navigateToSearch]);
+
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback((event: React.CompositionEvent<HTMLInputElement>) => {
+    isComposingRef.current = false;
+    if (!instantSearchEnabled) {
+      return;
+    }
+
+    const nextValue = event.currentTarget.value;
+    const caret = event.currentTarget.selectionStart ?? nextValue.length;
+    navigateToSearch(nextValue, caret);
+  }, [instantSearchEnabled, navigateToSearch]);
 
   const handleInstantSearchToggle = useCallback(() => {
     setInstantSearchEnabledState((currentValue) => {
@@ -87,7 +120,7 @@ export default function Index() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b border-border/70">
+      <header className="border-b border-border-subtle">
         <div className="mx-auto flex w-full max-w-[1100px] items-center justify-end gap-6 px-6 py-4 font-mono text-sm">
           <NavLink to="/books" className="text-muted-foreground hover:text-foreground">
             books <kbd className="rounded border border-border bg-muted px-1 text-[11px]">b</kbd>
@@ -103,7 +136,7 @@ export default function Index() {
 
       <main className="mx-auto flex w-full max-w-[860px] flex-1 flex-col px-6 pb-8 pt-20">
         <div className="mx-auto w-full max-w-[640px] text-center">
-          <h1 className="font-mono text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+          <h1 className="font-mono text-4xl font-medium tracking-tight text-foreground sm:text-5xl">
             the table search
           </h1>
           <p className="mt-5 text-lg text-muted-foreground">
@@ -112,7 +145,7 @@ export default function Index() {
 
           <form onSubmit={handleSearchSubmit} className="mt-10">
             <div
-              className="flex h-14 items-center rounded-xl border border-border bg-muted/35 p-1"
+              className="flex h-14 items-center rounded-lg border border-border bg-bg-muted p-1"
               style={{ viewTransitionName: 'global-search' }}
             >
               <span className="px-4 text-lg font-mono text-muted-foreground">/</span>
@@ -120,20 +153,23 @@ export default function Index() {
                 ref={searchRef}
                 type="text"
                 value={query}
-                onChange={(event) => handleSearchInputChange(event.target.value)}
+                onChange={handleSearchInputChange}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
                 placeholder="search sermons ..."
                 className="h-full flex-1 bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                 aria-label="Search sermons"
               />
               <button
                 type="submit"
-                className="inline-flex h-full items-center gap-2 rounded-lg bg-foreground px-4 font-mono text-sm text-background transition-opacity hover:opacity-90"
+                className="inline-flex h-full items-center gap-2 rounded-md bg-foreground px-4 font-mono text-sm text-background transition-opacity hover:opacity-90"
               >
                 <Search className="h-4 w-4" />
                 search
               </button>
             </div>
           </form>
+
           <div className="mt-4 flex items-center justify-center gap-1 font-mono text-sm text-muted-foreground">
             <span aria-hidden>⚡</span>
             <span>

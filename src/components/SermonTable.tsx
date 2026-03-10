@@ -14,10 +14,10 @@ interface SermonTableProps {
 function SkeletonRow() {
   return (
     <tr className="border-b border-border">
-      <td className="py-3 px-4"><div className="skeleton-shimmer h-4 w-3/4 rounded" /></td>
-      <td className="py-3 px-4 hidden sm:table-cell"><div className="skeleton-shimmer h-4 w-24 rounded" /></td>
-      <td className="py-3 px-4 hidden md:table-cell"><div className="skeleton-shimmer h-4 w-32 rounded" /></td>
-      <td className="py-3 px-4 hidden lg:table-cell"><div className="skeleton-shimmer h-4 w-28 rounded" /></td>
+      <td className="px-4 py-3"><div className="skeleton-shimmer h-4 w-3/4 rounded" /></td>
+      <td className="hidden px-4 py-3 sm:table-cell"><div className="skeleton-shimmer h-4 w-24 rounded" /></td>
+      <td className="hidden px-4 py-3 md:table-cell"><div className="skeleton-shimmer h-4 w-32 rounded" /></td>
+      <td className="hidden px-4 py-3 lg:table-cell"><div className="skeleton-shimmer h-4 w-28 rounded" /></td>
     </tr>
   );
 }
@@ -42,56 +42,56 @@ function SortButton({ label, field, current, onSort }: { label: string; field: s
 export default function SermonTable({ sermons, loading, selectedIndex, sort, onSortChange }: SermonTableProps) {
   if (!loading && sermons.length === 0) {
     return (
-      <div className="w-full max-w-[860px] mx-auto py-16 text-center">
-        <p className="text-muted-foreground font-mono text-sm">No sermons found.</p>
-        <p className="text-muted-foreground text-xs mt-2">Try broadening your search or clearing filters.</p>
+      <div className="mx-auto w-full max-w-[860px] py-16 text-center">
+        <p className="font-mono text-sm text-muted-foreground">No sermons found.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Try broadening your search or clearing filters.</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-[860px] mx-auto overflow-x-auto">
+    <div className="surface-card mx-auto w-full max-w-[860px] overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border">
-            <th className="text-left py-3 px-4">
+            <th className="px-4 py-3 text-left">
               <SortButton label="Title" field="title" current={sort} onSort={onSortChange} />
             </th>
-            <th className="text-left py-3 px-4 hidden sm:table-cell">
+            <th className="hidden px-4 py-3 text-left sm:table-cell">
               <SortButton label="Date" field="date" current={sort} onSort={onSortChange} />
             </th>
-            <th className="text-left py-3 px-4 hidden md:table-cell">
-              <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Location</span>
+            <th className="hidden px-4 py-3 text-left md:table-cell">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Location</span>
             </th>
-            <th className="text-left py-3 px-4 hidden lg:table-cell">
-              <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Scripture</span>
+            <th className="hidden px-4 py-3 text-left lg:table-cell">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Scripture</span>
             </th>
           </tr>
         </thead>
         <tbody>
           {loading
-            ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-            : sermons.map((sermon, i) => (
+            ? Array.from({ length: 5 }).map((_, index) => <SkeletonRow key={index} />)
+            : sermons.map((sermon, index) => (
                 <tr
                   key={sermon.id}
-                  className={`border-b border-border sermon-row-hover cursor-pointer ${i === selectedIndex ? 'bg-[hsl(var(--hover-row))] ring-1 ring-inset ring-ring/20' : ''}`}
+                  className={`sermon-row-hover cursor-pointer border-b border-border ${index === selectedIndex ? 'bg-hover-row ring-1 ring-inset ring-ring/20' : ''}`}
                   style={{ minHeight: '48px' }}
                 >
-                  <td className="py-3 px-4">
+                  <td className="px-4 py-3">
                     <Link
                       to={`/sermons/${sermon.id}`}
-                      className="font-medium text-foreground hover:text-[hsl(var(--link))] transition-colors duration-200"
+                      className="font-medium text-foreground transition-colors duration-200 hover:text-link"
                     >
                       {sermon.title}
                     </Link>
                   </td>
-                  <td className="py-3 px-4 hidden sm:table-cell text-muted-foreground text-xs font-mono whitespace-nowrap">
+                  <td className="hidden whitespace-nowrap px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">
                     {formatDate(sermon.date)}
                   </td>
-                  <td className="py-3 px-4 hidden md:table-cell text-muted-foreground text-xs">
+                  <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">
                     {sermon.location}
                   </td>
-                  <td className="py-3 px-4 hidden lg:table-cell text-muted-foreground text-xs font-mono">
+                  <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground lg:table-cell">
                     {sermon.scripture}
                   </td>
                 </tr>

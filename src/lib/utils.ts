@@ -13,3 +13,12 @@ export function formatDate(dateStr: string): string {
     return dateStr;
   }
 }
+
+export function extractYear(dateStr: string): number | null {
+  if (!dateStr) {
+    return null;
+  }
+
+  const year = Number.parseInt(dateStr.slice(0, 4), 10);
+  return Number.isFinite(year) ? year : null;
+}

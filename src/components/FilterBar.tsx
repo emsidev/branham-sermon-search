@@ -59,7 +59,7 @@ export default function FilterBar({
         {hasFilters && (
           <button
             onClick={onClearAll}
-            className="text-xs font-mono text-[hsl(var(--link))] hover:underline"
+            className="text-xs font-mono text-link hover:underline"
           >
             Clear all
           </button>
@@ -70,7 +70,7 @@ export default function FilterBar({
       {hasFilters && (
         <div className="flex flex-wrap items-center gap-2">
           {selectedYear && selectedYear !== 'all' && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--filter-badge))] text-[hsl(var(--filter-badge-foreground))] px-3 py-1 text-xs font-mono">
+            <span className="inline-flex items-center gap-1 rounded-full bg-filter-badge px-3 py-1 text-xs font-mono text-filter-badge-foreground">
               {selectedYear}
               <button onClick={() => onYearChange('')} aria-label="Remove year filter">
                 <X className="h-3 w-3" />
@@ -78,7 +78,7 @@ export default function FilterBar({
             </span>
           )}
           {selectedLocation && selectedLocation !== 'all' && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--filter-badge))] text-[hsl(var(--filter-badge-foreground))] px-3 py-1 text-xs font-mono">
+            <span className="inline-flex items-center gap-1 rounded-full bg-filter-badge px-3 py-1 text-xs font-mono text-filter-badge-foreground">
               {selectedLocation}
               <button onClick={() => onLocationChange('')} aria-label="Remove location filter">
                 <X className="h-3 w-3" />

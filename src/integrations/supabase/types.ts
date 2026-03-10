@@ -22,6 +22,7 @@ export type Database = {
           fts: unknown
           id: string
           location: string | null
+          summary: string | null
           scripture: string | null
           sermon_code: string
           state: string | null
@@ -38,6 +39,7 @@ export type Database = {
           fts?: unknown
           id?: string
           location?: string | null
+          summary?: string | null
           scripture?: string | null
           sermon_code: string
           state?: string | null
@@ -54,6 +56,7 @@ export type Database = {
           fts?: unknown
           id?: string
           location?: string | null
+          summary?: string | null
           scripture?: string | null
           sermon_code?: string
           state?: string | null
@@ -266,7 +269,9 @@ export type Database = {
           relevance: number
           sermon_code: string
           sermon_id: string
+          summary: string | null
           snippet: string
+          tags: string[]
           title: string
           total_count: number
         }[]

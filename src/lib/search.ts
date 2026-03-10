@@ -11,6 +11,86 @@ export interface HighlightSegment {
   matched: boolean;
 }
 
+const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
+const APOSTROPHE_RE = /['’‘`]/u;
+
+function isWordChar(char: string): boolean {
+  return WORD_CHAR_RE.test(char);
+}
+
+function isApostrophe(char: string): boolean {
+  return APOSTROPHE_RE.test(char);
+}
+
+interface NormalizedSearchText {
+  value: string;
+  indexMap: number[];
+}
+
+function normalizeForSearchMatchingInternal(value: string): NormalizedSearchText {
+  const normalizedChars: string[] = [];
+  const indexMap: number[] = [];
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    const prev = index > 0 ? value[index - 1] : '';
+    const next = index + 1 < value.length ? value[index + 1] : '';
+    const apostropheInWord = isApostrophe(char) && isWordChar(prev) && isWordChar(next);
+
+    if (apostropheInWord) {
+      continue;
+    }
+
+    if (isWordChar(char)) {
+      normalizedChars.push(char.toLowerCase());
+      indexMap.push(index);
+      continue;
+    }
+
+    if (normalizedChars.length === 0 || normalizedChars[normalizedChars.length - 1] === ' ') {
+      continue;
+    }
+
+    normalizedChars.push(' ');
+    indexMap.push(index);
+  }
+
+  if (normalizedChars.length > 0 && normalizedChars[normalizedChars.length - 1] === ' ') {
+    normalizedChars.pop();
+    indexMap.pop();
+  }
+
+  return {
+    value: normalizedChars.join(''),
+    indexMap,
+  };
+}
+
+export function normalizeSearchComparableText(value: string | null | undefined): string {
+  if (!value) {
+    return '';
+  }
+
+  return normalizeForSearchMatchingInternal(value).value;
+}
+
+export function hasNormalizedBoundedMatch(
+  candidateText: string | null | undefined,
+  queryText: string,
+): boolean {
+  const normalizedQuery = normalizeSearchComparableText(queryText);
+  if (!normalizedQuery) {
+    return false;
+  }
+
+  const normalizedCandidate = normalizeSearchComparableText(candidateText);
+  if (!normalizedCandidate) {
+    return false;
+  }
+
+  return ` ${normalizedCandidate} `.includes(` ${normalizedQuery} `);
+}
+
 export function buildSermonHitHref({
   sermonId,
   query,
@@ -109,26 +189,74 @@ export function splitTextByTerms(text: string, terms: string[]): HighlightSegmen
     return [{ text, matched: false }];
   }
 
-  const pattern = new RegExp(
-    `(${terms
-      .map((term) => term.trim())
-      .filter(Boolean)
-      .sort((a, b) => b.length - a.length)
-      .map(escapeRegExp)
-      .join('|')})`,
-    'gi'
-  );
+  const normalizedText = normalizeForSearchMatchingInternal(text);
+  const normalizedTerms = Array.from(
+    new Set(
+      terms
+        .map((term) => normalizeSearchComparableText(term))
+        .filter(Boolean)
+    )
+  ).sort((a, b) => b.length - a.length);
 
-  const parts = text.split(pattern).filter((part) => part.length > 0);
-  if (!parts.length) {
+  if (!normalizedText.value || !normalizedTerms.length) {
     return [{ text, matched: false }];
   }
 
-  const normalizedTerms = terms.map((term) => term.toLowerCase());
-  return parts.map((part) => ({
-    text: part,
-    matched: normalizedTerms.includes(part.toLowerCase()),
-  }));
+  const ranges: Array<{ start: number; end: number }> = [];
+
+  for (const term of normalizedTerms) {
+    let searchFrom = 0;
+
+    while (searchFrom <= normalizedText.value.length - term.length) {
+      const matchIndex = normalizedText.value.indexOf(term, searchFrom);
+      if (matchIndex === -1) {
+        break;
+      }
+
+      const start = normalizedText.indexMap[matchIndex];
+      const end = normalizedText.indexMap[matchIndex + term.length - 1];
+      if (start != null && end != null && end >= start) {
+        ranges.push({ start, end });
+      }
+
+      searchFrom = matchIndex + 1;
+    }
+  }
+
+  if (!ranges.length) {
+    return [{ text, matched: false }];
+  }
+
+  ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const mergedRanges: Array<{ start: number; end: number }> = [];
+  for (const range of ranges) {
+    const prev = mergedRanges[mergedRanges.length - 1];
+    if (!prev || range.start > prev.end) {
+      mergedRanges.push({ ...range });
+      continue;
+    }
+
+    prev.end = Math.max(prev.end, range.end);
+  }
+
+  const segments: HighlightSegment[] = [];
+  let cursor = 0;
+
+  for (const range of mergedRanges) {
+    if (range.start > cursor) {
+      segments.push({ text: text.slice(cursor, range.start), matched: false });
+    }
+
+    segments.push({ text: text.slice(range.start, range.end + 1), matched: true });
+    cursor = range.end + 1;
+  }
+
+  if (cursor < text.length) {
+    segments.push({ text: text.slice(cursor), matched: false });
+  }
+
+  return segments.length > 0 ? segments : [{ text, matched: false }];
 }
 
 export function resolveHighlightTermsForText(text: string, terms: string[]): string[] {
@@ -141,9 +269,12 @@ export function resolveHighlightTermsForText(text: string, terms: string[]): str
     return terms;
   }
 
-  const lowerText = text.toLowerCase();
+  const normalizedText = normalizeSearchComparableText(text);
   const matchedPhrases = phraseTerms
-    .filter((term) => lowerText.includes(term.toLowerCase()))
+    .filter((term) => {
+      const normalizedTerm = normalizeSearchComparableText(term);
+      return normalizedTerm !== '' && normalizedText.includes(normalizedTerm);
+    })
     .sort((a, b) => b.length - a.length);
 
   if (matchedPhrases.length > 0) {

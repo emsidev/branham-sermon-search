@@ -3,6 +3,8 @@ import {
   buildSermonHitHref,
   extractHitChunkIndex,
   extractQueryTerms,
+  hasNormalizedBoundedMatch,
+  normalizeSearchComparableText,
   resolveHighlightTermsForText,
   sanitizeSearchSnippet,
   splitTextByTerms,
@@ -59,6 +61,28 @@ describe('search utilities', () => {
     const resolved = resolveHighlightTermsForText('I am really looking very far forward to this week.', terms);
 
     expect(resolved).toEqual(['am', 'looking', 'forward']);
+  });
+
+  it('normalizes apostrophe variants for punctuation-insensitive matching', () => {
+    expect(normalizeSearchComparableText("she's")).toBe('shes');
+    expect(normalizeSearchComparableText('she’s')).toBe('shes');
+    expect(normalizeSearchComparableText('SHE’D')).toBe('shed');
+  });
+
+  it('matches normalized bounded phrases across apostrophe variants', () => {
+    expect(hasNormalizedBoundedMatch('but she’s had an experience', 'shes')).toBe(true);
+    expect(hasNormalizedBoundedMatch('and she’d had an experience', 'shed')).toBe(true);
+    expect(hasNormalizedBoundedMatch('and she’d had an experience', 'she')).toBe(false);
+  });
+
+  it('highlights punctuation-insensitive apostrophe variants', () => {
+    const shesSegments = splitTextByTerms('But she’s had an experience.', ['shes']);
+    const shesMatched = shesSegments.filter((segment) => segment.matched).map((segment) => segment.text);
+    expect(shesMatched).toEqual(['she’s']);
+
+    const shedSegments = splitTextByTerms("And she'd had an experience.", ['shed']);
+    const shedMatched = shedSegments.filter((segment) => segment.matched).map((segment) => segment.text);
+    expect(shedMatched).toEqual(["she'd"]);
   });
 
   it('extracts chunk index from hit ids', () => {

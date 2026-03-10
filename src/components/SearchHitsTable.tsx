@@ -45,7 +45,7 @@ export default function SearchHitsTable({ hits, loading, selectedIndex, query }:
   }
 
   return (
-    <div className="w-full max-w-[860px] mx-auto overflow-x-auto">
+    <div className="surface-card w-full max-w-[860px] mx-auto overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -84,7 +84,7 @@ export default function SearchHitsTable({ hits, loading, selectedIndex, query }:
                 return (
                   <tr
                     key={hit.hit_id}
-                    className={`border-b border-border sermon-row-hover cursor-pointer ${i === selectedIndex ? 'bg-[hsl(var(--hover-row))] ring-1 ring-inset ring-ring/20' : ''}`}
+                    className={`border-b border-border sermon-row-hover cursor-pointer ${i === selectedIndex ? 'bg-hover-row ring-1 ring-inset ring-ring/20' : ''}`}
                     role="link"
                     tabIndex={0}
                     onClick={(event) => {
@@ -115,7 +115,7 @@ export default function SearchHitsTable({ hits, loading, selectedIndex, query }:
                       <div className="flex items-center gap-2">
                         <Link
                           to={hitHref}
-                          className="font-medium text-foreground hover:text-[hsl(var(--link))] transition-colors duration-200"
+                          className="font-medium text-foreground transition-colors duration-200 hover:text-link"
                         >
                           {hit.title}
                         </Link>
@@ -131,9 +131,7 @@ export default function SearchHitsTable({ hits, loading, selectedIndex, query }:
                       {formatMatchSourceLabel(
                         hit.match_source,
                         hit.paragraph_number,
-                        hit.printed_paragraph_number,
-                        hit.chunk_index,
-                        hit.chunk_total
+                        hit.printed_paragraph_number
                       )}
                     </td>
                   </tr>

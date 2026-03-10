@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Play, Share2, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Share2, Check, FileText } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import { fetchSermonById, fetchAdjacentSermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
-import MetadataCard from '@/components/MetadataCard';
 import { extractHitChunkIndex, extractQueryTerms, formatMatchSourceLabel, resolveHighlightTermsForText, splitTextByTerms } from '@/lib/search';
 
 interface AdjacentSermon {
@@ -66,12 +66,12 @@ export default function SermonDetail() {
 
     if (targetParagraphNumber != null) {
       const paragraphElement = contentRef.current?.querySelector<HTMLElement>(
-        `[data-paragraph-number=\"${targetParagraphNumber}\"]`
+        `[data-paragraph-number="${targetParagraphNumber}"]`
       );
 
       if (paragraphElement) {
         if (highlightTerms.length > 0) {
-          const paragraphMatches = paragraphElement.querySelectorAll<HTMLElement>('[data-search-match=\"true\"]');
+          const paragraphMatches = paragraphElement.querySelectorAll<HTMLElement>('[data-search-match="true"]');
           const desiredIndex = targetChunkIndex && targetChunkIndex > 0
             ? targetChunkIndex - 1
             : 0;
@@ -130,7 +130,7 @@ export default function SermonDetail() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground font-mono">Sermon not found.</p>
-          <Link to="/" className="text-[hsl(var(--link))] text-sm font-mono hover:underline mt-2 inline-block">
+          <Link to="/" className="mt-2 inline-block text-sm font-mono text-link hover:underline">
             {'<- Back to browse'}
           </Link>
         </div>
@@ -140,64 +140,101 @@ export default function SermonDetail() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <div ref={contentRef} className="max-w-[860px] mx-auto px-6 lg:px-0 py-8 space-y-6">
+      <div ref={contentRef} className="mx-auto max-w-[900px] space-y-8 px-6 py-8 lg:px-0">
         <SermonBreadcrumb year={sermon.year} title={sermon.title} />
 
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="text-2xl font-bold font-mono text-foreground leading-tight">
-            {highlightTerms.length
-              ? renderHighlightedText(sermon.title, highlightTerms)
-              : sermon.title}
-          </h1>
-          <div className="flex items-center gap-2 shrink-0">
-            {sermon.audio_url && (
-              <button
-                onClick={() => play(sermon.audio_url, sermon.title)}
-                className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs font-mono text-foreground hover:bg-[hsl(var(--hover-row))]"
-              >
-                <Play className="h-3 w-3" /> Play
-              </button>
-            )}
-            <button
-              onClick={handleShare}
-              className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs font-mono text-foreground hover:bg-[hsl(var(--hover-row))]"
-            >
-              {shared ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
-              {shared ? 'Copied!' : 'Share'}
-            </button>
+        <section className="space-y-4 border-b border-border-subtle pb-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
+                <span className="rounded-md border border-border bg-bg-muted px-2 py-1 text-foreground">
+                  {sermon.sermon_code}
+                </span>
+                <span>{formatLongDate(sermon.date)}</span>
+              </div>
+              <h1 className="text-2xl font-bold font-mono leading-tight text-foreground">
+                {highlightTerms.length
+                  ? renderHighlightedText(sermon.title, highlightTerms)
+                  : sermon.title}
+              </h1>
+              {sermon.summary ? (
+                <p data-testid="sermon-summary" className="max-w-[72ch] text-sm leading-relaxed text-foreground/85">
+                  {sermon.summary}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="shrink-0">
+              <div className="inline-flex overflow-hidden rounded-lg border border-border bg-background text-xs font-mono">
+                {sermon.audio_url && (
+                  <button
+                    onClick={() => play(sermon.audio_url, sermon.title)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row"
+                  >
+                    <Play className="h-3 w-3" />
+                    Play
+                  </button>
+                )}
+                {sermon.pdf_source_path && (
+                  <a
+                    href={sermon.pdf_source_path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row ${sermon.audio_url ? 'border-l border-border' : ''}`}
+                  >
+                    <FileText className="h-3 w-3" />
+                    PDF
+                  </a>
+                )}
+                <button
+                  onClick={handleShare}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row ${sermon.audio_url || sermon.pdf_source_path ? 'border-l border-border' : ''}`}
+                >
+                  {shared ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
+                  {shared ? 'Copied!' : 'Share'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {highlightTerms.length > 0 && (
-          <p className="text-xs font-mono text-muted-foreground" title={hitId || undefined}>
-            Search match{matchContext ? `: ${matchContext}` : ''}
-          </p>
-        )}
+          {highlightTerms.length > 0 && (
+            <p className="text-xs font-mono text-muted-foreground" title={hitId || undefined}>
+              Search match{matchContext ? `: ${matchContext}` : ''}
+            </p>
+          )}
 
-        <MetadataCard
-          date={sermon.date}
-          location={sermon.location}
-          scripture={sermon.scripture}
-          duration={formatDuration(sermon.duration_seconds)}
-          tags={sermon.tags}
-        />
-
-        {sermon.pdf_source_path && (
-          <a
-            href={sermon.pdf_source_path}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-mono text-[hsl(var(--link))] hover:underline"
+          <div
+            data-testid="sermon-meta-strip"
+            className="flex flex-wrap items-start gap-x-8 gap-y-3 rounded-lg border border-border bg-card/40 px-4 py-3"
           >
-            Open PDF source {'->'}
-          </a>
-        )}
+            <MetaField label="Date" value={formatLongDate(sermon.date)} />
+            {sermon.location ? <MetaField label="Location" value={sermon.location} /> : null}
+            {sermon.scripture ? <MetaField label="Scripture" value={sermon.scripture} /> : null}
+            {formatDuration(sermon.duration_seconds) ? (
+              <MetaField label="Duration" value={formatDuration(sermon.duration_seconds)!} />
+            ) : null}
+            {sermon.tags && sermon.tags.length > 0 ? (
+              <div className="min-w-[120px]">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tags</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {sermon.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md border border-border bg-bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
 
         {(sermon.paragraphs.length > 0 || sermon.text_content) && (
-          <div className="border-t border-border pt-6">
-            <h2 className="text-sm font-bold font-mono text-foreground mb-4">Sermon Text</h2>
+          <section className="">
             {sermon.paragraphs.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {sermon.paragraphs.map((paragraph) => {
                   const printedDiff = (
                     paragraph.printed_paragraph_number != null &&
@@ -208,13 +245,17 @@ export default function SermonDetail() {
                     <section
                       key={paragraph.paragraph_number}
                       data-paragraph-number={paragraph.paragraph_number}
-                      className="rounded border border-border/60 bg-card/30 px-4 py-3"
+                      className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-4 sm:grid-cols-[2.75rem_minmax(0,1fr)] sm:gap-5"
                     >
-                      <p className="mb-2 text-[11px] font-mono uppercase tracking-wide text-muted-foreground">
-                        Paragraph {paragraph.paragraph_number}
-                        {printedDiff ? ` [PDF ${paragraph.printed_paragraph_number}]` : ''}
+                      <p className="pt-1 text-right font-mono text-[11px] leading-4 text-muted-foreground">
+                        <span className="font-bold text-2xl">{paragraph.paragraph_number}</span>
+                        {printedDiff ? (
+                          <span className="block text-[10px] text-muted-foreground/80">
+                            PDF {paragraph.printed_paragraph_number}
+                          </span>
+                        ) : null}
                       </p>
-                      <div className="prose prose-sm max-w-none text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                      <div className="whitespace-pre-wrap text-[1.02rem] leading-8 text-foreground/90">
                         {highlightTerms.length
                           ? renderHighlightedText(paragraph.paragraph_text, highlightTerms)
                           : paragraph.paragraph_text}
@@ -224,31 +265,31 @@ export default function SermonDetail() {
                 })}
               </div>
             ) : (
-              <div className="prose prose-sm max-w-none text-foreground/90 leading-relaxed whitespace-pre-wrap">
+              <div className="whitespace-pre-wrap text-[1.02rem] leading-8 text-foreground/90">
                 {highlightTerms.length
                   ? renderHighlightedText(sermon.text_content, highlightTerms)
                   : sermon.text_content}
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        <div className="border-t border-border pt-6 flex items-center justify-between">
+        <div className="flex items-center justify-between border-t border-border pt-6">
           {adjacent.prev ? (
             <Link
               to={`/sermons/${adjacent.prev.id}`}
-              className="flex items-center gap-1 text-xs font-mono text-[hsl(var(--link))] hover:underline"
+              className="flex items-center gap-1 text-xs font-mono text-link hover:underline"
             >
               <ChevronLeft className="h-3 w-3" />
-              <span className="truncate max-w-[200px]">{adjacent.prev.title}</span>
+              <span className="max-w-[200px] truncate">{adjacent.prev.title}</span>
             </Link>
           ) : <div />}
           {adjacent.next ? (
             <Link
               to={`/sermons/${adjacent.next.id}`}
-              className="flex items-center gap-1 text-xs font-mono text-[hsl(var(--link))] hover:underline"
+              className="flex items-center gap-1 text-xs font-mono text-link hover:underline"
             >
-              <span className="truncate max-w-[200px]">{adjacent.next.title}</span>
+              <span className="max-w-[200px] truncate">{adjacent.next.title}</span>
               <ChevronRight className="h-3 w-3" />
             </Link>
           ) : <div />}
@@ -256,6 +297,23 @@ export default function SermonDetail() {
       </div>
     </div>
   );
+}
+
+function MetaField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-[120px]">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function formatLongDate(dateStr: string): string {
+  try {
+    return format(parseISO(dateStr), 'MMMM d, yyyy');
+  } catch {
+    return dateStr;
+  }
 }
 
 function renderHighlightedText(text: string, terms: string[]): React.ReactNode {
@@ -267,7 +325,7 @@ function renderHighlightedText(text: string, terms: string[]): React.ReactNode {
         <mark
           key={idx}
           data-search-match="true"
-          className="bg-yellow-200/70 text-foreground px-0.5 rounded-sm"
+          className="rounded-sm bg-yellow-200/70 px-0.5 text-foreground"
         >
           {part.text}
         </mark>

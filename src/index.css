@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
+@import "@fontsource/geist-mono/600.css";
 
 @tailwind base;
 @tailwind components;
@@ -6,107 +12,87 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --bg: 100% 0 0;
+    --bg-subtle: 97.9% 0.001 286.375;
+    --bg-muted: 95.5% 0.001 286.76;
+    --bg-elevated: 94% 0.002 287.29;
+    --fg: 14.6% 0 0;
+    --fg-muted: 39.8% 0 0;
+    --fg-subtle: 48% 0 0;
+    --border: 85.14% 0 0;
+    --border-subtle: 92.2% 0 0;
+    --border-hover: 71.5% 0 0;
+    --accent: 53% 0.16 247.27;
+    --accent-muted: 20.5% 0 0;
+    --destructive: 57.7% 0.245 27.325;
+    --destructive-foreground: 100% 0 0;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --radius-none: 0;
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
+    --radius: var(--radius-lg);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-
-    --primary: 224 64% 33%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-
-    --accent: 214 32% 91%;
-    --accent-foreground: 222 47% 11%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 224 64% 33%;
-
-    --radius: 0.375rem;
-
-    --link: 224 64% 33%;
-    --link-foreground: 224 64% 33%;
-    --hover-row: 210 40% 98%;
-    --filter-badge: 214 95% 93%;
-    --filter-badge-foreground: 224 64% 33%;
+    /* Compatibility aliases for existing shadcn-based classes */
+    --background: var(--bg);
+    --foreground: var(--fg);
+    --card: var(--bg-subtle);
+    --card-foreground: var(--fg);
+    --popover: var(--bg-elevated);
+    --popover-foreground: var(--fg);
+    --primary: var(--accent);
+    --primary-foreground: var(--bg);
+    --secondary: var(--bg-muted);
+    --secondary-foreground: var(--fg);
+    --muted: var(--bg-muted);
+    --muted-foreground: var(--fg-muted);
+    --accent-foreground: var(--bg);
+    --input: var(--border);
+    --ring: var(--accent);
+    --link: var(--accent);
+    --link-foreground: var(--accent);
+    --hover-row: var(--bg-muted);
+    --filter-badge: var(--bg-elevated);
+    --filter-badge-foreground: var(--fg-subtle);
     --exact-card-gradient: linear-gradient(
       110deg,
-      hsl(var(--card)) 0%,
-      hsl(var(--card)) 62%,
-      hsl(322 33% 95%) 100%
+      oklch(var(--bg-subtle) / 1) 0%,
+      oklch(var(--bg-subtle) / 1) 64%,
+      oklch(var(--accent) / 0.09) 100%
+    );
+    --book-match-card-gradient: linear-gradient(
+      110deg,
+      oklch(var(--bg-subtle) / 1) 0%,
+      oklch(var(--bg-subtle) / 1) 56%,
+      oklch(var(--accent) / 0.13) 100%
     );
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: var(--bg-subtle);
+    --sidebar-foreground: var(--fg);
+    --sidebar-primary: var(--accent);
+    --sidebar-primary-foreground: var(--bg);
+    --sidebar-accent: var(--bg-muted);
+    --sidebar-accent-foreground: var(--fg);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--accent);
   }
 
   .dark {
-    --background: 222 47% 5%;
-    --foreground: 210 40% 98%;
-
-    --card: 222 47% 7%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 7%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 214 95% 68%;
-    --primary-foreground: 222 47% 5%;
-
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 214 95% 68%;
-
-    --link: 214 95% 68%;
-    --link-foreground: 214 95% 68%;
-    --hover-row: 217 33% 12%;
-    --filter-badge: 217 33% 20%;
-    --filter-badge-foreground: 214 95% 68%;
-    --exact-card-gradient: linear-gradient(
-      110deg,
-      hsl(var(--card)) 0%,
-      hsl(var(--card)) 62%,
-      hsl(320 20% 13%) 100%
-    );
-
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --bg: 17.1% 0 0;
+    --bg-subtle: 19.8% 0 0;
+    --bg-muted: 23.6% 0 0;
+    --bg-elevated: 26.6% 0 0;
+    --fg: 98.2% 0 0;
+    --fg-muted: 74.9% 0 0;
+    --fg-subtle: 67.3% 0 0;
+    --border: 26.9% 0 0;
+    --border-subtle: 31% 0 0;
+    --border-hover: 37.1% 0 0;
+    --accent: 78.7% 0.128 230.318;
+    --accent-muted: 70% 0.06 230.318;
+    --destructive: 63.7% 0.237 25.331;
+    --destructive-foreground: 98.2% 0 0;
   }
 }
 
@@ -117,75 +103,146 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'IBM Plex Mono', monospace;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  code,
+  .font-mono {
+    font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-lg border border-border bg-card;
   }
 
-  code, .font-mono {
-    font-family: 'IBM Plex Mono', monospace;
+  .surface-card-interactive {
+    @apply surface-card relative transition-[border-color,background-color,color] duration-200;
+    @apply hover:border-border-hover hover:bg-muted;
+    @apply focus-within:outline-none focus-within:ring-2 focus-within:ring-ring/35 focus-within:ring-offset-2 focus-within:ring-offset-background;
+  }
+
+  .surface-card-exact {
+    background-image: var(--exact-card-gradient);
+    background-repeat: no-repeat;
+  }
+
+  .surface-card-book-match {
+    background-image: var(--book-match-card-gradient);
+    background-repeat: no-repeat;
+  }
+
+  .pill-base {
+    @apply inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-mono;
+  }
+
+  .pill-neutral {
+    @apply pill-base border-border bg-muted text-muted-foreground;
+  }
+
+  .pill-accent {
+    @apply pill-base border-accent/30 bg-accent/20 text-accent;
   }
 }
 
 @layer utilities {
   .sermon-row-hover {
-    @apply hover:bg-[hsl(var(--hover-row))];
+    @apply hover:bg-hover-row;
   }
 }
 
-/* Skeleton shimmer animation */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .skeleton-shimmer {
   background: linear-gradient(
     90deg,
-    hsl(var(--muted)) 25%,
-    hsl(var(--muted-foreground) / 0.08) 50%,
-    hsl(var(--muted)) 75%
+    oklch(var(--muted) / 1) 25%,
+    oklch(var(--muted-foreground) / 0.12) 50%,
+    oklch(var(--muted) / 1) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(global-search) {
+    animation-duration: 260ms;
+    animation-timing-function: cubic-bezier(0.2, 0.82, 0.22, 1);
+  }
+
   ::view-transition-old(global-search),
   ::view-transition-new(global-search) {
-    animation-duration: 220ms;
-    animation-timing-function: ease;
+    animation-duration: 260ms;
+    animation-timing-function: cubic-bezier(0.2, 0.82, 0.22, 1);
+    transform-origin: top center;
   }
 
   ::view-transition-old(global-search) {
-    animation-name: search-out;
+    animation-name: search-float-out;
   }
 
   ::view-transition-new(global-search) {
-    animation-name: search-in;
+    animation-name: search-float-in;
   }
 }
 
-@keyframes search-in {
+@keyframes search-float-in {
   from {
     opacity: 0;
-    transform: translateY(-10px) scale(0.985);
+    transform: translateY(-18px) scale(0.94);
+    filter: blur(3px) drop-shadow(0 10px 22px rgb(0 0 0 / 0.14));
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+    filter: blur(0) drop-shadow(0 2px 6px rgb(0 0 0 / 0.1));
   }
 }
 
-@keyframes search-out {
+@keyframes search-float-out {
   from {
     opacity: 1;
     transform: translateY(0) scale(1);
+    filter: blur(0) drop-shadow(0 2px 6px rgb(0 0 0 / 0.1));
   }
   to {
-    opacity: 0;
-    transform: translateY(8px) scale(0.99);
+    opacity: 0.25;
+    transform: translateY(14px) scale(0.965);
+    filter: blur(2px) drop-shadow(0 14px 28px rgb(0 0 0 / 0.16));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-search-fallback-enter {
+    animation: home-search-fallback-enter 260ms cubic-bezier(0.2, 0.82, 0.22, 1);
+    transform-origin: top center;
+    will-change: transform, opacity, filter;
+  }
+}
+
+@keyframes home-search-fallback-enter {
+  from {
+    opacity: 0.15;
+    transform: translateY(52px) scale(1.08);
+    filter: blur(3px) drop-shadow(0 12px 24px rgb(0 0 0 / 0.18));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0) drop-shadow(0 2px 6px rgb(0 0 0 / 0.1));
   }
 }

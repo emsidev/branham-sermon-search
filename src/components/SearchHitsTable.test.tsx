@@ -20,6 +20,7 @@ describe('SearchHitsTable', () => {
         sermon_id: 'sermon-1',
         sermon_code: '54-0815',
         title: 'Questions And Answers',
+        summary: null,
         date: '1954-08-15',
         location: 'Jeffersonville, IN',
         paragraph_number: 3,
@@ -30,6 +31,7 @@ describe('SearchHitsTable', () => {
         snippet: '... they be healed unless there is something hindering ...',
         relevance: 2.4,
         is_exact_match: false,
+        tags: [],
         total_count: 1,
       },
     ];
@@ -46,7 +48,7 @@ describe('SearchHitsTable', () => {
     expect(titleLink).toHaveAttribute('href', expect.stringContaining('hit=sermon-1%3Apara%3A3%3Achunk%3A1'));
     expect(screen.getByText('Aug 15, 1954')).toBeInTheDocument();
     expect(screen.getByText('Jeffersonville, IN')).toBeInTheDocument();
-    expect(screen.getByText('Paragraph 3 [PDF 4] (1/3)')).toBeInTheDocument();
+    expect(screen.getByText('Paragraph 3 [PDF 4]')).toBeInTheDocument();
   });
 
   it('highlights fallback-style incomplete term like "unle"', () => {
@@ -56,6 +58,7 @@ describe('SearchHitsTable', () => {
         sermon_id: 'sermon-2',
         sermon_code: '63-0901E',
         title: 'Desperation',
+        summary: null,
         date: '1963-09-01',
         location: 'Jeffersonville, IN',
         paragraph_number: 6,
@@ -66,6 +69,7 @@ describe('SearchHitsTable', () => {
         snippet: '... and they be healed unless they stand in unbelief ...',
         relevance: 1.8,
         is_exact_match: false,
+        tags: [],
         total_count: 1,
       },
     ];
@@ -83,6 +87,7 @@ describe('SearchHitsTable', () => {
         sermon_id: 'sermon-phrase',
         sermon_code: '65-1010',
         title: 'Leadership',
+        summary: null,
         date: '1965-10-10',
         location: 'Jeffersonville, IN',
         paragraph_number: 4,
@@ -93,6 +98,7 @@ describe('SearchHitsTable', () => {
         snippet: '... Amen. I am looking forward to this week and this campaign is opening ...',
         relevance: 2.0,
         is_exact_match: false,
+        tags: [],
         total_count: 1,
       },
     ];
@@ -111,6 +117,7 @@ describe('SearchHitsTable', () => {
         sermon_id: 'sermon-fallback',
         sermon_code: '63-1110',
         title: 'Souls That Are In Prison',
+        summary: null,
         date: '1963-11-10',
         location: 'Jeffersonville, IN',
         paragraph_number: 8,
@@ -121,6 +128,7 @@ describe('SearchHitsTable', () => {
         snippet: '... I am really looking very far forward to this week ...',
         relevance: 1.7,
         is_exact_match: false,
+        tags: [],
         total_count: 1,
       },
     ];
@@ -133,13 +141,14 @@ describe('SearchHitsTable', () => {
     expect(screen.queryByText(/^i$/i, { selector: 'mark' })).not.toBeInTheDocument();
   });
 
-  it('renders chunk index labels for duplicate matches in one paragraph', () => {
+  it('renders paragraph labels for duplicate matches in one paragraph', () => {
     const hits: SearchHit[] = [
       {
         hit_id: 'sermon-dup:para:4:chunk:1',
         sermon_id: 'sermon-dup',
         sermon_code: '65-1010',
         title: 'Leadership',
+        summary: null,
         date: '1965-10-10',
         location: 'Jeffersonville, IN',
         paragraph_number: 4,
@@ -150,6 +159,7 @@ describe('SearchHitsTable', () => {
         snippet: '... I am looking forward to this week ...',
         relevance: 2.4,
         is_exact_match: false,
+        tags: [],
         total_count: 2,
       },
       {
@@ -157,6 +167,7 @@ describe('SearchHitsTable', () => {
         sermon_id: 'sermon-dup',
         sermon_code: '65-1010',
         title: 'Leadership',
+        summary: null,
         date: '1965-10-10',
         location: 'Jeffersonville, IN',
         paragraph_number: 4,
@@ -167,14 +178,14 @@ describe('SearchHitsTable', () => {
         snippet: '... I am looking forward to that ...',
         relevance: 2.3,
         is_exact_match: false,
+        tags: [],
         total_count: 2,
       },
     ];
 
     renderTable(hits, 'i am looking forward');
 
-    expect(screen.getByText('Paragraph 4 (1/2)')).toBeInTheDocument();
-    expect(screen.getByText('Paragraph 4 (2/2)')).toBeInTheDocument();
+    expect(screen.getAllByText('Paragraph 4')).toHaveLength(2);
   });
 
   it('highlights complete phrase term like "unless"', () => {
@@ -184,6 +195,7 @@ describe('SearchHitsTable', () => {
         sermon_id: 'sermon-3',
         sermon_code: '60-0101',
         title: 'Unless A Man Be Born Again',
+        summary: null,
         date: '1960-01-01',
         location: 'Phoenix, AZ',
         paragraph_number: null,
@@ -194,6 +206,7 @@ describe('SearchHitsTable', () => {
         snippet: 'Unless A Man Be Born Again',
         relevance: 2.1,
         is_exact_match: false,
+        tags: [],
         total_count: 1,
       },
     ];
@@ -204,6 +217,35 @@ describe('SearchHitsTable', () => {
     expect(screen.getByText('Title', { selector: 'td' })).toBeInTheDocument();
   });
 
+  it('highlights apostrophe variants for punctuation-insensitive queries', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-4:para:10:chunk:1',
+        sermon_id: 'sermon-4',
+        sermon_code: '58-0105',
+        title: 'Have Faith In God',
+        summary: null,
+        date: '1958-01-05',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 10,
+        printed_paragraph_number: 10,
+        chunk_index: 1,
+        chunk_total: 1,
+        match_source: 'paragraph_text',
+        snippet: '... but she’s had an experience and she’d had a testimony ...',
+        relevance: 2.6,
+        is_exact_match: false,
+        tags: [],
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'shes shed');
+
+    expect(screen.getByText('she’s', { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.getByText('she’d', { selector: 'mark' })).toBeInTheDocument();
+  });
+
   it('does not render exact badges for exact match hits', () => {
     const hits: SearchHit[] = [
       {
@@ -211,6 +253,7 @@ describe('SearchHitsTable', () => {
         sermon_id: 'sermon-exact',
         sermon_code: '61-0428',
         title: 'Only Believe',
+        summary: null,
         date: '1961-04-28',
         location: 'Phoenix, AZ',
         paragraph_number: null,
@@ -221,6 +264,7 @@ describe('SearchHitsTable', () => {
         snippet: 'Only Believe',
         relevance: 3.1,
         is_exact_match: true,
+        tags: [],
         total_count: 1,
       },
     ];
@@ -230,3 +274,4 @@ describe('SearchHitsTable', () => {
     expect(screen.queryByText('exact')).not.toBeInTheDocument();
   });
 });
+

@@ -1,14 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List } from 'lucide-react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useKeyboardNav } from '@/hooks/useKeyboardNav';
 import { useSermons, type SearchHit } from '@/hooks/useSermons';
 import SearchHitsTable from '@/components/SearchHitsTable';
 import SearchHitsCards from '@/components/SearchHitsCards';
+import BookMatchCard from '@/components/cards/BookMatchCard';
 import SermonPagination from '@/components/SermonPagination';
-import { buildSermonHitHref, escapeRegExp, formatMatchSourceLabel, sanitizeSearchSnippet } from '@/lib/search';
+import {
+  buildSermonHitHref,
+  hasNormalizedBoundedMatch,
+  normalizeSearchComparableText,
+  sanitizeSearchSnippet,
+} from '@/lib/search';
 import { getInstantSearchEnabled } from '@/lib/preferences';
-import { formatDate } from '@/lib/utils';
+import { isHomeSearchTransitionState } from '@/lib/searchNavigation';
+import { extractYear } from '@/lib/utils';
 
 const SORT_OPTIONS: Array<{ value: 'relevance-desc' | 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc'; label: string }> = [
   { value: 'relevance-desc', label: 'Relevance' },
@@ -18,7 +25,7 @@ const SORT_OPTIONS: Array<{ value: 'relevance-desc' | 'title-asc' | 'title-desc'
   { value: 'date-asc', label: 'Date (Oldest)' },
 ];
 
-function normalizeExactQuery(query: string): string {
+function normalizeExactTitleQuery(query: string): string {
   const collapsed = query.trim().replace(/\s+/g, ' ');
   if (!collapsed) {
     return '';
@@ -38,16 +45,8 @@ function normalizeExactCandidateText(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function hasExactPhraseMatch(text: string, normalizedQuery: string): boolean {
-  if (!text || !normalizedQuery) {
-    return false;
-  }
-
-  if (normalizedQuery.includes(' ')) {
-    return text.includes(normalizedQuery);
-  }
-
-  return new RegExp(`\\b${escapeRegExp(normalizedQuery)}\\b`, 'i').test(text);
+function normalizePhraseExactQuery(query: string): string {
+  return normalizeSearchComparableText(normalizeExactTitleQuery(query));
 }
 
 function shouldTreatAsExact(hit: SearchHit, normalizedQuery: string): boolean {
@@ -59,17 +58,29 @@ function shouldTreatAsExact(hit: SearchHit, normalizedQuery: string): boolean {
     return false;
   }
 
-  const normalizedTitle = normalizeExactCandidateText(hit.title);
-  const normalizedSnippet = normalizeExactCandidateText(sanitizeSearchSnippet(hit.snippet));
+  const snippetText = sanitizeSearchSnippet(hit.snippet);
+  if (hasNormalizedBoundedMatch(snippetText, normalizedQuery)) {
+    return true;
+  }
 
-  return (
-    hasExactPhraseMatch(normalizedTitle, normalizedQuery) ||
-    hasExactPhraseMatch(normalizedSnippet, normalizedQuery)
-  );
+  if (hit.match_source === 'title') {
+    return hasNormalizedBoundedMatch(hit.title, normalizedQuery);
+  }
+
+  return false;
+}
+
+function supportsNativeViewTransition(): boolean {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+
+  return typeof (document as Document & { startViewTransition?: unknown }).startViewTransition === 'function';
 }
 
 export default function SearchPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     searchHits,
     isSearchMode,
@@ -82,13 +93,53 @@ export default function SearchPage() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [draftSearch, setDraftSearch] = useState(filters.q);
   const searchRef = useRef<HTMLInputElement>(null);
+  const handledFocusTransitionsRef = useRef<Set<string>>(new Set());
+  const transitionState = isHomeSearchTransitionState(location.state) ? location.state : null;
+  const shouldAnimateSearchFallback = Boolean(transitionState) && !supportsNativeViewTransition();
 
   useEffect(() => {
     setDraftSearch(filters.q);
   }, [filters.q]);
 
+  useEffect(() => {
+    if (!transitionState) {
+      return;
+    }
+
+    const { requestId } = transitionState;
+    if (handledFocusTransitionsRef.current.has(requestId)) {
+      return;
+    }
+
+    const input = searchRef.current;
+    if (!input) {
+      return;
+    }
+
+    handledFocusTransitionsRef.current.add(requestId);
+    const maxCaret = input.value.length;
+    const rawCaret = transitionState.caret ?? maxCaret;
+    const numericCaret = typeof rawCaret === 'number' && Number.isFinite(rawCaret) ? Math.floor(rawCaret) : maxCaret;
+    const safeCaret = Math.max(0, Math.min(numericCaret, maxCaret));
+
+    const applyFocus = () => {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(safeCaret, safeCaret);
+    };
+
+    if (typeof window.requestAnimationFrame === 'function') {
+      const rafId = window.requestAnimationFrame(applyFocus);
+      return () => {
+        window.cancelAnimationFrame(rafId);
+      };
+    }
+
+    applyFocus();
+    return undefined;
+  }, [location.key, transitionState]);
+
   const rankedSearchHits = useMemo(() => {
-    const normalizedQuery = normalizeExactQuery(filters.q);
+    const normalizedQuery = normalizePhraseExactQuery(filters.q);
     const computedExactHits = searchHits.map((hit) => {
       const computedExact = shouldTreatAsExact(hit, normalizedQuery);
       return computedExact === hit.is_exact_match
@@ -104,12 +155,20 @@ export default function SearchPage() {
   }, [filters.q, filters.sort, searchHits]);
 
   const exactTitleHit = useMemo(() => {
-    const normalizedQuery = normalizeExactQuery(filters.q);
+    const normalizedQuery = normalizeExactTitleQuery(filters.q);
     if (!normalizedQuery) {
       return null;
     }
 
-    return rankedSearchHits.find((hit) => normalizeExactCandidateText(hit.title) === normalizedQuery) ?? null;
+    const titleMatches = rankedSearchHits.filter(
+      (hit) => normalizeExactCandidateText(hit.title) === normalizedQuery
+    );
+
+    if (!titleMatches.length) {
+      return null;
+    }
+
+    return titleMatches.find((hit) => hit.match_source === 'title') ?? titleMatches[0];
   }, [filters.q, rankedSearchHits]);
 
   const exactTitleHitHref = useMemo(() => {
@@ -180,9 +239,9 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border/70">
+      <header className="border-b border-border-subtle">
         <div className="mx-auto flex w-full max-w-[1200px] items-center gap-4 px-6 py-3">
-          <Link to="/" className="shrink-0 font-mono text-sm font-semibold text-foreground">
+          <Link to="/" className="shrink-0 font-mono text-sm font-medium text-foreground">
             the table search
           </Link>
 
@@ -191,7 +250,7 @@ export default function SearchPage() {
             className="mx-auto w-full max-w-[520px]"
           >
             <div
-              className="flex h-11 items-center rounded-lg border border-border bg-muted/40 px-3"
+              className={`flex h-11 items-center rounded-lg border border-border bg-bg-muted px-3 ${shouldAnimateSearchFallback ? 'home-search-fallback-enter' : ''}`}
               style={{ viewTransitionName: 'global-search' }}
             >
               <span className="pr-3 font-mono text-base text-muted-foreground">/</span>
@@ -222,10 +281,10 @@ export default function SearchPage() {
       </header>
 
       <main className="mx-auto w-full max-w-[860px] px-6 pb-24 pt-10">
-        <h1 className="font-mono text-4xl font-semibold text-foreground">search</h1>
+        <h1 className="font-mono text-4xl font-medium text-foreground">search</h1>
 
         {!isSearchMode && (
-          <div className="mt-8 rounded-xl border border-border bg-card px-6 py-8 text-center">
+          <div className="mt-8 rounded-lg border border-border bg-card px-6 py-8 text-center">
             <p className="font-mono text-sm text-muted-foreground">
               Type in the search box to find sermons.
             </p>
@@ -236,43 +295,15 @@ export default function SearchPage() {
           <>
             {exactTitleHit && (
               <section className="mt-8">
-                <Link
+                <BookMatchCard
                   to={exactTitleHitHref}
-                  className="group block rounded-xl border border-border bg-card px-6 py-5 transition-all duration-150 hover:ring-1 hover:ring-ring/15 [background-image:var(--exact-card-gradient)]"
-                  data-testid="exact-title-card"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="font-mono text-sm text-muted-foreground">Book title match</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <h2 className="truncate font-mono text-lg font-semibold text-foreground transition-colors group-hover:text-[hsl(var(--link))]">
-                          {exactTitleHit.title}
-                        </h2>
-                        <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-mono lowercase text-foreground">
-                          exact
-                        </span>
-                      </div>
-                    </div>
-                    <span className="shrink-0 pt-0.5 font-mono text-sm text-muted-foreground">
-                      {exactTitleHit.sermon_code || '-'}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-4 text-xs font-mono text-muted-foreground">
-                    <span>{formatDate(exactTitleHit.date)}</span>
-                    <span className="truncate text-right">
-                      {formatMatchSourceLabel(exactTitleHit.match_source, exactTitleHit.paragraph_number, exactTitleHit.printed_paragraph_number)}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 border-t border-border/75 pt-3">
-                    <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
-                      <span className="rounded-md border border-border/90 bg-background/60 px-2 py-0.5">
-                        {exactTitleHit.location || 'Unknown location'}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
+                  title={exactTitleHit.title}
+                  summary={exactTitleHit.summary}
+                  sermonCode={exactTitleHit.sermon_code}
+                  location={exactTitleHit.location}
+                  year={extractYear(exactTitleHit.date)}
+                  tags={exactTitleHit.tags}
+                />
               </section>
             )}
 
@@ -285,7 +316,7 @@ export default function SearchPage() {
                 <select
                   value={filters.sort}
                   onChange={(event) => handleSortChange(event.target.value)}
-                  className="h-10 rounded-md border border-border bg-background px-3 font-mono text-sm text-foreground focus:outline-none"
+                  className="h-10 rounded-md border border-border bg-background px-3 font-mono text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/35"
                   aria-label="Sort search results"
                 >
                   {SORT_OPTIONS.map((option) => (

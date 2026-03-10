@@ -68,7 +68,7 @@ describe('Index', () => {
     expect(screen.getByRole('link', { name: /books/i })).toHaveAttribute('href', '/books');
     expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute('href', '/settings');
     expect(screen.getByRole('link', { name: /about/i })).toHaveAttribute('href', '/about');
-    expect(screen.getByText('built Mar 10, 2026 · v1.2.3')).toBeInTheDocument();
+    expect(screen.getByText(/built Mar 10, 2026 .* v1\.2\.3/)).toBeInTheDocument();
     expect(screen.getByText('1958')).toBeInTheDocument();
     expect(screen.getByText('1972')).toBeInTheDocument();
   });
@@ -77,12 +77,23 @@ describe('Index', () => {
     instantSearchEnabledMock = false;
     renderIndex();
 
-    fireEvent.change(screen.getByLabelText('Search sermons'), {
+    const searchInput = screen.getByLabelText('Search sermons');
+    fireEvent.change(searchInput, {
       target: { value: '  only believe  ' },
     });
     fireEvent.click(screen.getByRole('button', { name: /search/i }));
 
-    expect(navigateMock).toHaveBeenCalledWith('/search?q=only+believe&sort=relevance-desc&view=card');
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=only+believe&sort=relevance-desc&view=card',
+      expect.objectContaining({
+        state: expect.objectContaining({
+          source: 'home',
+          autofocus: true,
+          caret: expect.any(Number),
+          requestId: expect.any(String),
+        }),
+      })
+    );
   });
 
   it('does not navigate when query is empty', () => {
@@ -101,6 +112,44 @@ describe('Index', () => {
       target: { value: 'amen' },
     });
 
-    expect(navigateMock).toHaveBeenCalledWith('/search?q=amen&sort=relevance-desc&view=card');
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=amen&sort=relevance-desc&view=card',
+      expect.objectContaining({
+        state: expect.objectContaining({
+          source: 'home',
+          autofocus: true,
+          caret: expect.any(Number),
+          requestId: expect.any(String),
+        }),
+      })
+    );
+  });
+
+  it('does not navigate during IME composition until composition ends', () => {
+    instantSearchEnabledMock = true;
+    renderIndex();
+    const searchInput = screen.getByLabelText('Search sermons');
+
+    fireEvent.compositionStart(searchInput);
+    fireEvent.change(searchInput, {
+      target: { value: 'ア' },
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(searchInput);
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=%E3%82%A2&sort=relevance-desc&view=card',
+      expect.objectContaining({
+        state: expect.objectContaining({
+          source: 'home',
+          autofocus: true,
+          caret: expect.any(Number),
+          requestId: expect.any(String),
+        }),
+      })
+    );
   });
 });
+
+
