@@ -41,6 +41,12 @@
     --hover-row: 210 40% 98%;
     --filter-badge: 214 95% 93%;
     --filter-badge-foreground: 224 64% 33%;
+    --exact-card-gradient: linear-gradient(
+      110deg,
+      hsl(var(--card)) 0%,
+      hsl(var(--card)) 62%,
+      hsl(322 33% 95%) 100%
+    );
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -86,6 +92,12 @@
     --hover-row: 217 33% 12%;
     --filter-badge: 217 33% 20%;
     --filter-badge-foreground: 214 95% 68%;
+    --exact-card-gradient: linear-gradient(
+      110deg,
+      hsl(var(--card)) 0%,
+      hsl(var(--card)) 62%,
+      hsl(320 20% 13%) 100%
+    );
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -138,4 +150,42 @@
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(global-search),
+  ::view-transition-new(global-search) {
+    animation-duration: 220ms;
+    animation-timing-function: ease;
+  }
+
+  ::view-transition-old(global-search) {
+    animation-name: search-out;
+  }
+
+  ::view-transition-new(global-search) {
+    animation-name: search-in;
+  }
+}
+
+@keyframes search-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes search-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
 }

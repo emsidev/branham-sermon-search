@@ -5,16 +5,20 @@ interface UseKeyboardNavOptions {
   itemCount: number;
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
-  sermonIds: string[];
+  itemHrefs: string[];
   searchInputRef: React.RefObject<HTMLInputElement | null>;
+  booksShortcutHref?: string;
+  settingsShortcutHref?: string;
 }
 
 export function useKeyboardNav({
   itemCount,
   selectedIndex,
   onSelectedIndexChange,
-  sermonIds,
+  itemHrefs,
   searchInputRef,
+  booksShortcutHref,
+  settingsShortcutHref,
 }: UseKeyboardNavOptions) {
   const navigate = useNavigate();
 
@@ -35,6 +39,32 @@ export function useKeyboardNav({
       return;
     }
 
+    if (
+      booksShortcutHref &&
+      !isInput &&
+      e.key.toLowerCase() === 'b' &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.ctrlKey
+    ) {
+      e.preventDefault();
+      navigate(booksShortcutHref);
+      return;
+    }
+
+    if (
+      settingsShortcutHref &&
+      !isInput &&
+      e.key === ',' &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.ctrlKey
+    ) {
+      e.preventDefault();
+      navigate(settingsShortcutHref);
+      return;
+    }
+
     if (isInput) return;
 
     // j/k navigate list
@@ -44,11 +74,20 @@ export function useKeyboardNav({
     } else if (e.key === 'k') {
       e.preventDefault();
       onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
-    } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < sermonIds.length) {
+    } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < itemHrefs.length) {
       e.preventDefault();
-      navigate(`/sermons/${sermonIds[selectedIndex]}`);
+      navigate(itemHrefs[selectedIndex]);
     }
-  }, [selectedIndex, itemCount, sermonIds, navigate, searchInputRef, onSelectedIndexChange]);
+  }, [
+    booksShortcutHref,
+    settingsShortcutHref,
+    selectedIndex,
+    itemCount,
+    itemHrefs,
+    navigate,
+    searchInputRef,
+    onSelectedIndexChange,
+  ]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

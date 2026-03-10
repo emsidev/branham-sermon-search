@@ -1,0 +1,232 @@
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
+import SearchHitsTable from './SearchHitsTable';
+import type { SearchHit } from '@/hooks/useSermons';
+
+function renderTable(hits: SearchHit[], query: string) {
+  return render(
+    <MemoryRouter>
+      <SearchHitsTable hits={hits} loading={false} selectedIndex={-1} query={query} />
+    </MemoryRouter>
+  );
+}
+
+describe('SearchHitsTable', () => {
+  it('renders hit rows with required fields', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-1:para:3:chunk:1',
+        sermon_id: 'sermon-1',
+        sermon_code: '54-0815',
+        title: 'Questions And Answers',
+        date: '1954-08-15',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 3,
+        printed_paragraph_number: 4,
+        chunk_index: 1,
+        chunk_total: 3,
+        match_source: 'paragraph_text',
+        snippet: '... they be healed unless there is something hindering ...',
+        relevance: 2.4,
+        is_exact_match: false,
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'they be healed unless');
+
+    expect(screen.getByText('54-0815')).toBeInTheDocument();
+    const titleLink = screen.getByRole('link', { name: 'Questions And Answers' });
+    expect(titleLink).toBeInTheDocument();
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('/sermons/sermon-1?'));
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('q=they+be+healed+unless'));
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('source=paragraph_text'));
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('paragraph=3'));
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('hit=sermon-1%3Apara%3A3%3Achunk%3A1'));
+    expect(screen.getByText('Aug 15, 1954')).toBeInTheDocument();
+    expect(screen.getByText('Jeffersonville, IN')).toBeInTheDocument();
+    expect(screen.getByText('Paragraph 3 [PDF 4] (1/3)')).toBeInTheDocument();
+  });
+
+  it('highlights fallback-style incomplete term like "unle"', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-2:para:6:chunk:1',
+        sermon_id: 'sermon-2',
+        sermon_code: '63-0901E',
+        title: 'Desperation',
+        date: '1963-09-01',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 6,
+        printed_paragraph_number: 7,
+        chunk_index: 1,
+        chunk_total: 2,
+        match_source: 'paragraph_text',
+        snippet: '... and they be healed unless they stand in unbelief ...',
+        relevance: 1.8,
+        is_exact_match: false,
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'they be healed unle');
+
+    const marks = screen.getAllByText(/unle/i, { selector: 'mark' });
+    expect(marks.length).toBeGreaterThan(0);
+  });
+
+  it('highlights a contiguous multi-word phrase as one match', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-phrase:para:4:chunk:1',
+        sermon_id: 'sermon-phrase',
+        sermon_code: '65-1010',
+        title: 'Leadership',
+        date: '1965-10-10',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 4,
+        printed_paragraph_number: 4,
+        chunk_index: 1,
+        chunk_total: 1,
+        match_source: 'paragraph_text',
+        snippet: '... Amen. I am looking forward to this week and this campaign is opening ...',
+        relevance: 2.0,
+        is_exact_match: false,
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'i am looking forward');
+
+    expect(screen.getByText(/i am looking forward/i, { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.queryByText(/^i$/i, { selector: 'mark' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^am$/i, { selector: 'mark' })).not.toBeInTheDocument();
+  });
+
+  it('falls back to token highlighting when phrase is not contiguous', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-fallback:para:8:chunk:1',
+        sermon_id: 'sermon-fallback',
+        sermon_code: '63-1110',
+        title: 'Souls That Are In Prison',
+        date: '1963-11-10',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 8,
+        printed_paragraph_number: 8,
+        chunk_index: 1,
+        chunk_total: 2,
+        match_source: 'paragraph_text',
+        snippet: '... I am really looking very far forward to this week ...',
+        relevance: 1.7,
+        is_exact_match: false,
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'i am looking forward');
+
+    expect(screen.getByText(/^am$/i, { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.getByText(/^looking$/i, { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.getByText(/^forward$/i, { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.queryByText(/^i$/i, { selector: 'mark' })).not.toBeInTheDocument();
+  });
+
+  it('renders chunk index labels for duplicate matches in one paragraph', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-dup:para:4:chunk:1',
+        sermon_id: 'sermon-dup',
+        sermon_code: '65-1010',
+        title: 'Leadership',
+        date: '1965-10-10',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 4,
+        printed_paragraph_number: 4,
+        chunk_index: 1,
+        chunk_total: 2,
+        match_source: 'paragraph_text',
+        snippet: '... I am looking forward to this week ...',
+        relevance: 2.4,
+        is_exact_match: false,
+        total_count: 2,
+      },
+      {
+        hit_id: 'sermon-dup:para:4:chunk:2',
+        sermon_id: 'sermon-dup',
+        sermon_code: '65-1010',
+        title: 'Leadership',
+        date: '1965-10-10',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 4,
+        printed_paragraph_number: 4,
+        chunk_index: 2,
+        chunk_total: 2,
+        match_source: 'paragraph_text',
+        snippet: '... I am looking forward to that ...',
+        relevance: 2.3,
+        is_exact_match: false,
+        total_count: 2,
+      },
+    ];
+
+    renderTable(hits, 'i am looking forward');
+
+    expect(screen.getByText('Paragraph 4 (1/2)')).toBeInTheDocument();
+    expect(screen.getByText('Paragraph 4 (2/2)')).toBeInTheDocument();
+  });
+
+  it('highlights complete phrase term like "unless"', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-3:meta:title',
+        sermon_id: 'sermon-3',
+        sermon_code: '60-0101',
+        title: 'Unless A Man Be Born Again',
+        date: '1960-01-01',
+        location: 'Phoenix, AZ',
+        paragraph_number: null,
+        printed_paragraph_number: null,
+        chunk_index: null,
+        chunk_total: null,
+        match_source: 'title',
+        snippet: 'Unless A Man Be Born Again',
+        relevance: 2.1,
+        is_exact_match: false,
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'they be healed unless');
+
+    expect(screen.getByText(/unless/i, { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.getByText('Title', { selector: 'td' })).toBeInTheDocument();
+  });
+
+  it('does not render exact badges for exact match hits', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-exact:meta:title',
+        sermon_id: 'sermon-exact',
+        sermon_code: '61-0428',
+        title: 'Only Believe',
+        date: '1961-04-28',
+        location: 'Phoenix, AZ',
+        paragraph_number: null,
+        printed_paragraph_number: null,
+        chunk_index: null,
+        chunk_total: null,
+        match_source: 'title',
+        snippet: 'Only Believe',
+        relevance: 3.1,
+        is_exact_match: true,
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'only believe');
+
+    expect(screen.queryByText('exact')).not.toBeInTheDocument();
+  });
+});

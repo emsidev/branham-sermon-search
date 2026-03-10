@@ -16,70 +16,261 @@ export type Database = {
     Tables: {
       sermons: {
         Row: {
-          audio_url: string | null
           city: string | null
-          content_hash: string | null
           created_at: string
           date: string
-          duration: string | null
           fts: unknown
           id: string
           location: string | null
-          scraped_at: string | null
           scripture: string | null
-          source_url: string | null
+          sermon_code: string
           state: string | null
-          tags: string[] | null
+          tags: string[]
+          text_content: string
           title: string
-          transcript: string | null
+          updated_at: string
           year: number | null
         }
         Insert: {
-          audio_url?: string | null
           city?: string | null
-          content_hash?: string | null
           created_at?: string
           date: string
-          duration?: string | null
-          fts?: unknown
-          id: string
-          location?: string | null
-          scraped_at?: string | null
-          scripture?: string | null
-          source_url?: string | null
-          state?: string | null
-          tags?: string[] | null
-          title: string
-          transcript?: string | null
-          year?: number | null
-        }
-        Update: {
-          audio_url?: string | null
-          city?: string | null
-          content_hash?: string | null
-          created_at?: string
-          date?: string
-          duration?: string | null
           fts?: unknown
           id?: string
           location?: string | null
-          scraped_at?: string | null
           scripture?: string | null
-          source_url?: string | null
+          sermon_code: string
           state?: string | null
-          tags?: string[] | null
+          tags?: string[]
+          text_content?: string
+          title: string
+          updated_at?: string
+          year?: never
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          date?: string
+          fts?: unknown
+          id?: string
+          location?: string | null
+          scripture?: string | null
+          sermon_code?: string
+          state?: string | null
+          tags?: string[]
+          text_content?: string
           title?: string
-          transcript?: string | null
-          year?: number | null
+          updated_at?: string
+          year?: never
         }
         Relationships: []
+      }
+      sermon_audio: {
+        Row: {
+          audio_url: string
+          created_at: string
+          duration_seconds: number | null
+          external_id: string | null
+          provider: string | null
+          sermon_id: string
+          updated_at: string
+        }
+        Insert: {
+          audio_url: string
+          created_at?: string
+          duration_seconds?: number | null
+          external_id?: string | null
+          provider?: string | null
+          sermon_id: string
+          updated_at?: string
+        }
+        Update: {
+          audio_url?: string
+          created_at?: string
+          duration_seconds?: number | null
+          external_id?: string | null
+          provider?: string | null
+          sermon_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sermon_audio_sermon_id_fkey"
+            columns: ["sermon_id"]
+            isOneToOne: true
+            referencedRelation: "sermons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sermon_documents: {
+        Row: {
+          created_at: string
+          id: string
+          imported_at: string
+          metadata: Json
+          page_count: number | null
+          pdf_filename: string | null
+          pdf_sha256: string | null
+          pdf_source_path: string
+          sermon_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          imported_at?: string
+          metadata?: Json
+          page_count?: number | null
+          pdf_filename?: string | null
+          pdf_sha256?: string | null
+          pdf_source_path: string
+          sermon_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          imported_at?: string
+          metadata?: Json
+          page_count?: number | null
+          pdf_filename?: string | null
+          pdf_sha256?: string | null
+          pdf_source_path?: string
+          sermon_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sermon_documents_sermon_id_fkey"
+            columns: ["sermon_id"]
+            isOneToOne: true
+            referencedRelation: "sermons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sermon_chunks: {
+        Row: {
+          chunk_end: number
+          chunk_fts: unknown
+          chunk_index: number
+          chunk_start: number
+          chunk_text: string
+          created_at: string
+          id: number
+          paragraph_id: number
+          paragraph_number: number
+          sermon_id: string
+        }
+        Insert: {
+          chunk_end: number
+          chunk_fts?: unknown
+          chunk_index: number
+          chunk_start: number
+          chunk_text: string
+          created_at?: string
+          id?: number
+          paragraph_id: number
+          paragraph_number: number
+          sermon_id: string
+        }
+        Update: {
+          chunk_end?: number
+          chunk_fts?: unknown
+          chunk_index?: number
+          chunk_start?: number
+          chunk_text?: string
+          created_at?: string
+          id?: number
+          paragraph_id?: number
+          paragraph_number?: number
+          sermon_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sermon_chunks_paragraph_id_fkey"
+            columns: ["paragraph_id"]
+            isOneToOne: false
+            referencedRelation: "sermon_paragraphs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sermon_chunks_sermon_id_fkey"
+            columns: ["sermon_id"]
+            isOneToOne: false
+            referencedRelation: "sermons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sermon_paragraphs: {
+        Row: {
+          created_at: string
+          id: number
+          paragraph_fts: unknown
+          paragraph_number: number
+          paragraph_text: string
+          printed_paragraph_number: number | null
+          sermon_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          paragraph_fts?: unknown
+          paragraph_number: number
+          paragraph_text: string
+          printed_paragraph_number?: number | null
+          sermon_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          paragraph_fts?: unknown
+          paragraph_number?: number
+          paragraph_text?: string
+          printed_paragraph_number?: number | null
+          sermon_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sermon_paragraphs_sermon_id_fkey"
+            columns: ["sermon_id"]
+            isOneToOne: false
+            referencedRelation: "sermons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_sermon_chunks: {
+        Args: {
+          p_limit?: number
+          p_location?: string | null
+          p_offset?: number
+          p_query: string
+          p_sort?: string | null
+          p_year?: number | null
+        }
+        Returns: {
+          chunk_index: number | null
+          chunk_total: number | null
+          date: string
+          hit_id: string
+          is_exact_match: boolean
+          location: string | null
+          match_source: string
+          paragraph_number: number | null
+          printed_paragraph_number: number | null
+          relevance: number
+          sermon_code: string
+          sermon_id: string
+          snippet: string
+          title: string
+          total_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

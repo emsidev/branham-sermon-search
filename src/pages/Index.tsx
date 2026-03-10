@@ -1,94 +1,164 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useSermons } from '@/hooks/useSermons';
 import { useKeyboardNav } from '@/hooks/useKeyboardNav';
-import SearchBar from '@/components/SearchBar';
-import FilterBar from '@/components/FilterBar';
-import SermonTable from '@/components/SermonTable';
-import SermonPagination from '@/components/SermonPagination';
+import { runWithViewTransition } from '@/lib/viewTransition';
+import { getInstantSearchEnabled, setInstantSearchEnabled } from '@/lib/preferences';
 
-const Index = () => {
-  const { sermons, total, loading, filters, setFilter, clearFilters, years, locations, pageSize } = useSermons();
+function formatBuildDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+export default function Index() {
+  const navigate = useNavigate();
+  const { years } = useSermons();
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [query, setQuery] = useState('');
+  const [instantSearchEnabled, setInstantSearchEnabledState] = useState(() => getInstantSearchEnabled());
   const searchRef = useRef<HTMLInputElement>(null);
+  const buildDateLabel = useMemo(() => formatBuildDate(__APP_BUILD_DATE__), []);
 
   useKeyboardNav({
-    itemCount: sermons.length,
+    itemCount: 0,
     selectedIndex,
     onSelectedIndexChange: setSelectedIndex,
-    sermonIds: sermons.map(s => s.id),
+    itemHrefs: [],
     searchInputRef: searchRef,
+    booksShortcutHref: '/books',
+    settingsShortcutHref: '/settings',
   });
 
-  const handleSearchChange = useCallback((value: string) => {
-    setFilter('q', value);
-    setSelectedIndex(-1);
-  }, [setFilter]);
+  const handleSearchSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      searchRef.current?.focus();
+      return;
+    }
 
-  const handleYearChange = useCallback((value: string) => {
-    setFilter('year', value === 'all' ? '' : value);
-  }, [setFilter]);
+    const params = new URLSearchParams({
+      q: trimmedQuery,
+      sort: 'relevance-desc',
+      view: 'card',
+    });
+    runWithViewTransition(() => {
+      navigate(`/search?${params.toString()}`);
+    });
+  }, [navigate, query]);
 
-  const handleLocationChange = useCallback((value: string) => {
-    setFilter('location', value === 'all' ? '' : value);
-  }, [setFilter]);
+  const handleSearchInputChange = useCallback((value: string) => {
+    setQuery(value);
+    if (!instantSearchEnabled) {
+      return;
+    }
+
+    const trimmedQuery = value.trim();
+    if (!trimmedQuery) {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      q: trimmedQuery,
+      sort: 'relevance-desc',
+      view: 'card',
+    });
+    runWithViewTransition(() => {
+      navigate(`/search?${params.toString()}`);
+    });
+  }, [instantSearchEnabled, navigate]);
+
+  const handleInstantSearchToggle = useCallback(() => {
+    setInstantSearchEnabledState((currentValue) => {
+      const nextValue = !currentValue;
+      setInstantSearchEnabled(nextValue);
+      return nextValue;
+    });
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="w-full max-w-[860px] mx-auto px-6 lg:px-0 pt-8 pb-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold font-mono text-foreground">branham-sermons</h1>
-          <span className="rounded-full bg-[hsl(var(--filter-badge))] text-[hsl(var(--filter-badge-foreground))] px-2 py-0.5 text-[10px] font-mono font-medium">
-            alpha
-          </span>
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="border-b border-border/70">
+        <div className="mx-auto flex w-full max-w-[1100px] items-center justify-end gap-6 px-6 py-4 font-mono text-sm">
+          <NavLink to="/books" className="text-muted-foreground hover:text-foreground">
+            books <kbd className="rounded border border-border bg-muted px-1 text-[11px]">b</kbd>
+          </NavLink>
+          <NavLink to="/settings" className="text-muted-foreground hover:text-foreground">
+            settings <kbd className="rounded border border-border bg-muted px-1 text-[11px]">,</kbd>
+          </NavLink>
+          <NavLink to="/about" className="text-muted-foreground hover:text-foreground">
+            about
+          </NavLink>
         </div>
       </header>
 
-      {/* Hero search */}
-      <div className="px-6 lg:px-0 pt-12 pb-6">
-        <SearchBar
-          ref={searchRef}
-          value={filters.q}
-          onChange={handleSearchChange}
-          onClear={() => handleSearchChange('')}
-        />
-      </div>
+      <main className="mx-auto flex w-full max-w-[860px] flex-1 flex-col px-6 pb-8 pt-20">
+        <div className="mx-auto w-full max-w-[640px] text-center">
+          <h1 className="font-mono text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+            the table search
+          </h1>
+          <p className="mt-5 text-lg text-muted-foreground">
+            a fast, modern browser for the table
+          </p>
 
-      {/* Filters */}
-      <div className="px-6 lg:px-0 pb-4">
-        <FilterBar
-          years={years}
-          locations={locations}
-          selectedYear={filters.year}
-          selectedLocation={filters.location}
-          onYearChange={handleYearChange}
-          onLocationChange={handleLocationChange}
-          onClearAll={clearFilters}
-        />
-      </div>
+          <form onSubmit={handleSearchSubmit} className="mt-10">
+            <div
+              className="flex h-14 items-center rounded-xl border border-border bg-muted/35 p-1"
+              style={{ viewTransitionName: 'global-search' }}
+            >
+              <span className="px-4 text-lg font-mono text-muted-foreground">/</span>
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(event) => handleSearchInputChange(event.target.value)}
+                placeholder="search sermons ..."
+                className="h-full flex-1 bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                aria-label="Search sermons"
+              />
+              <button
+                type="submit"
+                className="inline-flex h-full items-center gap-2 rounded-lg bg-foreground px-4 font-mono text-sm text-background transition-opacity hover:opacity-90"
+              >
+                <Search className="h-4 w-4" />
+                search
+              </button>
+            </div>
+          </form>
+          <div className="mt-4 flex items-center justify-center gap-1 font-mono text-sm text-muted-foreground">
+            <span aria-hidden>⚡</span>
+            <span>
+              Instant search {instantSearchEnabled ? 'on' : 'off'} -
+            </span>
+            <button
+              type="button"
+              onClick={handleInstantSearchToggle}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              {instantSearchEnabled ? 'turn off' : 'turn on'}
+            </button>
+          </div>
 
-      {/* Table */}
-      <div className="px-6 lg:px-0">
-        <SermonTable
-          sermons={sermons}
-          loading={loading}
-          selectedIndex={selectedIndex}
-          sort={filters.sort}
-          onSortChange={(sort) => setFilter('sort', sort)}
-        />
-      </div>
+          <p className="mt-4 font-mono text-xs text-muted-foreground">
+            built {buildDateLabel} {'\u00B7'} v{__APP_VERSION__}
+          </p>
+        </div>
 
-      {/* Pagination */}
-      <div className="px-6 lg:px-0 pb-24">
-        <SermonPagination
-          currentPage={filters.page}
-          totalItems={total}
-          pageSize={pageSize}
-          onPageChange={(page) => setFilter('page', page)}
-        />
-      </div>
+        <div className="mt-auto flex flex-wrap items-center justify-center gap-x-7 gap-y-3 pt-16 font-mono text-sm text-muted-foreground">
+          {years.map((year) => (
+            <span key={year}>{year}</span>
+          ))}
+        </div>
+      </main>
     </div>
   );
-};
-
-export default Index;
+}
