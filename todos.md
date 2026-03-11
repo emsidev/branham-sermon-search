@@ -103,3 +103,1929 @@
 - Completed items remain visible as `DONE-LOCKED`.
 - Personal data features are local-first until L08 introduces cloud sync.
 - Existing `.claude` agents are reused; no new agent definitions are required.
+
+## Global Pattern Contract
+- Follow the current page/layout system and tokenized styling patterns from [Search.tsx](src/pages/Search.tsx).
+- Follow existing data flow and query conventions from [useSermons.ts](src/hooks/useSermons.ts); avoid introducing parallel data-access abstractions.
+- Follow settings, shortcut, and preference conventions from [Settings.tsx](src/pages/Settings.tsx) and existing keyboard shortcut utilities.
+- Keep feature implementation isolated in src/features/<FeatureID>/**; shared shell wiring remains integrator-only.
+- Do not add dependencies without explicit approval in the feature handoff.
+- Maintain TypeScript strictness and existing test stack (vitest + @testing-library/react).
+
+## Handoff Contract (Required)
+Use this exact payload shape in every feature handoff:
+FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+Required details:
+- FeatureID: exact ID from backlog.
+- Branch: feat/<FeatureID>-<short-kebab-name>.
+- Changed files: explicit list under allowed ownership.
+- Behavior delivered: concise implemented behavior summary.
+- Tests run: command and pass/fail evidence.
+- Known risks: unresolved edge cases or technical debt.
+- Integrator notes: exact shared-shell changes needed from integration-owner.
+
+## Definition of Done (Per Feature)
+- Acceptance criteria in that feature block are satisfied.
+- Required tests for that feature are implemented and passing.
+- No forbidden file edits by non-integrator agents.
+- Handoff payload is complete and uses the exact required schema.
+## Feature Specs (All IDs)
+
+### S01 - Full-text search + keyword highlighting across all sermons
+Status: DONE-LOCKED
+Primary agent: frontend-developer(search)
+Goal: Deliver and verify the S01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Confirm current behavior remains intact for S01 and capture regression evidence only.
+- Limit updates to bug-fix-level adjustments if objective regressions are proven by tests.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+- Large refactors or redesigns of already-complete behavior.
+Allowed files:
+- src/features/S01/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for S01 behavior in src/features/S01/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Existing S01 capability remains functionally unchanged unless fixing a proven regression.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S02 - Next/Prev hit navigation (N / Shift+N)
+Status: TODO
+Primary agent: frontend-developer(search)
+Goal: Deliver and verify the S02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Next/Prev hit navigation (N / Shift+N) in src/features/S02/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S02/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for S02 behavior in src/features/S02/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Next/Prev hit navigation (N / Shift+N) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S03 - Only active hit highlighted; all others dimmed
+Status: TODO
+Primary agent: frontend-developer(search)
+Goal: Deliver and verify the S03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Only active hit highlighted; all others dimmed in src/features/S03/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S03/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for S03 behavior in src/features/S03/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Only active hit highlighted; all others dimmed works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S04 - Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut
+Status: TODO
+Primary agent: frontend-developer(search)
+Goal: Deliver and verify the S04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut in src/features/S04/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S04/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for S04 behavior in src/features/S04/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S05 - Search filters by year, sermon title, location
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the S05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Search filters by year, sermon title, location in src/features/S05/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S05/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for S05 behavior in src/features/S05/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+Acceptance criteria:
+- Search filters by year, sermon title, location works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S06 - Fuzzy search (typo-tolerant)
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the S06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Fuzzy search (typo-tolerant) in src/features/S06/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S06/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for S06 behavior in src/features/S06/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Fuzzy search (typo-tolerant) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S07 - Search history saved locally
+Status: TODO
+Primary agent: frontend-developer(search)
+Goal: Deliver and verify the S07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Search history saved locally in src/features/S07/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S07/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for S07 behavior in src/features/S07/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Search history saved locally works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S08 - Jump to hit number
+Status: TODO
+Primary agent: frontend-developer(search)
+Goal: Deliver and verify the S08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Jump to hit number in src/features/S08/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S08/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for S08 behavior in src/features/S08/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Jump to hit number works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S09 - Search filters extended by scripture reference
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the S09 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Search filters extended by scripture reference in src/features/S09/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S09/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for S09 behavior in src/features/S09/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+Acceptance criteria:
+- Search filters extended by scripture reference works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S10 - AI-assisted semantic search
+Status: TODO
+Primary agent: prompt-engineer
+Goal: Deliver and verify the S10 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement AI-assisted semantic search in src/features/S10/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/S10/**
+- scripts/s10/** (only for AI-service plumbing tied to this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: ai-service
+Required tests:
+- Add or extend vitest coverage for S10 behavior in src/features/S10/** test files.
+- Add AI-service contract test for request/response shaping and fallback behavior on provider failure.
+Acceptance criteria:
+- AI-assisted semantic search works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### R01 - Enter/Exit reading mode (R)
+Status: TODO
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the R01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Enter/Exit reading mode (R) in src/features/R01/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/R01/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for R01 behavior in src/features/R01/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Enter/Exit reading mode (R) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### R02 - Sticky bottom progress bar for sermon progress
+Status: TODO
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the R02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Sticky bottom progress bar for sermon progress in src/features/R02/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/R02/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for R02 behavior in src/features/R02/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Sticky bottom progress bar for sermon progress works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### R03 - Resume position per sermon
+Status: DONE-LOCKED
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the R03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Confirm current behavior remains intact for R03 and capture regression evidence only.
+- Limit updates to bug-fix-level adjustments if objective regressions are proven by tests.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+- Large refactors or redesigns of already-complete behavior.
+Allowed files:
+- src/features/R03/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for R03 behavior in src/features/R03/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Existing R03 capability remains functionally unchanged unless fixing a proven regression.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### R04 - Word-by-word highlighting with Space or Right, and Left to go back
+Status: TODO
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the R04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Word-by-word highlighting with Space or Right, and Left to go back in src/features/R04/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/R04/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for R04 behavior in src/features/R04/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Word-by-word highlighting with Space or Right, and Left to go back works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### R05 - Highlight mode toggle: word, sentence, paragraph
+Status: TODO
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the R05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Highlight mode toggle: word, sentence, paragraph in src/features/R05/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/R05/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for R05 behavior in src/features/R05/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Highlight mode toggle: word, sentence, paragraph works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### R06 - Auto-scroll with adjustable speed
+Status: TODO
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the R06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Auto-scroll with adjustable speed in src/features/R06/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/R06/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for R06 behavior in src/features/R06/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Auto-scroll with adjustable speed works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### R07 - Read-aloud sync: word/sentence highlight follows sermon audio playback
+Status: TODO
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the R07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Read-aloud sync: word/sentence highlight follows sermon audio playback in src/features/R07/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/R07/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for R07 behavior in src/features/R07/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Read-aloud sync: word/sentence highlight follows sermon audio playback works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P01 - Slide view of highlighted/selected text (P)
+Status: TODO
+Primary agent: frontend-developer(presentation)
+Goal: Deliver and verify the P01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Slide view of highlighted/selected text (P) in src/features/P01/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P01/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P01 behavior in src/features/P01/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Slide view of highlighted/selected text (P) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P02 - Fullscreen presentation (F)
+Status: TODO
+Primary agent: frontend-developer(presentation)
+Goal: Deliver and verify the P02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Fullscreen presentation (F) in src/features/P02/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P02/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P02 behavior in src/features/P02/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Fullscreen presentation (F) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P03 - Next/Prev slide (Right / Left)
+Status: TODO
+Primary agent: frontend-developer(presentation)
+Goal: Deliver and verify the P03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Next/Prev slide (Right / Left) in src/features/P03/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P03/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P03 behavior in src/features/P03/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Next/Prev slide (Right / Left) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P04 - Sermon code + title + author auto-shown as slide subtitle
+Status: TODO
+Primary agent: frontend-developer(presentation)
+Goal: Deliver and verify the P04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Sermon code + title + author auto-shown as slide subtitle in src/features/P04/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P04/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P04 behavior in src/features/P04/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Sermon code + title + author auto-shown as slide subtitle works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P05 - Multi-selection passage queue for slides
+Status: TODO
+Primary agent: frontend-developer(presentation)
+Goal: Deliver and verify the P05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Multi-selection passage queue for slides in src/features/P05/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P05/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P05 behavior in src/features/P05/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Multi-selection passage queue for slides works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P06 - Slide themes (background, font, color scheme)
+Status: TODO
+Primary agent: ui-ux-designer
+Goal: Deliver and verify the P06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Slide themes (background, font, color scheme) in src/features/P06/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P06/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P06 behavior in src/features/P06/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Slide themes (background, font, color scheme) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P07 - Scripture watermark option
+Status: TODO
+Primary agent: frontend-developer(presentation)
+Goal: Deliver and verify the P07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Scripture watermark option in src/features/P07/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P07/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P07 behavior in src/features/P07/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Scripture watermark option works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### P08 - Export slides as PDF/images
+Status: TODO
+Primary agent: frontend-developer(presentation)
+Goal: Deliver and verify the P08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Export slides as PDF/images in src/features/P08/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/P08/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for P08 behavior in src/features/P08/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Export slides as PDF/images works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E01 - Font size control and font family selection in settings
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Font size control and font family selection in settings in src/features/E01/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E01/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E01 behavior in src/features/E01/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Font size control and font family selection in settings works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E02 - Dark/Sepia/Light mode with D shortcut
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Dark/Sepia/Light mode with D shortcut in src/features/E02/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E02/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E02 behavior in src/features/E02/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Dark/Sepia/Light mode with D shortcut works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E03 - Word count and estimated reading time in sermon header
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Word count and estimated reading time in sermon header in src/features/E03/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E03/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for E03 behavior in src/features/E03/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Word count and estimated reading time in sermon header works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E04 - Page view vs scroll view toggle
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Page view vs scroll view toggle in src/features/E04/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E04/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E04 behavior in src/features/E04/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Page view vs scroll view toggle works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E05 - Bookmarks (B)
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Bookmarks (B) in src/features/E05/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E05/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E05 behavior in src/features/E05/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Bookmarks (B) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E06 - Highlights and colors (H then 1-4)
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Highlights and colors (H then 1-4) in src/features/E06/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E06/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E06 behavior in src/features/E06/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Highlights and colors (H then 1-4) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E07 - Table of contents jump to paragraphs
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Table of contents jump to paragraphs in src/features/E07/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E07/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E07 behavior in src/features/E07/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Table of contents jump to paragraphs works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E08 - Line spacing and margin controls
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Line spacing and margin controls in src/features/E08/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E08/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E08 behavior in src/features/E08/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Line spacing and margin controls works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E09 - Scripture cross-reference preview inline
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the E09 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Scripture cross-reference preview inline in src/features/E09/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E09/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for E09 behavior in src/features/E09/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+Acceptance criteria:
+- Scripture cross-reference preview inline works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E10 - Personal notes/annotations (M)
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E10 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Personal notes/annotations (M) in src/features/E10/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E10/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E10 behavior in src/features/E10/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Personal notes/annotations (M) works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E11 - Margin notes rendering
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E11 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Margin notes rendering in src/features/E11/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E11/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E11 behavior in src/features/E11/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Margin notes rendering works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E12 - Dictionary/definition on hover for uncommon words
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the E12 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Dictionary/definition on hover for uncommon words in src/features/E12/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E12/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for E12 behavior in src/features/E12/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+Acceptance criteria:
+- Dictionary/definition on hover for uncommon words works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E13 - Print-friendly view via toolbar button
+Status: TODO
+Primary agent: frontend-developer(reading-tools)
+Goal: Deliver and verify the E13 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Print-friendly view via toolbar button in src/features/E13/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E13/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for E13 behavior in src/features/E13/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Print-friendly view via toolbar button works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### E14 - Built-in audio player integration synced to transcript
+Status: TODO
+Primary agent: frontend-developer(reader)
+Goal: Deliver and verify the E14 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Built-in audio player integration synced to transcript in src/features/E14/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/E14/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for E14 behavior in src/features/E14/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Built-in audio player integration synced to transcript works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L01 - Year page: browse sermons by year
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Year page: browse sermons by year in src/features/L01/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L01/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for L01 behavior in src/features/L01/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Year page: browse sermons by year works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L02 - Sermon index: alphabetical and chronological listing
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Sermon index: alphabetical and chronological listing in src/features/L02/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L02/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for L02 behavior in src/features/L02/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Sermon index: alphabetical and chronological listing works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L03 - Continue reading: home shows recently opened sermons
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Continue reading: home shows recently opened sermons in src/features/L03/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L03/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for L03 behavior in src/features/L03/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Continue reading: home shows recently opened sermons works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L04 - Favorites: star sermons for quick access
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Favorites: star sermons for quick access in src/features/L04/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L04/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for L04 behavior in src/features/L04/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Favorites: star sermons for quick access works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L05 - Collections/Reading lists
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Collections/Reading lists in src/features/L05/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L05/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for L05 behavior in src/features/L05/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Collections/Reading lists works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L06 - User-defined tags per sermon
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement User-defined tags per sermon in src/features/L06/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L06/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for L06 behavior in src/features/L06/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- User-defined tags per sermon works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L07 - Reading stats: sermons read, time spent, words read
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Reading stats: sermons read, time spent, words read in src/features/L07/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L07/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for L07 behavior in src/features/L07/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Reading stats: sermons read, time spent, words read works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L08 - User accounts and cloud sync
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the L08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement User accounts and cloud sync in src/features/L08/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L08/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for L08 behavior in src/features/L08/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+Acceptance criteria:
+- User accounts and cloud sync works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L09 - Community highlights
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the L09 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Community highlights in src/features/L09/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L09/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for L09 behavior in src/features/L09/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+Acceptance criteria:
+- Community highlights works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L10 - Multi-language support for translated sermon display
+Status: TODO
+Primary agent: backend-architect
+Goal: Deliver and verify the L10 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Multi-language support for translated sermon display in src/features/L10/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L10/**
+- supabase/migrations/*_*.sql
+- src/integrations/supabase/types.ts (only when regenerated for this feature)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: supabase-migration
+Required tests:
+- Add or extend vitest coverage for L10 behavior in src/features/L10/** test files.
+- Add Supabase query/mutation tests with mocked responses and error-path assertions.
+- Include migration smoke validation notes in handoff (apply/rollback intent).
+Acceptance criteria:
+- Multi-language support for translated sermon display works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### L11 - Mobile app (PWA or native) with offline reading support
+Status: TODO
+Primary agent: frontend-developer(library)
+Goal: Deliver and verify the L11 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Mobile app (PWA or native) with offline reading support in src/features/L11/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/L11/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for L11 behavior in src/features/L11/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+- Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
+Acceptance criteria:
+- Mobile app (PWA or native) with offline reading support works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### X01 - Canonical reference format in sermon header
+Status: TODO
+Primary agent: frontend-developer(sharing)
+Goal: Deliver and verify the X01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Canonical reference format in sermon header in src/features/X01/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/X01/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for X01 behavior in src/features/X01/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Canonical reference format in sermon header works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### X02 - Copy with citation: text + sermon code/title/author + paragraph number
+Status: TODO
+Primary agent: frontend-developer(sharing)
+Goal: Deliver and verify the X02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Copy with citation: text + sermon code/title/author + paragraph number in src/features/X02/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/X02/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: local-storage
+Required tests:
+- Add or extend vitest coverage for X02 behavior in src/features/X02/** test files.
+- Add storage resilience tests for read/write and blocked-storage fallback behavior.
+Acceptance criteria:
+- Copy with citation: text + sermon code/title/author + paragraph number works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### X03 - Shareable deep link to specific paragraph
+Status: TODO
+Primary agent: frontend-developer(sharing)
+Goal: Deliver and verify the X03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Shareable deep link to specific paragraph in src/features/X03/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/X03/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for X03 behavior in src/features/X03/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Shareable deep link to specific paragraph works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### X04 - Export passage as .txt or .pdf
+Status: TODO
+Primary agent: frontend-developer(sharing)
+Goal: Deliver and verify the X04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Export passage as .txt or .pdf in src/features/X04/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/X04/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for X04 behavior in src/features/X04/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Export passage as .txt or .pdf works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### X05 - Social share styled quote card image
+Status: TODO
+Primary agent: ui-ux-designer
+Goal: Deliver and verify the X05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Social share styled quote card image in src/features/X05/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/X05/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for X05 behavior in src/features/X05/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Social share styled quote card image works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### X06 - Export passage as .docx
+Status: TODO
+Primary agent: frontend-developer(sharing)
+Goal: Deliver and verify the X06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement Export passage as .docx in src/features/X06/** with reusable module boundaries for integrator wiring.
+- Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Direct route/header/global-shortcut shell edits by builder agents.
+Allowed files:
+- src/features/X06/**
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for X06 behavior in src/features/X06/** test files.
+- Add interaction and state-transition tests that validate user-visible behavior.
+Acceptance criteria:
+- Export passage as .docx works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+## Governance Validation Checklist
+- [ ] Confirm backlog table still has exactly 56 feature rows.
+- [ ] Confirm exactly 2 rows are DONE-LOCKED (S01, R03).
+- [ ] Confirm feature spec block count is exactly 56.
+- [ ] Confirm table FeatureIDs and spec-block FeatureIDs are a 1:1 exact match.
+- [ ] Confirm each feature block has non-empty In scope and Out of scope.
+- [ ] Confirm each feature block includes Required tests, Acceptance criteria, and Handoff required.
+- [ ] Confirm each feature block includes all three pattern anchors.
+- [ ] Confirm forbidden shared-shell edits are explicit for builder agents.
+- [ ] Dry-run handoff format for one search, one reading, and one backend feature before assignment.
