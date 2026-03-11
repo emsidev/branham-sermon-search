@@ -150,7 +150,6 @@ export default function SermonDetail() {
                 <span className="rounded-md border border-border bg-bg-muted px-2 py-1 text-foreground">
                   {sermon.sermon_code}
                 </span>
-                <span>{formatLongDate(sermon.date)}</span>
               </div>
               <h1 className="text-2xl font-bold font-mono leading-tight text-foreground">
                 {highlightTerms.length

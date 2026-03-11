@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AudioProvider } from "@/hooks/useAudioPlayer";
+import { KeyboardShortcutsProvider } from "@/hooks/useKeyboardShortcuts";
 import AudioPlayerBar from "@/components/AudioPlayerBar";
+import GlobalKeyboardShortcuts from "@/components/GlobalKeyboardShortcuts";
 import { THEME_STORAGE_KEY } from "@/lib/preferences";
 import Index from "./pages/Index";
 import Search from "./pages/Search";
@@ -17,6 +19,21 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const AppRoutes = () => (
+  <>
+    <GlobalKeyboardShortcuts />
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/search" element={<Search />} />
+      <Route path="/sermons/:id" element={<SermonDetail />} />
+      <Route path="/books" element={<Books />} />
+      <Route path="/settings" element={<Settings />} />
+      <Route path="/about" element={<About />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  </>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey={THEME_STORAGE_KEY}>
@@ -25,15 +42,9 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/sermons/:id" element={<SermonDetail />} />
-              <Route path="/books" element={<Books />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/about" element={<About />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <KeyboardShortcutsProvider>
+              <AppRoutes />
+            </KeyboardShortcutsProvider>
           </BrowserRouter>
           <AudioPlayerBar />
         </AudioProvider>

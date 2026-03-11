@@ -33,7 +33,7 @@ export default function BookMatchCard({
   location,
   year,
   tags,
-  subtitle = 'Book title match',
+  subtitle = 'Book',
   imageSrc = '/placeholder.svg',
   imageAlt,
   isExact = true,

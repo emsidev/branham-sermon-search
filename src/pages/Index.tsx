@@ -2,7 +2,8 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSermons } from '@/hooks/useSermons';
-import { useKeyboardNav } from '@/hooks/useKeyboardNav';
+import { useKeyboardShortcuts, useShortcutSearchInputRegistration } from '@/hooks/useKeyboardShortcuts';
+import { formatShortcutKey } from '@/lib/keyboardShortcuts';
 import { runWithViewTransition } from '@/lib/viewTransition';
 import { getInstantSearchEnabled, setInstantSearchEnabled } from '@/lib/preferences';
 import type { HomeSearchTransitionState } from '@/lib/searchNavigation';
@@ -23,23 +24,15 @@ function formatBuildDate(value: string): string {
 export default function Index() {
   const navigate = useNavigate();
   const { years } = useSermons();
-  const [selectedIndex, setSelectedIndex] = useState(-1);
   const [query, setQuery] = useState('');
   const [instantSearchEnabled, setInstantSearchEnabledState] = useState(() => getInstantSearchEnabled());
   const searchRef = useRef<HTMLInputElement>(null);
   const isComposingRef = useRef(false);
   const searchRequestIdRef = useRef(0);
+  const { bindings } = useKeyboardShortcuts();
   const buildDateLabel = useMemo(() => formatBuildDate(__APP_BUILD_DATE__), []);
 
-  useKeyboardNav({
-    itemCount: 0,
-    selectedIndex,
-    onSelectedIndexChange: setSelectedIndex,
-    itemHrefs: [],
-    searchInputRef: searchRef,
-    booksShortcutHref: '/books',
-    settingsShortcutHref: '/settings',
-  });
+  useShortcutSearchInputRegistration(searchRef);
 
   const buildHomeTransitionState = useCallback((caret?: number): HomeSearchTransitionState => {
     const fallbackCaret = query.length;
@@ -123,10 +116,10 @@ export default function Index() {
       <header className="border-b border-border-subtle">
         <div className="mx-auto flex w-full max-w-[1100px] items-center justify-end gap-6 px-6 py-4 font-mono text-sm">
           <NavLink to="/books" className="text-muted-foreground hover:text-foreground">
-            books <kbd className="rounded border border-border bg-muted px-1 text-[11px]">b</kbd>
+            books <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{formatShortcutKey(bindings.open_books)}</kbd>
           </NavLink>
           <NavLink to="/settings" className="text-muted-foreground hover:text-foreground">
-            settings <kbd className="rounded border border-border bg-muted px-1 text-[11px]">,</kbd>
+            settings <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{formatShortcutKey(bindings.open_settings)}</kbd>
           </NavLink>
           <NavLink to="/about" className="text-muted-foreground hover:text-foreground">
             about
@@ -148,7 +141,7 @@ export default function Index() {
               className="flex h-14 items-center rounded-lg border border-border bg-bg-muted p-1"
               style={{ viewTransitionName: 'global-search' }}
             >
-              <span className="px-4 text-lg font-mono text-muted-foreground">/</span>
+              <span className="px-4 text-lg font-mono text-muted-foreground">{formatShortcutKey(bindings.focus_search)}</span>
               <input
                 ref={searchRef}
                 type="text"

@@ -17,6 +17,28 @@ vi.mock('@/hooks/useKeyboardNav', () => ({
   useKeyboardNav: (...args: unknown[]) => useKeyboardNavMock(...args),
 }));
 
+vi.mock('@/hooks/useKeyboardShortcuts', () => ({
+  useKeyboardShortcuts: () => ({
+    bindings: {
+      focus_search: '/',
+      open_books: 'b',
+      open_settings: ',',
+      result_next: 'j',
+      result_prev: 'k',
+    },
+    syncStatus: 'synced',
+    syncWarning: null,
+    setShortcutBinding: vi.fn(),
+    resetShortcutBinding: vi.fn(),
+    resetAllShortcutBindings: vi.fn(),
+    registerSearchInputResolver: () => () => undefined,
+    getSearchInputElement: () => null,
+    registerResultListController: () => () => undefined,
+    getResultListController: () => null,
+  }),
+  useShortcutSearchInputRegistration: vi.fn(),
+}));
+
 vi.mock('@/lib/viewTransition', () => ({
   runWithViewTransition: (callback: () => void) => callback(),
 }));

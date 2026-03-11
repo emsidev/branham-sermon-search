@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List } from 'lucide-react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useKeyboardNav } from '@/hooks/useKeyboardNav';
+import {
+  useKeyboardShortcuts,
+  useShortcutResultListRegistration,
+  useShortcutSearchInputRegistration,
+  type ShortcutResultListController,
+} from '@/hooks/useKeyboardShortcuts';
 import { useSermons, type SearchHit } from '@/hooks/useSermons';
 import SearchHitsTable from '@/components/SearchHitsTable';
 import SearchHitsCards from '@/components/SearchHitsCards';
@@ -13,8 +18,9 @@ import {
   normalizeSearchComparableText,
   sanitizeSearchSnippet,
 } from '@/lib/search';
+import { formatShortcutKey } from '@/lib/keyboardShortcuts';
 import { getInstantSearchEnabled } from '@/lib/preferences';
-import { isHomeSearchTransitionState } from '@/lib/searchNavigation';
+import { isSearchAutofocusTransitionState } from '@/lib/searchNavigation';
 import { extractYear } from '@/lib/utils';
 
 const SORT_OPTIONS: Array<{ value: 'relevance-desc' | 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc'; label: string }> = [
@@ -93,9 +99,17 @@ export default function SearchPage() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [draftSearch, setDraftSearch] = useState(filters.q);
   const searchRef = useRef<HTMLInputElement>(null);
+  const selectedIndexRef = useRef(selectedIndex);
   const handledFocusTransitionsRef = useRef<Set<string>>(new Set());
-  const transitionState = isHomeSearchTransitionState(location.state) ? location.state : null;
+  const { bindings } = useKeyboardShortcuts();
+  const transitionState = isSearchAutofocusTransitionState(location.state) ? location.state : null;
   const shouldAnimateSearchFallback = Boolean(transitionState) && !supportsNativeViewTransition();
+
+  useShortcutSearchInputRegistration(searchRef);
+
+  useEffect(() => {
+    selectedIndexRef.current = selectedIndex;
+  }, [selectedIndex]);
 
   useEffect(() => {
     setDraftSearch(filters.q);
@@ -118,7 +132,9 @@ export default function SearchPage() {
 
     handledFocusTransitionsRef.current.add(requestId);
     const maxCaret = input.value.length;
-    const rawCaret = transitionState.caret ?? maxCaret;
+    const rawCaret = transitionState.source === 'home'
+      ? transitionState.caret ?? maxCaret
+      : maxCaret;
     const numericCaret = typeof rawCaret === 'number' && Number.isFinite(rawCaret) ? Math.floor(rawCaret) : maxCaret;
     const safeCaret = Math.max(0, Math.min(numericCaret, maxCaret));
 
@@ -199,15 +215,31 @@ export default function SearchPage() {
     }));
   }, [filters.q, isSearchMode, rankedSearchHits]);
 
-  useKeyboardNav({
-    itemCount: isSearchMode ? rankedSearchHits.length : 0,
-    selectedIndex,
-    onSelectedIndexChange: setSelectedIndex,
-    itemHrefs,
-    searchInputRef: searchRef,
-    booksShortcutHref: '/books',
-    settingsShortcutHref: '/settings',
-  });
+  const shortcutResultListController = useMemo<ShortcutResultListController | null>(() => {
+    if (!isSearchMode || itemHrefs.length === 0) {
+      return null;
+    }
+
+    return {
+      hasItems: () => itemHrefs.length > 0,
+      selectNext: () => {
+        setSelectedIndex((currentIndex) => Math.min(currentIndex + 1, itemHrefs.length - 1));
+      },
+      selectPrevious: () => {
+        setSelectedIndex((currentIndex) => Math.max(currentIndex - 1, 0));
+      },
+      activateSelection: () => {
+        const currentIndex = selectedIndexRef.current;
+        if (currentIndex < 0 || currentIndex >= itemHrefs.length) {
+          return;
+        }
+
+        navigate(itemHrefs[currentIndex]);
+      },
+    };
+  }, [isSearchMode, itemHrefs, navigate]);
+
+  useShortcutResultListRegistration(shortcutResultListController);
 
   const handleSearchInputChange = useCallback((value: string) => {
     setDraftSearch(value);
@@ -253,7 +285,7 @@ export default function SearchPage() {
               className={`flex h-11 items-center rounded-lg border border-border bg-bg-muted px-3 ${shouldAnimateSearchFallback ? 'home-search-fallback-enter' : ''}`}
               style={{ viewTransitionName: 'global-search' }}
             >
-              <span className="pr-3 font-mono text-base text-muted-foreground">/</span>
+              <span className="pr-3 font-mono text-base text-muted-foreground">{formatShortcutKey(bindings.focus_search)}</span>
               <input
                 ref={searchRef}
                 type="text"
@@ -268,10 +300,10 @@ export default function SearchPage() {
 
           <nav className="flex shrink-0 items-center gap-6 font-mono text-sm">
             <NavLink to="/books" className="text-muted-foreground hover:text-foreground">
-              books <kbd className="rounded border border-border bg-muted px-1 text-[11px]">b</kbd>
+              books <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{formatShortcutKey(bindings.open_books)}</kbd>
             </NavLink>
             <NavLink to="/settings" className="text-muted-foreground hover:text-foreground">
-              settings <kbd className="rounded border border-border bg-muted px-1 text-[11px]">,</kbd>
+              settings <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{formatShortcutKey(bindings.open_settings)}</kbd>
             </NavLink>
             <NavLink to="/about" className="text-muted-foreground hover:text-foreground">
               about

@@ -60,6 +60,29 @@ vi.mock('@/hooks/useKeyboardNav', () => ({
   useKeyboardNav: (...args: unknown[]) => useKeyboardNavMock(...args),
 }));
 
+vi.mock('@/hooks/useKeyboardShortcuts', () => ({
+  useKeyboardShortcuts: () => ({
+    bindings: {
+      focus_search: '/',
+      open_books: 'b',
+      open_settings: ',',
+      result_next: 'j',
+      result_prev: 'k',
+    },
+    syncStatus: 'synced',
+    syncWarning: null,
+    setShortcutBinding: vi.fn(),
+    resetShortcutBinding: vi.fn(),
+    resetAllShortcutBindings: vi.fn(),
+    registerSearchInputResolver: () => () => undefined,
+    getSearchInputElement: () => null,
+    registerResultListController: () => () => undefined,
+    getResultListController: () => null,
+  }),
+  useShortcutSearchInputRegistration: vi.fn(),
+  useShortcutResultListRegistration: vi.fn(),
+}));
+
 vi.mock('@/lib/preferences', () => ({
   INSTANT_SEARCH_STORAGE_KEY: 'message-search.instant-search-enabled',
   getInstantSearchEnabled: () => instantSearchEnabledMock,
@@ -170,7 +193,7 @@ describe('SearchPage', () => {
 
     const exactTitleCard = screen.getByTestId('exact-title-card');
     expect(exactTitleCard).toBeInTheDocument();
-    expect(screen.getByText('Book title match')).toBeInTheDocument();
+    expect(screen.getByText('Book')).toBeInTheDocument();
     expect(screen.getByText('faith')).toBeInTheDocument();
     expect(screen.getByTestId('book-match-summary')).toHaveTextContent(
       'Brother Branham opens the campaign with faith-centered encouragement.'
@@ -503,6 +526,15 @@ describe('SearchPage', () => {
     const textLength = searchInput.value.length;
     expect(searchInput.selectionStart).toBe(textLength);
     expect(searchInput.selectionEnd).toBe(textLength);
+  });
+
+  it('autofocuses search input for shortcut transfer state', async () => {
+    renderSearchPage([{ pathname: '/search', state: { source: 'shortcut', autofocus: true, requestId: 'shortcut-1' } }]);
+
+    const searchInput = screen.getByLabelText('Search sermons') as HTMLInputElement;
+    await waitFor(() => {
+      expect(document.activeElement).toBe(searchInput);
+    });
   });
 
   it('does not force autofocus for non-home route state', () => {
