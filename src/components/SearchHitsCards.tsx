@@ -15,6 +15,7 @@ interface SearchHitsCardsProps {
   loading: boolean;
   selectedIndex: number;
   query: string;
+  linkState?: unknown;
 }
 
 function SkeletonCard() {
@@ -30,7 +31,13 @@ function SkeletonCard() {
   );
 }
 
-export default function SearchHitsCards({ hits, loading, selectedIndex, query }: SearchHitsCardsProps) {
+export default function SearchHitsCards({
+  hits,
+  loading,
+  selectedIndex,
+  query,
+  linkState,
+}: SearchHitsCardsProps) {
   const queryTerms = React.useMemo(() => extractQueryTerms(query), [query]);
 
   if (!loading && hits.length === 0) {
@@ -58,6 +65,7 @@ export default function SearchHitsCards({ hits, loading, selectedIndex, query }:
               <SearchHitCard
                 key={hit.hit_id}
                 to={hitHref}
+                linkState={linkState}
                 title={hit.title}
                 snippet={renderHighlightedSnippet(hit.snippet, queryTerms)}
                 sermonCode={hit.sermon_code}

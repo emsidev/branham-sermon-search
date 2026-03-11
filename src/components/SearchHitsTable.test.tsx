@@ -1,18 +1,38 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import SearchHitsTable from './SearchHitsTable';
 import type { SearchHit } from '@/hooks/useSermons';
 
-function renderTable(hits: SearchHit[], query: string) {
+const navigateMock = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
+
+function renderTable(hits: SearchHit[], query: string, linkState?: unknown) {
   return render(
     <MemoryRouter>
-      <SearchHitsTable hits={hits} loading={false} selectedIndex={-1} query={query} />
+      <SearchHitsTable
+        hits={hits}
+        loading={false}
+        selectedIndex={-1}
+        query={query}
+        linkState={linkState}
+      />
     </MemoryRouter>
   );
 }
 
 describe('SearchHitsTable', () => {
+  beforeEach(() => {
+    navigateMock.mockReset();
+  });
+
   it('renders hit rows with required fields', () => {
     const hits: SearchHit[] = [
       {
@@ -272,6 +292,41 @@ describe('SearchHitsTable', () => {
     renderTable(hits, 'only believe');
 
     expect(screen.queryByText('exact')).not.toBeInTheDocument();
+  });
+
+  it('navigates row selection with preserved search return state', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-state:para:3:chunk:1',
+        sermon_id: 'sermon-state',
+        sermon_code: '61-0428',
+        title: 'Only Believe',
+        summary: null,
+        date: '1961-04-28',
+        location: 'Phoenix, AZ',
+        paragraph_number: 3,
+        printed_paragraph_number: 3,
+        chunk_index: 1,
+        chunk_total: 2,
+        match_source: 'paragraph_text',
+        snippet: '... only believe ...',
+        relevance: 2.3,
+        is_exact_match: false,
+        tags: [],
+        total_count: 1,
+      },
+    ];
+    const linkState = { searchReturnTo: '/search?q=only+believe&sort=date-desc&page=3&view=table' };
+    renderTable(hits, 'only believe', linkState);
+
+    const row = document.querySelector('tr[role="link"]');
+    expect(row).not.toBeNull();
+    fireEvent.click(row!);
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.stringContaining('/sermons/sermon-state?'),
+      { state: linkState },
+    );
   });
 });
 

@@ -16,6 +16,7 @@ export interface UseS02HitNavigationOptions {
   enabled: boolean;
   initialIndex?: number;
   scrollBehavior?: ScrollBehavior;
+  resetKey?: string | number | null;
 }
 
 export interface UseS02HitNavigationResult {
@@ -23,5 +24,6 @@ export interface UseS02HitNavigationResult {
   totalHits: number;
   goNext: () => number;
   goPrev: () => number;
+  goTo: (index: number) => number;
   handleKeyDown: (event: KeyboardEvent) => void;
 }

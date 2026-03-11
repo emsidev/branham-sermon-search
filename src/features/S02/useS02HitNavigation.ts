@@ -26,11 +26,14 @@ export function useS02HitNavigation({
   enabled,
   initialIndex = -1,
   scrollBehavior = 'smooth',
+  resetKey,
 }: UseS02HitNavigationOptions): UseS02HitNavigationResult {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [totalHits, setTotalHits] = useState(0);
   const activeIndexRef = useRef(-1);
+  const totalHitsRef = useRef(0);
   const matchesRef = useRef<HTMLElement[]>([]);
+  const scheduledRefreshFrameRef = useRef<number | null>(null);
 
   const collectMatches = useCallback((): HTMLElement[] => {
     if (!enabled) {
@@ -52,13 +55,22 @@ export function useS02HitNavigation({
   ): number => {
     const navigator = createHitNavigator(matches.length);
     const normalizedIndex = navigator.normalizeIndex(nextIndex);
+    const previousActiveIndex = activeIndexRef.current;
+    const previousTotalHits = totalHitsRef.current;
+    const shouldUpdateActiveIndex = previousActiveIndex !== normalizedIndex;
+    const shouldUpdateTotalHits = previousTotalHits !== matches.length;
 
     matchesRef.current = matches;
-    activeIndexRef.current = normalizedIndex;
-    setTotalHits(matches.length);
-    setActiveIndex(normalizedIndex);
+    if (shouldUpdateActiveIndex) {
+      activeIndexRef.current = normalizedIndex;
+      setActiveIndex(normalizedIndex);
+    }
+    if (shouldUpdateTotalHits) {
+      totalHitsRef.current = matches.length;
+      setTotalHits(matches.length);
+    }
 
-    if (shouldScroll && normalizedIndex !== -1) {
+    if (shouldScroll && normalizedIndex !== -1 && (shouldUpdateActiveIndex || shouldUpdateTotalHits)) {
       scrollToMatch(matches, normalizedIndex, scrollBehavior);
     }
 
@@ -97,6 +109,11 @@ export function useS02HitNavigation({
     return commitState(matches, prevIndex, true);
   }, [collectMatches, commitState]);
 
+  const goTo = useCallback((index: number): number => {
+    const matches = collectMatches();
+    return commitState(matches, index, true);
+  }, [collectMatches, commitState]);
+
   const handleKeyDown = useCallback((event: KeyboardEvent): void => {
     if (!enabled) {
       return;
@@ -126,7 +143,7 @@ export function useS02HitNavigation({
 
   useEffect(() => {
     refreshMatches(true);
-  }, [refreshMatches]);
+  }, [refreshMatches, resetKey]);
 
   useEffect(() => {
     if (!enabled || typeof MutationObserver === 'undefined') {
@@ -139,7 +156,21 @@ export function useS02HitNavigation({
     }
 
     const observer = new MutationObserver(() => {
-      refreshMatches(false);
+      if (scheduledRefreshFrameRef.current != null) {
+        return;
+      }
+
+      const flushRefresh = () => {
+        scheduledRefreshFrameRef.current = null;
+        refreshMatches(false);
+      };
+
+      if (typeof window.requestAnimationFrame === 'function') {
+        scheduledRefreshFrameRef.current = window.requestAnimationFrame(flushRefresh);
+        return;
+      }
+
+      flushRefresh();
     });
 
     observer.observe(container, {
@@ -149,6 +180,10 @@ export function useS02HitNavigation({
     });
 
     return () => {
+      if (scheduledRefreshFrameRef.current != null) {
+        window.cancelAnimationFrame(scheduledRefreshFrameRef.current);
+        scheduledRefreshFrameRef.current = null;
+      }
       observer.disconnect();
     };
   }, [containerRef, enabled, refreshMatches]);
@@ -158,6 +193,7 @@ export function useS02HitNavigation({
     totalHits,
     goNext,
     goPrev,
+    goTo,
     handleKeyDown,
-  }), [activeIndex, totalHits, goNext, goPrev, handleKeyDown]);
+  }), [activeIndex, totalHits, goNext, goPrev, goTo, handleKeyDown]);
 }

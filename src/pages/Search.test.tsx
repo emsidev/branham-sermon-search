@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SearchPage from './Search';
 import type { SearchHit } from '@/hooks/useSermons';
@@ -97,8 +97,14 @@ vi.mock('@/components/SermonPagination', () => ({
 }));
 
 vi.mock('@/components/SearchHitsCards', () => ({
-  default: ({ hits }: { hits: Array<{ title: string; is_exact_match: boolean }> }) => (
-    <div data-testid="cards-view">
+  default: ({
+    hits,
+    linkState,
+  }: {
+    hits: Array<{ title: string; is_exact_match: boolean }>;
+    linkState?: unknown;
+  }) => (
+    <div data-testid="cards-view" data-link-state={JSON.stringify(linkState ?? null)}>
       <div data-testid="cards-count">{hits.length}</div>
       {hits.map((hit) => (
         <div key={hit.title} data-testid="card-hit">
@@ -111,8 +117,14 @@ vi.mock('@/components/SearchHitsCards', () => ({
 }));
 
 vi.mock('@/components/SearchHitsTable', () => ({
-  default: ({ hits }: { hits: Array<{ title: string; is_exact_match: boolean }> }) => (
-    <div data-testid="table-view">
+  default: ({
+    hits,
+    linkState,
+  }: {
+    hits: Array<{ title: string; is_exact_match: boolean }>;
+    linkState?: unknown;
+  }) => (
+    <div data-testid="table-view" data-link-state={JSON.stringify(linkState ?? null)}>
       <div data-testid="table-count">{hits.length}</div>
       {hits.map((hit) => (
         <div key={hit.title} data-testid="table-hit">
@@ -132,6 +144,11 @@ function renderSearchPage(
       <SearchPage />
     </MemoryRouter>
   );
+}
+
+function LocationStateSpy() {
+  const location = useLocation();
+  return <div data-testid="location-state">{JSON.stringify(location.state ?? null)}</div>;
 }
 
 describe('SearchPage', () => {
@@ -164,11 +181,46 @@ describe('SearchPage', () => {
 
     expect(screen.queryByText('Exact match')).not.toBeInTheDocument();
     expect(screen.queryByTestId('exact-title-card')).not.toBeInTheDocument();
-    expect(screen.getByText('Found 2 hits')).toBeInTheDocument();
-    expect(screen.getByTestId('cards-count')).toHaveTextContent('2');
+    expect(screen.getByText('Found 1 hits')).toBeInTheDocument();
+    expect(screen.getByTestId('cards-count')).toHaveTextContent('1');
     const cardTitles = screen.getAllByTestId('card-hit-title').map((item) => item.textContent);
     expect(cardTitles[0]).toBe('Have Faith in God');
+    expect(cardTitles).not.toContain('God Hiding Himself');
     expect(screen.getAllByText('exact')).toHaveLength(1);
+  });
+
+  it('keeps full result list when there are no exact matches', () => {
+    useSermonsMock.mockReturnValue({
+      searchHits: [
+        {
+          ...defaultSearchHits[0],
+          is_exact_match: false,
+        },
+        {
+          ...defaultSearchHits[1],
+          is_exact_match: false,
+          snippet: 'A broad snippet without full phrase overlap.',
+        },
+      ],
+      isSearchMode: true,
+      total: 2,
+      loading: false,
+      filters: {
+        q: 'broad topic',
+        year: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+      },
+      setFilter: setFilterMock,
+      pageSize: 25,
+    });
+
+    renderSearchPage();
+
+    expect(screen.getByText('Found 2 hits')).toBeInTheDocument();
+    expect(screen.getByTestId('cards-count')).toHaveTextContent('2');
   });
 
   it('renders exact-title top card for exact title queries in card view', () => {
@@ -198,8 +250,43 @@ describe('SearchPage', () => {
     expect(screen.getByTestId('book-match-summary')).toHaveTextContent(
       'Brother Branham opens the campaign with faith-centered encouragement.'
     );
+    expect(screen.getByText('Found 1 hits')).toBeInTheDocument();
+    expect(screen.getByTestId('cards-count')).toHaveTextContent('1');
     expect(screen.getAllByText('Have Faith in God').length).toBeGreaterThan(0);
     expect(exactTitleCard).toHaveAttribute('href', expect.stringContaining('/sermons/s1?'));
+  });
+
+  it('preserves full search return context when opening exact-title hit', () => {
+    useSermonsMock.mockReturnValue({
+      searchHits: defaultSearchHits,
+      isSearchMode: true,
+      total: 2,
+      loading: false,
+      filters: {
+        q: 'have faith in God',
+        year: '',
+        location: '',
+        page: 2,
+        sort: 'relevance-desc',
+        view: 'card',
+      },
+      setFilter: setFilterMock,
+      pageSize: 25,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/search?q=have+faith+in+God&sort=relevance-desc&view=card&page=2']}>
+        <Routes>
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/sermons/:id" element={<LocationStateSpy />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('exact-title-card'));
+    expect(screen.getByTestId('location-state')).toHaveTextContent(
+      '"searchReturnTo":"/search?q=have+faith+in+God&sort=relevance-desc&view=card&page=2"',
+    );
   });
 
   it('omits book-match summary when the exact title hit has no summary', () => {
@@ -253,6 +340,8 @@ describe('SearchPage', () => {
 
     expect(screen.getByTestId('exact-title-card')).toBeInTheDocument();
     expect(screen.getByTestId('table-view')).toBeInTheDocument();
+    expect(screen.getByText('Found 1 hits')).toBeInTheDocument();
+    expect(screen.getByTestId('table-count')).toHaveTextContent('1');
   });
 
   it('marks phrase matches as exact even when backend exact is false', () => {
@@ -543,5 +632,14 @@ describe('SearchPage', () => {
     const searchInput = screen.getByLabelText('Search sermons');
     expect(document.activeElement).not.toBe(searchInput);
     expect(searchInput.closest('div')).not.toHaveClass('home-search-fallback-enter');
+  });
+
+  it('passes full search return context into hit list renderers', () => {
+    renderSearchPage(['/search?q=lord&sort=date-desc&view=table&page=3']);
+
+    expect(screen.getByTestId('cards-view')).toHaveAttribute(
+      'data-link-state',
+      '{"searchReturnTo":"/search?q=lord&sort=date-desc&view=table&page=3"}',
+    );
   });
 });

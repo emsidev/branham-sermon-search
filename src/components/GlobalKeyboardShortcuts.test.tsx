@@ -32,10 +32,15 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
 
 function LocationSpy() {
   const location = useLocation();
-  return <div data-testid="path">{location.pathname}</div>;
+  return (
+    <>
+      <div data-testid="path">{location.pathname}</div>
+      <div data-testid="full-path">{`${location.pathname}${location.search}`}</div>
+    </>
+  );
 }
 
-function renderWithRouter(initialEntry = '/about') {
+function renderWithRouter(initialEntry: string | { pathname: string; search?: string; state?: unknown } = '/about') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <GlobalKeyboardShortcuts />
@@ -66,6 +71,32 @@ describe('GlobalKeyboardShortcuts', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('path')).toHaveTextContent('/search');
+    });
+  });
+
+  it('preserves searchReturnTo query context when slash shortcut is pressed', async () => {
+    renderWithRouter({
+      pathname: '/sermons/sermon-1',
+      search: '?q=leadership',
+      state: { searchReturnTo: '/search?q=only+believe&sort=date-desc&view=table&page=2' },
+    });
+
+    fireEvent.keyDown(window, { key: '/' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('full-path')).toHaveTextContent(
+        '/search?q=only+believe&sort=date-desc&view=table&page=2',
+      );
+    });
+  });
+
+  it('falls back to current URL query when slash shortcut has no return state', async () => {
+    renderWithRouter('/sermons/sermon-1?q=the+token');
+
+    fireEvent.keyDown(window, { key: '/' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('full-path')).toHaveTextContent('/search?q=the+token');
     });
   });
 

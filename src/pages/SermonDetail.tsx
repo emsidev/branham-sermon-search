@@ -1,11 +1,21 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Play, Share2, Check, FileText } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Play, Share2, Check, FileText, Search as SearchIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { fetchSermonById, fetchAdjacentSermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
-import { extractHitChunkIndex, extractQueryTerms, formatMatchSourceLabel, resolveHighlightTermsForText, splitTextByTerms } from '@/lib/search';
+import { useS02HitNavigation } from '@/features/S02';
+import { renderActiveHitHighlights } from '@/features/S03';
+import { S04SearchPopup, useS04SearchPopupController, type S04SearchPopupResultItem } from '@/features/S04';
+import {
+  extractHitChunkIndex,
+  extractQueryTerms,
+  formatMatchSourceLabel,
+  resolveHighlightTermsForText,
+  splitTextByTerms,
+} from '@/lib/search';
+import { buildSearchHrefFromQuery, readSearchReturnTo } from '@/lib/searchNavigation';
 
 interface AdjacentSermon {
   id: string;
@@ -13,28 +23,250 @@ interface AdjacentSermon {
   date: string;
 }
 
+type SearchMatchOrigin = 'title' | 'paragraph' | 'content';
+
+interface FindResult {
+  id: string;
+  absoluteIndex: number;
+  origin: SearchMatchOrigin;
+  paragraphNumber: number | null;
+  localMatchIndex: number;
+  contextLabel: string;
+  matchText: string;
+  preview: string;
+}
+
+interface RegionMatchMeta {
+  origin: SearchMatchOrigin;
+  paragraphNumber: number | null;
+  offset: number;
+  totalMatches: number;
+}
+
+interface SermonFindModel {
+  totalMatches: number;
+  results: FindResult[];
+  regionMetaByKey: Record<string, RegionMatchMeta>;
+}
+
+const TITLE_REGION_KEY = 'title';
+const CONTENT_REGION_KEY = 'content';
+const SNIPPET_BEFORE_CHARS = 44;
+const SNIPPET_AFTER_CHARS = 70;
+const FIND_QUERY_DEBOUNCE_MS = 120;
+
+function getParagraphRegionKey(paragraphNumber: number): string {
+  return `paragraph-${paragraphNumber}`;
+}
+
+function buildMatchPreview(text: string, start: number, end: number): string {
+  const startBound = Math.max(0, start - SNIPPET_BEFORE_CHARS);
+  const endBound = Math.min(text.length, end + SNIPPET_AFTER_CHARS);
+
+  let snippet = text.slice(startBound, endBound).replace(/\s+/g, ' ').trim();
+  if (!snippet) {
+    return '';
+  }
+
+  if (startBound > 0) {
+    snippet = `...${snippet}`;
+  }
+  if (endBound < text.length) {
+    snippet = `${snippet}...`;
+  }
+
+  return snippet;
+}
+
+function buildSermonFindModel(sermon: Sermon | null, terms: string[]): SermonFindModel {
+  if (!sermon || terms.length === 0) {
+    return {
+      totalMatches: 0,
+      results: [],
+      regionMetaByKey: {},
+    };
+  }
+
+  const results: FindResult[] = [];
+  const regionMetaByKey: Record<string, RegionMatchMeta> = {};
+  let absoluteIndex = 0;
+
+  const appendRegion = (
+    regionKey: string,
+    origin: SearchMatchOrigin,
+    text: string,
+    paragraphNumber: number | null,
+  ) => {
+    const effectiveTerms = resolveHighlightTermsForText(text, terms);
+    const parts = splitTextByTerms(text, effectiveTerms);
+    const regionOffset = absoluteIndex;
+    let localMatchIndex = 0;
+    let cursor = 0;
+
+    for (const part of parts) {
+      const partStart = cursor;
+      const partEnd = cursor + part.text.length;
+
+      if (part.matched && part.text.length > 0) {
+        const contextLabel = origin === 'title'
+          ? 'Title'
+          : origin === 'paragraph'
+            ? `Paragraph ${paragraphNumber ?? '-'}`
+            : 'Content';
+
+        results.push({
+          id: `${regionKey}:${localMatchIndex}`,
+          absoluteIndex,
+          origin,
+          paragraphNumber,
+          localMatchIndex,
+          contextLabel,
+          matchText: part.text,
+          preview: buildMatchPreview(text, partStart, partEnd),
+        });
+        localMatchIndex += 1;
+        absoluteIndex += 1;
+      }
+
+      cursor = partEnd;
+    }
+
+    regionMetaByKey[regionKey] = {
+      origin,
+      paragraphNumber,
+      offset: regionOffset,
+      totalMatches: localMatchIndex,
+    };
+  };
+
+  appendRegion(TITLE_REGION_KEY, 'title', sermon.title, null);
+
+  if (sermon.paragraphs.length > 0) {
+    for (const paragraph of sermon.paragraphs) {
+      appendRegion(
+        getParagraphRegionKey(paragraph.paragraph_number),
+        'paragraph',
+        paragraph.paragraph_text,
+        paragraph.paragraph_number,
+      );
+    }
+  } else {
+    appendRegion(CONTENT_REGION_KEY, 'content', sermon.text_content, null);
+  }
+
+  return {
+    totalMatches: results.length,
+    results,
+    regionMetaByKey,
+  };
+}
+
+function resolveRouteTargetMatchIndex(
+  results: FindResult[],
+  source: string | null,
+  paragraphNumber: number | null,
+  chunkIndex: number | null,
+): number {
+  if (results.length === 0) {
+    return -1;
+  }
+
+  if (source === 'paragraph_text' && paragraphNumber != null) {
+    const paragraphMatches = results.filter(
+      (result) => result.origin === 'paragraph' && result.paragraphNumber === paragraphNumber,
+    );
+    if (paragraphMatches.length > 0) {
+      const localTargetIndex = chunkIndex && chunkIndex > 0 ? chunkIndex - 1 : 0;
+      const safeIndex = Math.min(localTargetIndex, paragraphMatches.length - 1);
+      return paragraphMatches[safeIndex].absoluteIndex;
+    }
+  }
+
+  if (source === 'title') {
+    const titleMatch = results.find((result) => result.origin === 'title');
+    if (titleMatch) {
+      return titleMatch.absoluteIndex;
+    }
+  }
+
+  return results[0].absoluteIndex;
+}
+
 export default function SermonDetail() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [adjacent, setAdjacent] = useState<{ prev: AdjacentSermon | null; next: AdjacentSermon | null }>({ prev: null, next: null });
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const hasAutoScrolledRef = useRef(false);
   const { play } = useAudioPlayer();
 
   const searchQuery = searchParams.get('q')?.trim() ?? '';
+  const [findQuery, setFindQuery] = useState(searchQuery);
+  const [appliedFindQuery, setAppliedFindQuery] = useState(searchQuery);
   const matchSource = searchParams.get('source');
   const paragraphParam = searchParams.get('paragraph');
   const hitId = searchParams.get('hit');
+  const searchShortcutKey = 'f';
 
-  const highlightTerms = useMemo(() => extractQueryTerms(searchQuery, 12), [searchQuery]);
+  const {
+    isOpen: isSearchPopupOpen,
+    shouldFocusInput: shouldFocusSearchInput,
+    openFromToolbar: openSearchPopupFromToolbar,
+    close: closeSearchPopup,
+    consumeInputFocusRequest: consumeSearchPopupFocusRequest,
+    handleGlobalKeyDown: handleSearchPopupShortcutKeyDown,
+  } = useS04SearchPopupController({
+    shortcutKey: searchShortcutKey,
+  });
+
+  const highlightTerms = useMemo(() => extractQueryTerms(appliedFindQuery, 12), [appliedFindQuery]);
   const targetChunkIndex = useMemo(() => extractHitChunkIndex(hitId), [hitId]);
   const targetParagraphNumber = useMemo(() => {
     const parsedParagraph = paragraphParam ? Number.parseInt(paragraphParam, 10) : null;
     return Number.isFinite(parsedParagraph ?? NaN) ? parsedParagraph : null;
   }, [paragraphParam]);
+  const isRouteSearchContext = appliedFindQuery.trim() === searchQuery && searchQuery.length > 0;
+  const breadcrumbRootHref = useMemo(() => {
+    const searchReturnTo = readSearchReturnTo(location.state);
+    if (searchReturnTo) {
+      return searchReturnTo;
+    }
+
+    if (searchQuery) {
+      return buildSearchHrefFromQuery(searchQuery);
+    }
+
+    return '/search';
+  }, [location.state, searchQuery]);
+  const findModel = useMemo(() => buildSermonFindModel(sermon, highlightTerms), [highlightTerms, sermon]);
+
+  const initialMatchIndex = useMemo(() => {
+    if (findModel.totalMatches === 0) {
+      return -1;
+    }
+
+    if (!isRouteSearchContext) {
+      return 0;
+    }
+
+    return resolveRouteTargetMatchIndex(
+      findModel.results,
+      matchSource,
+      targetParagraphNumber,
+      targetChunkIndex,
+    );
+  }, [
+    findModel.results,
+    findModel.totalMatches,
+    isRouteSearchContext,
+    matchSource,
+    targetChunkIndex,
+    targetParagraphNumber,
+  ]);
+
   const matchContext = useMemo(() => {
     if (!matchSource && targetParagraphNumber == null) {
       return '';
@@ -42,6 +274,21 @@ export default function SermonDetail() {
 
     return formatMatchSourceLabel(matchSource, targetParagraphNumber);
   }, [matchSource, targetParagraphNumber]);
+
+  const {
+    activeIndex: activeMatchIndex,
+    totalHits: totalMatches,
+    goNext: goToNextMatch,
+    goPrev: goToPreviousMatch,
+    goTo: goToMatchIndex,
+    handleKeyDown: handleHitNavigationKeyDown,
+  } = useS02HitNavigation({
+    containerRef: contentRef,
+    enabled: highlightTerms.length > 0,
+    initialIndex: initialMatchIndex,
+    scrollBehavior: 'smooth',
+    resetKey: `${id ?? 'unknown'}:${appliedFindQuery}:${initialMatchIndex}:${sermon ? 'ready' : 'loading'}`,
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -56,61 +303,81 @@ export default function SermonDetail() {
   }, [id]);
 
   useEffect(() => {
-    hasAutoScrolledRef.current = false;
+    setFindQuery(searchQuery);
+    setAppliedFindQuery(searchQuery);
   }, [id, searchQuery]);
 
   useEffect(() => {
-    if (!sermon || hasAutoScrolledRef.current) {
+    if (findQuery === appliedFindQuery) {
       return;
     }
 
-    if (targetParagraphNumber != null) {
-      const paragraphElement = contentRef.current?.querySelector<HTMLElement>(
-        `[data-paragraph-number="${targetParagraphNumber}"]`
-      );
+    const timeoutId = window.setTimeout(() => {
+      setAppliedFindQuery(findQuery);
+    }, FIND_QUERY_DEBOUNCE_MS);
 
-      if (paragraphElement) {
-        if (highlightTerms.length > 0) {
-          const paragraphMatches = paragraphElement.querySelectorAll<HTMLElement>('[data-search-match="true"]');
-          const desiredIndex = targetChunkIndex && targetChunkIndex > 0
-            ? targetChunkIndex - 1
-            : 0;
-          const highlightedMatch = paragraphMatches[desiredIndex] ?? paragraphMatches[0];
-          if (highlightedMatch) {
-            highlightedMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            hasAutoScrolledRef.current = true;
-            return;
-          }
-        }
+    return () => window.clearTimeout(timeoutId);
+  }, [appliedFindQuery, findQuery]);
 
-        paragraphElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        hasAutoScrolledRef.current = true;
-        return;
-      }
-    }
+  useEffect(() => {
+    window.addEventListener('keydown', handleSearchPopupShortcutKeyDown);
+    return () => window.removeEventListener('keydown', handleSearchPopupShortcutKeyDown);
+  }, [handleSearchPopupShortcutKeyDown]);
 
+  useEffect(() => {
     if (!highlightTerms.length) {
       return;
     }
 
-    const matches = contentRef.current?.querySelectorAll<HTMLElement>('[data-search-match="true"]');
-    if (!matches || matches.length === 0) {
-      return;
-    }
-
-    const desiredIndex = targetChunkIndex && targetChunkIndex > 0
-      ? targetChunkIndex - 1
-      : 0;
-    const targetMatch = matches[desiredIndex] ?? matches[0];
-    targetMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    hasAutoScrolledRef.current = true;
-  }, [sermon, highlightTerms, targetChunkIndex, targetParagraphNumber]);
+    window.addEventListener('keydown', handleHitNavigationKeyDown);
+    return () => window.removeEventListener('keydown', handleHitNavigationKeyDown);
+  }, [handleHitNavigationKeyDown, highlightTerms.length]);
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     setShared(true);
     setTimeout(() => setShared(false), 2000);
   };
+
+  const popupResults = useMemo<S04SearchPopupResultItem[]>(() => (
+    findModel.results.map((result) => ({
+      id: result.id,
+      absoluteIndex: result.absoluteIndex,
+      contextLabel: result.contextLabel,
+      matchText: result.matchText,
+      preview: result.preview,
+      isActive: result.absoluteIndex === activeMatchIndex,
+    }))
+  ), [activeMatchIndex, findModel.results]);
+
+  const handleSelectPopupResult = useCallback((absoluteIndex: number) => {
+    goToMatchIndex(absoluteIndex);
+    closeSearchPopup();
+  }, [closeSearchPopup, goToMatchIndex]);
+
+  const renderRegionHighlightedText = useCallback((regionKey: string, text: string): React.ReactNode => {
+    if (!highlightTerms.length) {
+      return text;
+    }
+
+    const regionMeta = findModel.regionMetaByKey[regionKey];
+    if (!regionMeta || regionMeta.totalMatches === 0) {
+      return text;
+    }
+
+    const relativeActiveIndex = activeMatchIndex - regionMeta.offset;
+    return renderActiveHitHighlights(text, highlightTerms, relativeActiveIndex, {
+      fallbackToFirstMatch: false,
+      getMatchAttributes: (localMatchIndex) => ({
+        'data-search-match-origin': regionMeta.origin,
+        'data-search-match-local-index': String(localMatchIndex),
+        'data-search-match-global-index': String(regionMeta.offset + localMatchIndex),
+        ...(regionMeta.paragraphNumber != null
+          ? { 'data-search-match-paragraph': String(regionMeta.paragraphNumber) }
+          : {}),
+      }),
+    }).content;
+  }, [activeMatchIndex, findModel.regionMetaByKey, highlightTerms]);
 
   if (loading) {
     return (
@@ -140,8 +407,23 @@ export default function SermonDetail() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
+      <S04SearchPopup
+        isOpen={isSearchPopupOpen}
+        query={findQuery}
+        totalResults={totalMatches}
+        activeResultIndex={activeMatchIndex}
+        results={popupResults}
+        onQueryChange={setFindQuery}
+        onNext={goToNextMatch}
+        onPrevious={goToPreviousMatch}
+        onSelectResult={handleSelectPopupResult}
+        onClose={closeSearchPopup}
+        shouldFocusInput={shouldFocusSearchInput}
+        onInputFocusHandled={consumeSearchPopupFocusRequest}
+      />
+
       <div ref={contentRef} className="mx-auto max-w-[900px] space-y-8 px-6 py-8 lg:px-0">
-        <SermonBreadcrumb year={sermon.year} title={sermon.title} />
+        <SermonBreadcrumb year={sermon.year} title={sermon.title} rootHref={breadcrumbRootHref} />
 
         <section className="space-y-4 border-b border-border-subtle pb-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -153,7 +435,7 @@ export default function SermonDetail() {
               </div>
               <h1 className="text-2xl font-bold font-mono leading-tight text-foreground">
                 {highlightTerms.length
-                  ? renderHighlightedText(sermon.title, highlightTerms)
+                  ? renderRegionHighlightedText(TITLE_REGION_KEY, sermon.title)
                   : sermon.title}
               </h1>
               {sermon.summary ? (
@@ -166,13 +448,13 @@ export default function SermonDetail() {
             <div className="shrink-0">
               <div className="inline-flex overflow-hidden rounded-lg border border-border bg-background text-xs font-mono">
                 {sermon.audio_url && (
-                  <button
-                    onClick={() => play(sermon.audio_url, sermon.title)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row"
-                  >
-                    <Play className="h-3 w-3" />
-                    Play
-                  </button>
+                <button
+                  onClick={() => play(sermon.audio_url, sermon.title)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row"
+                >
+                  <Play className="h-3 w-3" />
+                  Play
+                </button>
                 )}
                 {sermon.pdf_source_path && (
                   <a
@@ -186,8 +468,16 @@ export default function SermonDetail() {
                   </a>
                 )}
                 <button
-                  onClick={handleShare}
+                  onClick={openSearchPopupFromToolbar}
                   className={`inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row ${sermon.audio_url || sermon.pdf_source_path ? 'border-l border-border' : ''}`}
+                >
+                  <SearchIcon className="h-3 w-3" />
+                  Find
+                  <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{searchShortcutKey}</kbd>
+                </button>
+                <button
+                  onClick={handleShare}
+                  className="inline-flex items-center gap-1.5 border-l border-border px-3 py-2 text-foreground hover:bg-hover-row"
                 >
                   {shared ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
                   {shared ? 'Copied!' : 'Share'}
@@ -196,7 +486,7 @@ export default function SermonDetail() {
             </div>
           </div>
 
-          {highlightTerms.length > 0 && (
+          {highlightTerms.length > 0 && isRouteSearchContext && (
             <p className="text-xs font-mono text-muted-foreground" title={hitId || undefined}>
               Search match{matchContext ? `: ${matchContext}` : ''}
             </p>
@@ -239,6 +529,7 @@ export default function SermonDetail() {
                     paragraph.printed_paragraph_number != null &&
                     paragraph.printed_paragraph_number !== paragraph.paragraph_number
                   );
+                  const paragraphRegionKey = getParagraphRegionKey(paragraph.paragraph_number);
 
                   return (
                     <section
@@ -256,7 +547,7 @@ export default function SermonDetail() {
                       </p>
                       <div className="whitespace-pre-wrap text-[1.02rem] leading-8 text-foreground/90">
                         {highlightTerms.length
-                          ? renderHighlightedText(paragraph.paragraph_text, highlightTerms)
+                          ? renderRegionHighlightedText(paragraphRegionKey, paragraph.paragraph_text)
                           : paragraph.paragraph_text}
                       </div>
                     </section>
@@ -266,7 +557,7 @@ export default function SermonDetail() {
             ) : (
               <div className="whitespace-pre-wrap text-[1.02rem] leading-8 text-foreground/90">
                 {highlightTerms.length
-                  ? renderHighlightedText(sermon.text_content, highlightTerms)
+                  ? renderRegionHighlightedText(CONTENT_REGION_KEY, sermon.text_content)
                   : sermon.text_content}
               </div>
             )}
@@ -313,26 +604,6 @@ function formatLongDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
-}
-
-function renderHighlightedText(text: string, terms: string[]): React.ReactNode {
-  const effectiveTerms = resolveHighlightTermsForText(text, terms);
-  const parts = splitTextByTerms(text, effectiveTerms);
-  return parts.map((part, idx) => {
-    if (part.matched) {
-      return (
-        <mark
-          key={idx}
-          data-search-match="true"
-          className="rounded-sm bg-yellow-200/70 px-0.5 text-foreground"
-        >
-          {part.text}
-        </mark>
-      );
-    }
-
-    return <React.Fragment key={idx}>{part.text}</React.Fragment>;
-  });
 }
 
 function formatDuration(durationSeconds: number | null): string | null {

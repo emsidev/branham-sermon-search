@@ -20,7 +20,10 @@ import {
 } from '@/lib/search';
 import { formatShortcutKey } from '@/lib/keyboardShortcuts';
 import { getInstantSearchEnabled } from '@/lib/preferences';
-import { isSearchAutofocusTransitionState } from '@/lib/searchNavigation';
+import {
+  createSearchReturnState,
+  isSearchAutofocusTransitionState,
+} from '@/lib/searchNavigation';
 import { extractYear } from '@/lib/utils';
 
 const SORT_OPTIONS: Array<{ value: 'relevance-desc' | 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc'; label: string }> = [
@@ -104,6 +107,10 @@ export default function SearchPage() {
   const { bindings } = useKeyboardShortcuts();
   const transitionState = isSearchAutofocusTransitionState(location.state) ? location.state : null;
   const shouldAnimateSearchFallback = Boolean(transitionState) && !supportsNativeViewTransition();
+  const searchReturnState = useMemo(
+    () => createSearchReturnState(`${location.pathname}${location.search}`),
+    [location.pathname, location.search],
+  );
 
   useShortcutSearchInputRegistration(searchRef);
 
@@ -170,22 +177,39 @@ export default function SearchPage() {
     return [...computedExactHits].sort((a, b) => Number(b.is_exact_match) - Number(a.is_exact_match));
   }, [filters.q, filters.sort, searchHits]);
 
-  const exactTitleHit = useMemo(() => {
+  const exactTitleMatches = useMemo(() => {
     const normalizedQuery = normalizeExactTitleQuery(filters.q);
     if (!normalizedQuery) {
-      return null;
+      return [];
     }
 
-    const titleMatches = rankedSearchHits.filter(
+    return rankedSearchHits.filter(
       (hit) => normalizeExactCandidateText(hit.title) === normalizedQuery
     );
+  }, [filters.q, rankedSearchHits]);
 
-    if (!titleMatches.length) {
+  const exactTitleHit = useMemo(() => {
+    if (!exactTitleMatches.length) {
       return null;
     }
 
-    return titleMatches.find((hit) => hit.match_source === 'title') ?? titleMatches[0];
-  }, [filters.q, rankedSearchHits]);
+    return exactTitleMatches.find((hit) => hit.match_source === 'title') ?? exactTitleMatches[0];
+  }, [exactTitleMatches]);
+
+  const visibleSearchHits = useMemo(() => {
+    const exactHits = rankedSearchHits.filter((hit) => hit.is_exact_match);
+    if (exactHits.length > 0) {
+      return exactHits;
+    }
+
+    if (exactTitleMatches.length > 0) {
+      return exactTitleMatches;
+    }
+
+    return rankedSearchHits;
+  }, [exactTitleMatches, rankedSearchHits]);
+
+  const visibleHitCount = visibleSearchHits.length;
 
   const exactTitleHitHref = useMemo(() => {
     if (!exactTitleHit) {
@@ -206,14 +230,14 @@ export default function SearchPage() {
       return [];
     }
 
-    return rankedSearchHits.map((hit) => buildSermonHitHref({
+    return visibleSearchHits.map((hit) => buildSermonHitHref({
       sermonId: hit.sermon_id,
       query: filters.q,
       matchSource: hit.match_source,
       paragraphNumber: hit.paragraph_number,
       hitId: hit.hit_id,
     }));
-  }, [filters.q, isSearchMode, rankedSearchHits]);
+  }, [filters.q, isSearchMode, visibleSearchHits]);
 
   const shortcutResultListController = useMemo<ShortcutResultListController | null>(() => {
     if (!isSearchMode || itemHrefs.length === 0) {
@@ -234,10 +258,15 @@ export default function SearchPage() {
           return;
         }
 
+        if (searchReturnState) {
+          navigate(itemHrefs[currentIndex], { state: searchReturnState });
+          return;
+        }
+
         navigate(itemHrefs[currentIndex]);
       },
     };
-  }, [isSearchMode, itemHrefs, navigate]);
+  }, [isSearchMode, itemHrefs, navigate, searchReturnState]);
 
   useShortcutResultListRegistration(shortcutResultListController);
 
@@ -329,6 +358,7 @@ export default function SearchPage() {
               <section className="mt-8">
                 <BookMatchCard
                   to={exactTitleHitHref}
+                  linkState={searchReturnState ?? undefined}
                   title={exactTitleHit.title}
                   summary={exactTitleHit.summary}
                   sermonCode={exactTitleHit.sermon_code}
@@ -341,7 +371,7 @@ export default function SearchPage() {
 
             <section className="mt-8 flex items-center justify-between gap-3">
               <p className="font-mono text-sm text-muted-foreground">
-                Found {total.toLocaleString()} hits
+                Found {visibleHitCount.toLocaleString()} hits
               </p>
 
               <div className="flex items-center gap-2">
@@ -382,17 +412,19 @@ export default function SearchPage() {
             <section className="mt-6">
               {filters.view === 'table' ? (
                 <SearchHitsTable
-                  hits={rankedSearchHits}
+                  hits={visibleSearchHits}
                   loading={loading}
                   selectedIndex={selectedIndex}
                   query={filters.q}
+                  linkState={searchReturnState ?? undefined}
                 />
               ) : (
                 <SearchHitsCards
-                  hits={rankedSearchHits}
+                  hits={visibleSearchHits}
                   loading={loading}
                   selectedIndex={selectedIndex}
                   query={filters.q}
+                  linkState={searchReturnState ?? undefined}
                 />
               )}
             </section>

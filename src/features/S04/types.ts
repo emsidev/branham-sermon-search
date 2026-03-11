@@ -1,11 +1,22 @@
+export interface S04SearchPopupResultItem {
+  id: string;
+  absoluteIndex: number;
+  contextLabel: string;
+  matchText: string;
+  preview: string;
+  isActive: boolean;
+}
+
 export interface S04SearchPopupProps {
   isOpen: boolean;
   query: string;
   totalResults: number;
   activeResultIndex: number;
+  results?: S04SearchPopupResultItem[];
   onQueryChange: (value: string) => void;
   onNext: () => void;
   onPrevious: () => void;
+  onSelectResult?: (absoluteIndex: number) => void;
   onClose: () => void;
   shouldFocusInput?: boolean;
   onInputFocusHandled?: () => void;

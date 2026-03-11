@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { createShortcutSearchTransitionState } from '@/lib/searchNavigation';
+import {
+  buildSearchHrefFromQuery,
+  createShortcutSearchTransitionState,
+  readSearchReturnTo,
+} from '@/lib/searchNavigation';
 import { normalizeShortcutKey } from '@/lib/keyboardShortcuts';
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -24,6 +28,7 @@ function isShortcutCaptureTarget(target: EventTarget | null): boolean {
 
 export default function GlobalKeyboardShortcuts() {
   const navigate = useNavigate();
+  const location = useLocation();
   const shortcutRequestIdRef = useRef(0);
   const {
     bindings,
@@ -74,7 +79,12 @@ export default function GlobalKeyboardShortcuts() {
         }
 
         const requestId = `shortcut-search-${Date.now()}-${shortcutRequestIdRef.current++}`;
-        navigate('/search', {
+        const persistedSearchHref = readSearchReturnTo(location.state);
+        const queryFromUrl = new URLSearchParams(location.search).get('q') ?? '';
+        const searchHref = persistedSearchHref
+          ?? (queryFromUrl.trim() ? buildSearchHrefFromQuery(queryFromUrl) : '/search');
+
+        navigate(searchHref, {
           state: createShortcutSearchTransitionState(requestId),
         });
         return;
@@ -111,7 +121,7 @@ export default function GlobalKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [bindings, getResultListController, getSearchInputElement, navigate]);
+  }, [bindings, getResultListController, getSearchInputElement, location.search, location.state, navigate]);
 
   return null;
 }

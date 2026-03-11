@@ -5,6 +5,7 @@ import { CardPill } from '@/components/cards/CardPill';
 
 interface BookMatchCardProps {
   to: string;
+  linkState?: unknown;
   title: string;
   summary?: string | null;
   sermonCode?: string | null;
@@ -27,6 +28,7 @@ function getFallbackInitial(title: string): string {
 
 export default function BookMatchCard({
   to,
+  linkState,
   title,
   summary,
   sermonCode,
@@ -43,7 +45,12 @@ export default function BookMatchCard({
   const shownTags = (tags ?? []).filter(Boolean).slice(0, 4);
 
   return (
-    <CardLinkSurface to={to} className="surface-card-book-match p-4 sm:p-6" data-testid="exact-title-card">
+    <CardLinkSurface
+      to={to}
+      state={linkState}
+      className="surface-card-book-match p-4 sm:p-6"
+      data-testid="exact-title-card"
+    >
       <div className="flex items-center gap-4">
         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
           {!imageFailed ? (

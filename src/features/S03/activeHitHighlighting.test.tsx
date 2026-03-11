@@ -39,13 +39,13 @@ describe('renderActiveHitHighlights', () => {
 
     expect(marks[0]).toHaveAttribute('data-search-match-index', '0');
     expect(marks[0]).toHaveAttribute('data-search-match-active', 'false');
-    expect(marks[0]).toHaveClass('bg-yellow-200/30');
-    expect(marks[0]).toHaveClass('text-foreground/70');
+    expect(marks[0]).toHaveClass('bg-yellow-200/10');
+    expect(marks[0]).toHaveClass('text-foreground/45');
 
     expect(marks[1]).toHaveAttribute('data-search-match-index', '1');
     expect(marks[1]).toHaveAttribute('data-search-match-active', 'false');
-    expect(marks[1]).toHaveClass('bg-yellow-200/30');
-    expect(marks[1]).toHaveClass('text-foreground/70');
+    expect(marks[1]).toHaveClass('bg-yellow-200/10');
+    expect(marks[1]).toHaveClass('text-foreground/45');
 
     expect(marks[2]).toHaveAttribute('data-search-match-index', '2');
     expect(marks[2]).toHaveAttribute('data-search-match-active', 'true');

@@ -104,6 +104,16 @@ describe('useS02HitNavigation', () => {
     });
     expect(result.current.activeIndex).toBe(2);
 
+    act(() => {
+      result.current.goTo(1);
+    });
+    expect(result.current.activeIndex).toBe(1);
+
+    act(() => {
+      result.current.goTo(99);
+    });
+    expect(result.current.activeIndex).toBe(2);
+
     expect(scrollSpy).toHaveBeenCalled();
     scrollSpy.mockRestore();
   });

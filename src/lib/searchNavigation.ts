@@ -13,6 +13,21 @@ export interface ShortcutSearchTransitionState {
 
 export type SearchAutofocusTransitionState = HomeSearchTransitionState | ShortcutSearchTransitionState;
 
+export interface SearchReturnState {
+  searchReturnTo: string;
+}
+
+const SEARCH_RETURN_PATH_RE = /^\/search(?:[?#].*)?$/;
+
+function normalizeSearchReturnPath(value: string): string | null {
+  const trimmed = value.trim();
+  if (!SEARCH_RETURN_PATH_RE.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
 export function isHomeSearchTransitionState(value: unknown): value is HomeSearchTransitionState {
   if (!value || typeof value !== 'object') {
     return false;
@@ -49,4 +64,40 @@ export function createShortcutSearchTransitionState(requestId: string): Shortcut
     autofocus: true,
     requestId,
   };
+}
+
+export function createSearchReturnState(searchReturnTo: string): SearchReturnState | null {
+  const normalizedPath = normalizeSearchReturnPath(searchReturnTo);
+  if (!normalizedPath) {
+    return null;
+  }
+
+  return {
+    searchReturnTo: normalizedPath,
+  };
+}
+
+export function readSearchReturnTo(state: unknown): string | null {
+  if (!state || typeof state !== 'object') {
+    return null;
+  }
+
+  const candidate = state as Record<string, unknown>;
+  if (typeof candidate.searchReturnTo !== 'string') {
+    return null;
+  }
+
+  return normalizeSearchReturnPath(candidate.searchReturnTo);
+}
+
+export function buildSearchHrefFromQuery(query: string): string {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) {
+    return '/search';
+  }
+
+  const params = new URLSearchParams({
+    q: trimmedQuery,
+  });
+  return `/search?${params.toString()}`;
 }

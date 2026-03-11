@@ -28,9 +28,9 @@
 | Status | FeatureID | Feature name | Primary agent | Owned surface | Integrator |
 |---|---|---|---|---|---|
 | DONE-LOCKED | S01 | Full-text search + keyword highlighting across all sermons | frontend-developer(search) | src/features/S01/** | integration-owner |
-| TODO | S02 | Next/Prev hit navigation (N / Shift+N) | frontend-developer(search) | src/features/S02/** | integration-owner |
-| TODO | S03 | Only active hit highlighted; all others dimmed | frontend-developer(search) | src/features/S03/** | integration-owner |
-| TODO | S04 | Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut | frontend-developer(search) | src/features/S04/** | integration-owner |
+| DONE-LOCKED | S02 | Next/Prev hit navigation (N / Shift+N) | frontend-developer(search) | src/features/S02/** | integration-owner |
+| DONE-LOCKED | S03 | Only active hit highlighted; all others dimmed | frontend-developer(search) | src/features/S03/** | integration-owner |
+| DONE-LOCKED | S04 | Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut | frontend-developer(search) | src/features/S04/** | integration-owner |
 | TODO | S05 | Search filters by year, sermon title, location | backend-architect | src/features/S05/**; supabase/migrations/*_s05_*.sql | integration-owner |
 | TODO | S06 | Fuzzy search (typo-tolerant) | backend-architect | src/features/S06/**; supabase/migrations/*_s06_*.sql | integration-owner |
 | TODO | S07 | Search history saved locally | frontend-developer(search) | src/features/S07/** | integration-owner |
@@ -86,7 +86,7 @@
 
 ## Backlog Validation Checklist
 - [ ] Confirm 56 features are listed exactly once by FeatureID.
-- [ ] Confirm exactly 2 features are marked `DONE-LOCKED` (S01, R03).
+- [ ] Confirm exactly 5 features are marked `DONE-LOCKED` (S01, S02, S03, S04, R03).
 - [ ] Confirm every feature has one primary agent.
 - [ ] Confirm every feature has a non-overlapping owned surface.
 - [ ] Confirm only `integration-owner` touches shared shell files.
@@ -2021,7 +2021,7 @@ Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Test
 
 ## Governance Validation Checklist
 - [ ] Confirm backlog table still has exactly 56 feature rows.
-- [ ] Confirm exactly 2 rows are DONE-LOCKED (S01, R03).
+- [ ] Confirm exactly 5 rows are DONE-LOCKED (S01, S02, S03, S04, R03).
 - [ ] Confirm feature spec block count is exactly 56.
 - [ ] Confirm table FeatureIDs and spec-block FeatureIDs are a 1:1 exact match.
 - [ ] Confirm each feature block has non-empty In scope and Out of scope.

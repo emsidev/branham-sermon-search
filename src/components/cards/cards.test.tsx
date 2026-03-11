@@ -1,9 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { CardPill } from './CardPill';
 import BookMatchCard from './BookMatchCard';
 import SearchHitCard from './SearchHitCard';
+
+function LocationStateSpy() {
+  const location = useLocation();
+  return <div data-testid="location-state">{JSON.stringify(location.state ?? null)}</div>;
+}
 
 describe('cards primitives', () => {
   it('renders pill variants', () => {
@@ -65,5 +70,68 @@ describe('cards primitives', () => {
     expect(screen.getByText('Paragraph 3 (1/2)')).toBeInTheDocument();
     expect(screen.getByText('faith')).toBeInTheDocument();
     expect(screen.getByText('exact')).toBeInTheDocument();
+  });
+
+  it('forwards link state for book match card links', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="/"
+            element={(
+              <div>
+                <BookMatchCard
+                  to="/sermons/1"
+                  linkState={{ searchReturnTo: '/search?q=have+faith&sort=relevance-desc&view=card&page=2' }}
+                  title="Have Faith in God"
+                />
+                <SearchHitCard
+                  to="/sermons/2?q=faith"
+                  linkState={{ searchReturnTo: '/search?q=only+believe&sort=date-desc&view=table&page=4' }}
+                  title="Only Believe"
+                  snippet="... only believe ..."
+                  date="1961-04-28"
+                  matchLabel="Paragraph 3"
+                />
+              </div>
+            )}
+          />
+          <Route path="/sermons/:id" element={<LocationStateSpy />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('exact-title-card'));
+    expect(screen.getByTestId('location-state')).toHaveTextContent(
+      '"searchReturnTo":"/search?q=have+faith&sort=relevance-desc&view=card&page=2"',
+    );
+  });
+
+  it('forwards link state for search hit card links', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="/"
+            element={(
+              <SearchHitCard
+                to="/sermons/2?q=faith"
+                linkState={{ searchReturnTo: '/search?q=only+believe&sort=date-desc&view=table&page=4' }}
+                title="Only Believe"
+                snippet="... only believe ..."
+                date="1961-04-28"
+                matchLabel="Paragraph 3"
+              />
+            )}
+          />
+          <Route path="/sermons/:id" element={<LocationStateSpy />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: /only believe/i }));
+    expect(screen.getByTestId('location-state')).toHaveTextContent(
+      '"searchReturnTo":"/search?q=only+believe&sort=date-desc&view=table&page=4"',
+    );
   });
 });

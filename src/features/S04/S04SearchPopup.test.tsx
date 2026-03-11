@@ -9,9 +9,28 @@ function buildProps(overrides: Partial<ComponentProps<typeof S04SearchPopup>> = 
     query: 'faith',
     totalResults: 47,
     activeResultIndex: 2,
+    results: [
+      {
+        id: 'r-1',
+        absoluteIndex: 1,
+        contextLabel: 'Paragraph 4',
+        matchText: 'faith',
+        preview: '...faith is the substance...',
+        isActive: false,
+      },
+      {
+        id: 'r-2',
+        absoluteIndex: 2,
+        contextLabel: 'Paragraph 8',
+        matchText: 'faith',
+        preview: '...hold to faith and keep moving...',
+        isActive: true,
+      },
+    ],
     onQueryChange: vi.fn(),
     onNext: vi.fn(),
     onPrevious: vi.fn(),
+    onSelectResult: vi.fn(),
     onClose: vi.fn(),
     shouldFocusInput: false,
     onInputFocusHandled: vi.fn(),
@@ -35,11 +54,12 @@ describe('S04SearchPopup', () => {
   });
 
   it('disables previous/next buttons when there are no results', () => {
-    render(<S04SearchPopup {...buildProps({ totalResults: 0, activeResultIndex: 0 })} />);
+    render(<S04SearchPopup {...buildProps({ totalResults: 0, activeResultIndex: 0, results: [] })} />);
 
     expect(screen.getByRole('button', { name: 'Previous result' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Next result' })).toBeDisabled();
     expect(screen.getByText('0 of 0')).toBeInTheDocument();
+    expect(screen.getByText('No matching text in this sermon.')).toBeInTheDocument();
   });
 
   it('invokes prev/next and close actions', () => {
@@ -49,10 +69,19 @@ describe('S04SearchPopup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Previous result' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next result' }));
     fireEvent.click(screen.getByRole('button', { name: 'Close search popup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close search popup overlay' }));
 
     expect(props.onPrevious).toHaveBeenCalledTimes(1);
     expect(props.onNext).toHaveBeenCalledTimes(1);
-    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('selects a result row and forwards absolute index', () => {
+    const props = buildProps();
+    render(<S04SearchPopup {...props} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Result 3: Paragraph 8' }));
+    expect(props.onSelectResult).toHaveBeenCalledWith(2);
   });
 
   it('closes when Escape is pressed', () => {

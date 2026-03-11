@@ -7,6 +7,7 @@ export {
   defaultS04ShortcutCaptureTargetGuard,
 } from './shortcutGuards';
 export type {
+  S04SearchPopupResultItem,
   S04SearchPopupProps,
   S04SearchPopupControllerOptions,
   S04SearchPopupControllerResult,

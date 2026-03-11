@@ -16,6 +16,7 @@ interface SearchHitsTableProps {
   loading: boolean;
   selectedIndex: number;
   query: string;
+  linkState?: unknown;
 }
 
 function SkeletonRow() {
@@ -31,7 +32,13 @@ function SkeletonRow() {
   );
 }
 
-export default function SearchHitsTable({ hits, loading, selectedIndex, query }: SearchHitsTableProps) {
+export default function SearchHitsTable({
+  hits,
+  loading,
+  selectedIndex,
+  query,
+  linkState,
+}: SearchHitsTableProps) {
   const navigate = useNavigate();
   const queryTerms = React.useMemo(() => extractQueryTerms(query), [query]);
 
@@ -91,6 +98,11 @@ export default function SearchHitsTable({ hits, loading, selectedIndex, query }:
                       if ((event.target as HTMLElement).closest('a')) {
                         return;
                       }
+                      if (linkState) {
+                        navigate(hitHref, { state: linkState });
+                        return;
+                      }
+
                       navigate(hitHref);
                     }}
                     onKeyDown={(event) => {
@@ -99,6 +111,11 @@ export default function SearchHitsTable({ hits, loading, selectedIndex, query }:
                       }
 
                       event.preventDefault();
+                      if (linkState) {
+                        navigate(hitHref, { state: linkState });
+                        return;
+                      }
+
                       navigate(hitHref);
                     }}
                   >
@@ -115,6 +132,7 @@ export default function SearchHitsTable({ hits, loading, selectedIndex, query }:
                       <div className="flex items-center gap-2">
                         <Link
                           to={hitHref}
+                          state={linkState}
                           className="font-medium text-foreground transition-colors duration-200 hover:text-link"
                         >
                           {hit.title}
