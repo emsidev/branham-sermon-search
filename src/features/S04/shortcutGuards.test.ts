@@ -34,7 +34,7 @@ describe('shortcutGuards', () => {
     const input = document.createElement('input');
     const textArea = document.createElement('textarea');
     const editable = document.createElement('div');
-    editable.contentEditable = 'true';
+    editable.setAttribute('contenteditable', 'true');
 
     expect(defaultS04TypingTargetGuard(input)).toBe(true);
     expect(defaultS04TypingTargetGuard(textArea)).toBe(true);
