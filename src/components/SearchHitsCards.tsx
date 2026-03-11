@@ -16,6 +16,7 @@ interface SearchHitsCardsProps {
   selectedIndex: number;
   query: string;
   linkState?: unknown;
+  onHitNavigate?: () => void;
 }
 
 function SkeletonCard() {
@@ -37,6 +38,7 @@ export default function SearchHitsCards({
   selectedIndex,
   query,
   linkState,
+  onHitNavigate,
 }: SearchHitsCardsProps) {
   const queryTerms = React.useMemo(() => extractQueryTerms(query), [query]);
 
@@ -66,6 +68,7 @@ export default function SearchHitsCards({
                 key={hit.hit_id}
                 to={hitHref}
                 linkState={linkState}
+                onNavigate={onHitNavigate}
                 title={hit.title}
                 snippet={renderHighlightedSnippet(hit.snippet, queryTerms)}
                 sermonCode={hit.sermon_code}

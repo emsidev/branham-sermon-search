@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/utils';
 interface SearchHitCardProps {
   to: string;
   linkState?: unknown;
+  onNavigate?: () => void;
   title: string;
   snippet: React.ReactNode;
   sermonCode?: string | null;
@@ -24,6 +25,7 @@ function parseYear(dateStr: string): number | null {
 export default function SearchHitCard({
   to,
   linkState,
+  onNavigate,
   title,
   snippet,
   sermonCode,
@@ -41,6 +43,7 @@ export default function SearchHitCard({
     <CardLinkSurface
       to={to}
       state={linkState}
+      onClick={() => onNavigate?.()}
       selected={selected}
       className={`px-5 py-4 ${isExact ? 'surface-card-exact' : ''}`}
     >

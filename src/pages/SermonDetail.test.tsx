@@ -1,18 +1,44 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SermonDetail from './SermonDetail';
 
 const fetchSermonByIdMock = vi.fn();
 const fetchAdjacentSermonsMock = vi.fn();
+const useSermonsMock = vi.fn();
+const setFilterMock = vi.fn();
 
 vi.mock('@/hooks/useSermons', () => ({
+  useSermons: () => useSermonsMock(),
   fetchSermonById: (...args: unknown[]) => fetchSermonByIdMock(...args),
   fetchAdjacentSermons: (...args: unknown[]) => fetchAdjacentSermonsMock(...args),
 }));
 
 vi.mock('@/hooks/useAudioPlayer', () => ({
   useAudioPlayer: () => ({ play: vi.fn() }),
+}));
+
+vi.mock('@/hooks/useKeyboardShortcuts', () => ({
+  useKeyboardShortcuts: () => ({
+    bindings: {
+      focus_search: '/',
+      open_books: 'b',
+      open_settings: ',',
+      result_next: 'j',
+      result_prev: 'k',
+    },
+    syncStatus: 'synced',
+    syncWarning: null,
+    setShortcutBinding: vi.fn(),
+    resetShortcutBinding: vi.fn(),
+    resetAllShortcutBindings: vi.fn(),
+    registerSearchInputResolver: () => () => undefined,
+    getSearchInputElement: () => null,
+    registerResultListController: () => () => undefined,
+    getResultListController: () => null,
+  }),
+  useShortcutSearchInputRegistration: vi.fn(),
+  useShortcutResultListRegistration: vi.fn(),
 }));
 
 vi.mock('@/components/SermonBreadcrumb', () => ({
@@ -69,8 +95,46 @@ describe('SermonDetail', () => {
   beforeEach(() => {
     fetchSermonByIdMock.mockReset();
     fetchAdjacentSermonsMock.mockReset();
+    useSermonsMock.mockReset();
+    setFilterMock.mockReset();
     fetchSermonByIdMock.mockResolvedValue(sermonDetailFixture);
     fetchAdjacentSermonsMock.mockResolvedValue({ prev: null, next: null });
+    useSermonsMock.mockReturnValue({
+      searchHits: [
+        {
+          hit_id: 'hit-1',
+          sermon_id: 'sermon-2',
+          sermon_code: '62-0715',
+          title: 'Believing In Action',
+          summary: null,
+          date: '1962-07-15',
+          location: 'Jeffersonville, IN',
+          paragraph_number: 2,
+          printed_paragraph_number: 2,
+          chunk_index: 1,
+          chunk_total: 1,
+          match_source: 'paragraph_text',
+          snippet: 'Only believe, all things are possible...',
+          relevance: 4.1,
+          is_exact_match: true,
+          tags: [],
+          total_count: 1,
+        },
+      ],
+      isSearchMode: true,
+      total: 1,
+      loading: false,
+      filters: {
+        q: 'only believe',
+        year: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+      },
+      setFilter: setFilterMock,
+      pageSize: 25,
+    });
 
     if (!HTMLElement.prototype.scrollIntoView) {
       HTMLElement.prototype.scrollIntoView = () => {};
@@ -121,7 +185,7 @@ describe('SermonDetail', () => {
     expect(dimmed).toHaveClass('text-foreground/45');
   });
 
-  it('opens find modal from toolbar or F key, but ignores Ctrl/Cmd+F', async () => {
+  it('opens global search modal from toolbar or F key, but ignores Ctrl/Cmd+F', async () => {
     renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
 
     await waitFor(() => {
@@ -130,7 +194,9 @@ describe('SermonDetail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /find/i }));
     expect(screen.getByRole('dialog', { name: 'Search popup' })).toBeInTheDocument();
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+    expect(screen.getByLabelText('Search sermons')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort search results')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Find in sermon')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close search popup' }));
 
     await waitFor(() => {
@@ -146,74 +212,7 @@ describe('SermonDetail', () => {
     expect(screen.queryByRole('dialog', { name: 'Search popup' })).not.toBeInTheDocument();
   });
 
-  it('debounces modal results while typing and supports click-to-jump', async () => {
-    renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /find/i })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /find/i }));
-
-    const input = screen.getByLabelText('Find in sermon');
-    vi.useFakeTimers();
-
-    fireEvent.change(input, { target: { value: 'week' } });
-    expect(input).toHaveValue('week');
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(119);
-    });
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(screen.getByText('1 of 1')).toBeInTheDocument();
-
-    fireEvent.change(input, { target: { value: 'i am looking forward' } });
-    act(() => {
-      vi.advanceTimersByTime(120);
-    });
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
-    vi.useRealTimers();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Result 2: Paragraph 4' }));
-
-    await waitFor(() => {
-      const active = getActiveMatch();
-      expect(active).not.toBeNull();
-      expect(active).toHaveAttribute('data-search-match-local-index', '1');
-    });
-  });
-
-  it('keeps modal count in sync while navigating with N and Shift+N', async () => {
-    renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /find/i })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /find/i }));
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: 'n' });
-    await waitFor(() => {
-      expect(screen.getByText('2 of 2')).toBeInTheDocument();
-      const active = getActiveMatch();
-      expect(active).toHaveAttribute('data-search-match-local-index', '1');
-    });
-
-    fireEvent.keyDown(window, { key: 'N', shiftKey: true });
-    await waitFor(() => {
-      expect(screen.getByText('1 of 2')).toBeInTheDocument();
-      const active = getActiveMatch();
-      expect(active).toHaveAttribute('data-search-match-local-index', '0');
-    });
-  });
-
-  it('closes find modal after selecting a popup hit', async () => {
+  it('closes global search modal after selecting a search hit', async () => {
     renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
 
     await waitFor(() => {
@@ -223,15 +222,11 @@ describe('SermonDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: /find/i }));
     expect(screen.getByRole('dialog', { name: 'Search popup' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Result 2: Paragraph 4' }));
+    fireEvent.click(screen.getByText('Believing In Action'));
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Search popup' })).not.toBeInTheDocument();
     });
-
-    const active = getActiveMatch();
-    expect(active).not.toBeNull();
-    expect(active).toHaveAttribute('data-search-match-local-index', '1');
   });
 
   it('prefers navigation state search return target for breadcrumb root link', async () => {

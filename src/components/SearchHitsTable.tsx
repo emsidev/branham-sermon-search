@@ -17,6 +17,7 @@ interface SearchHitsTableProps {
   selectedIndex: number;
   query: string;
   linkState?: unknown;
+  onHitNavigate?: () => void;
 }
 
 function SkeletonRow() {
@@ -38,6 +39,7 @@ export default function SearchHitsTable({
   selectedIndex,
   query,
   linkState,
+  onHitNavigate,
 }: SearchHitsTableProps) {
   const navigate = useNavigate();
   const queryTerms = React.useMemo(() => extractQueryTerms(query), [query]);
@@ -98,6 +100,7 @@ export default function SearchHitsTable({
                       if ((event.target as HTMLElement).closest('a')) {
                         return;
                       }
+                      onHitNavigate?.();
                       if (linkState) {
                         navigate(hitHref, { state: linkState });
                         return;
@@ -111,6 +114,7 @@ export default function SearchHitsTable({
                       }
 
                       event.preventDefault();
+                      onHitNavigate?.();
                       if (linkState) {
                         navigate(hitHref, { state: linkState });
                         return;
@@ -133,6 +137,7 @@ export default function SearchHitsTable({
                         <Link
                           to={hitHref}
                           state={linkState}
+                          onClick={() => onHitNavigate?.()}
                           className="font-medium text-foreground transition-colors duration-200 hover:text-link"
                         >
                           {hit.title}

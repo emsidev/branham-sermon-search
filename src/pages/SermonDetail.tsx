@@ -5,9 +5,10 @@ import { format, parseISO } from 'date-fns';
 import { fetchSermonById, fetchAdjacentSermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
+import SharedSearchExperience from '@/components/search/SharedSearchExperience';
 import { useS02HitNavigation } from '@/features/S02';
 import { renderActiveHitHighlights } from '@/features/S03';
-import { S04SearchPopup, useS04SearchPopupController, type S04SearchPopupResultItem } from '@/features/S04';
+import { S04SearchPopup, useS04SearchPopupController } from '@/features/S04';
 import {
   extractHitChunkIndex,
   extractQueryTerms,
@@ -53,7 +54,6 @@ const TITLE_REGION_KEY = 'title';
 const CONTENT_REGION_KEY = 'content';
 const SNIPPET_BEFORE_CHARS = 44;
 const SNIPPET_AFTER_CHARS = 70;
-const FIND_QUERY_DEBOUNCE_MS = 120;
 
 function getParagraphRegionKey(paragraphNumber: number): string {
   return `paragraph-${paragraphNumber}`;
@@ -204,8 +204,6 @@ export default function SermonDetail() {
   const { play } = useAudioPlayer();
 
   const searchQuery = searchParams.get('q')?.trim() ?? '';
-  const [findQuery, setFindQuery] = useState(searchQuery);
-  const [appliedFindQuery, setAppliedFindQuery] = useState(searchQuery);
   const matchSource = searchParams.get('source');
   const paragraphParam = searchParams.get('paragraph');
   const hitId = searchParams.get('hit');
@@ -222,13 +220,13 @@ export default function SermonDetail() {
     shortcutKey: searchShortcutKey,
   });
 
-  const highlightTerms = useMemo(() => extractQueryTerms(appliedFindQuery, 12), [appliedFindQuery]);
+  const highlightTerms = useMemo(() => extractQueryTerms(searchQuery, 12), [searchQuery]);
   const targetChunkIndex = useMemo(() => extractHitChunkIndex(hitId), [hitId]);
   const targetParagraphNumber = useMemo(() => {
     const parsedParagraph = paragraphParam ? Number.parseInt(paragraphParam, 10) : null;
     return Number.isFinite(parsedParagraph ?? NaN) ? parsedParagraph : null;
   }, [paragraphParam]);
-  const isRouteSearchContext = appliedFindQuery.trim() === searchQuery && searchQuery.length > 0;
+  const isRouteSearchContext = searchQuery.length > 0;
   const breadcrumbRootHref = useMemo(() => {
     const searchReturnTo = readSearchReturnTo(location.state);
     if (searchReturnTo) {
@@ -277,17 +275,13 @@ export default function SermonDetail() {
 
   const {
     activeIndex: activeMatchIndex,
-    totalHits: totalMatches,
-    goNext: goToNextMatch,
-    goPrev: goToPreviousMatch,
-    goTo: goToMatchIndex,
     handleKeyDown: handleHitNavigationKeyDown,
   } = useS02HitNavigation({
     containerRef: contentRef,
     enabled: highlightTerms.length > 0,
     initialIndex: initialMatchIndex,
     scrollBehavior: 'smooth',
-    resetKey: `${id ?? 'unknown'}:${appliedFindQuery}:${initialMatchIndex}:${sermon ? 'ready' : 'loading'}`,
+    resetKey: `${id ?? 'unknown'}:${searchQuery}:${initialMatchIndex}:${sermon ? 'ready' : 'loading'}`,
   });
 
   useEffect(() => {
@@ -301,23 +295,6 @@ export default function SermonDetail() {
       }
     });
   }, [id]);
-
-  useEffect(() => {
-    setFindQuery(searchQuery);
-    setAppliedFindQuery(searchQuery);
-  }, [id, searchQuery]);
-
-  useEffect(() => {
-    if (findQuery === appliedFindQuery) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setAppliedFindQuery(findQuery);
-    }, FIND_QUERY_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [appliedFindQuery, findQuery]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleSearchPopupShortcutKeyDown);
@@ -338,22 +315,6 @@ export default function SermonDetail() {
     setShared(true);
     setTimeout(() => setShared(false), 2000);
   };
-
-  const popupResults = useMemo<S04SearchPopupResultItem[]>(() => (
-    findModel.results.map((result) => ({
-      id: result.id,
-      absoluteIndex: result.absoluteIndex,
-      contextLabel: result.contextLabel,
-      matchText: result.matchText,
-      preview: result.preview,
-      isActive: result.absoluteIndex === activeMatchIndex,
-    }))
-  ), [activeMatchIndex, findModel.results]);
-
-  const handleSelectPopupResult = useCallback((absoluteIndex: number) => {
-    goToMatchIndex(absoluteIndex);
-    closeSearchPopup();
-  }, [closeSearchPopup, goToMatchIndex]);
 
   const renderRegionHighlightedText = useCallback((regionKey: string, text: string): React.ReactNode => {
     if (!highlightTerms.length) {
@@ -409,18 +370,15 @@ export default function SermonDetail() {
     <div className="min-h-screen bg-background pb-24">
       <S04SearchPopup
         isOpen={isSearchPopupOpen}
-        query={findQuery}
-        totalResults={totalMatches}
-        activeResultIndex={activeMatchIndex}
-        results={popupResults}
-        onQueryChange={setFindQuery}
-        onNext={goToNextMatch}
-        onPrevious={goToPreviousMatch}
-        onSelectResult={handleSelectPopupResult}
         onClose={closeSearchPopup}
-        shouldFocusInput={shouldFocusSearchInput}
-        onInputFocusHandled={consumeSearchPopupFocusRequest}
-      />
+      >
+        <SharedSearchExperience
+          surface="modal"
+          shouldFocusInput={shouldFocusSearchInput}
+          onInputFocusHandled={consumeSearchPopupFocusRequest}
+          onHitNavigate={closeSearchPopup}
+        />
+      </S04SearchPopup>
 
       <div ref={contentRef} className="mx-auto max-w-[900px] space-y-8 px-6 py-8 lg:px-0">
         <SermonBreadcrumb year={sermon.year} title={sermon.title} rootHref={breadcrumbRootHref} />
