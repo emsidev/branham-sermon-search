@@ -10,12 +10,21 @@ import {
   chunkParagraphText,
   parseSermonParagraphsFromExtractedPages,
 } from '../src/lib/sermonImport';
+import { parseSermonMetadataFromFilenameStem } from '../src/lib/sermonFilenameMetadata';
+import {
+  persistSermonImport,
+  type SermonChunkSeed,
+  type SermonDocumentPayload,
+  type SermonImportRepository,
+  type SermonParagraphPayload,
+  type SermonPayload,
+} from '../src/lib/sermonPdfImportPersistence';
 
 type ParsedArgs = {
   pdfPath: string;
-  sermonCode: string;
-  title: string;
-  date: string;
+  sermonCode: string | null;
+  title: string | null;
+  date: string | null;
   location: string | null;
   scripture: string | null;
   city: string | null;
@@ -29,19 +38,6 @@ type PdfExtractionResult = {
   page_count: number;
   texts: string[];
 };
-
-function deriveTitleFromFilename(filePath: string): string {
-  const ext = path.extname(filePath);
-  const baseName = path.basename(filePath, ext);
-  let title = baseName.trim();
-
-  // Strip leading sermon code like "58-0105".
-  title = title.replace(/^\d{2,4}-\d{2,4}(?:[\s_-]+)?/, '');
-  // Strip trailing source marker like "VGR".
-  title = title.replace(/(?:[\s_-]+)VGR$/i, '');
-
-  return title.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-}
 
 function stripWrappingQuotes(value: string): string {
   if (
@@ -92,9 +88,9 @@ function usage(): string {
     'Usage: npm run import:sermon-pdf -- --pdf <path> [options]',
     '',
     'Options:',
-    '  --sermon-code <code>    Default: 58-0105',
-    '  --title <title>         Default: Have Faith In God',
-    '  --date <yyyy-mm-dd>     Default: 1958-01-05',
+    '  --sermon-code <code>    Override filename-derived code',
+    '  --title <title>         Override filename-derived title',
+    '  --date <yyyy-mm-dd>     Override filename-derived date',
     '  --location <text>',
     '  --scripture <text>',
     '  --city <text>',
@@ -145,9 +141,9 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   return {
     pdfPath,
-    sermonCode: args.get('--sermon-code') ?? '58-0105',
-    title: args.get('--title') ?? 'Have Faith In God',
-    date: args.get('--date') ?? '1958-01-05',
+    sermonCode: args.get('--sermon-code') ?? null,
+    title: args.get('--title') ?? null,
+    date: args.get('--date') ?? null,
     location: args.get('--location') ?? null,
     scripture: args.get('--scripture') ?? null,
     city: args.get('--city') ?? null,
@@ -206,12 +202,129 @@ function sha256OfFile(filePath: string): string {
   return hash.digest('hex');
 }
 
-async function run(): Promise<void> {
+function createSermonImportRepository(supabaseUrl: string, serviceRoleKey: string): SermonImportRepository {
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  return {
+    async findSermonByCode(sermonCode: string): Promise<{ id: string } | null> {
+      const { data, error } = await supabase
+        .from('sermons')
+        .select('id')
+        .eq('sermon_code', sermonCode)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(`Failed to check existing sermon code: ${error.message}`);
+      }
+
+      return data ? { id: data.id as string } : null;
+    },
+
+    async insertSermon(payload: SermonPayload): Promise<{ id: string }> {
+      const { data, error } = await supabase
+        .from('sermons')
+        .insert(payload)
+        .select('id')
+        .single();
+
+      if (error || !data) {
+        throw new Error(`Failed to insert sermon: ${error?.message ?? 'unknown error'}`);
+      }
+
+      return { id: data.id as string };
+    },
+
+    async insertSermonDocument(sermonId: string, payload: SermonDocumentPayload): Promise<void> {
+      const { error } = await supabase
+        .from('sermon_documents')
+        .insert({
+          sermon_id: sermonId,
+          ...payload,
+        });
+
+      if (error) {
+        throw new Error(`Failed to insert sermon document: ${error.message}`);
+      }
+    },
+
+    async insertSermonParagraphs(
+      sermonId: string,
+      paragraphs: SermonParagraphPayload[]
+    ): Promise<Array<{ id: number; paragraph_number: number }>> {
+      const { data, error } = await supabase
+        .from('sermon_paragraphs')
+        .insert(
+          paragraphs.map((paragraph) => ({
+            sermon_id: sermonId,
+            paragraph_number: paragraph.paragraph_number,
+            printed_paragraph_number: paragraph.printed_paragraph_number,
+            paragraph_text: paragraph.paragraph_text,
+          }))
+        )
+        .select('id,paragraph_number');
+
+      if (error || !data) {
+        throw new Error(`Failed to insert sermon paragraphs: ${error?.message ?? 'unknown error'}`);
+      }
+
+      return data as Array<{ id: number; paragraph_number: number }>;
+    },
+
+    async insertSermonChunks(
+      sermonId: string,
+      chunks: Array<SermonChunkSeed & { paragraph_id: number }>
+    ): Promise<void> {
+      const { error } = await supabase
+        .from('sermon_chunks')
+        .insert(
+          chunks.map((chunk) => ({
+            sermon_id: sermonId,
+            paragraph_id: chunk.paragraph_id,
+            paragraph_number: chunk.paragraph_number,
+            chunk_index: chunk.chunk_index,
+            chunk_text: chunk.chunk_text,
+            chunk_start: chunk.chunk_start,
+            chunk_end: chunk.chunk_end,
+          }))
+        );
+
+      if (error) {
+        throw new Error(`Failed to insert sermon chunks: ${error.message}`);
+      }
+    },
+  };
+}
+
+export async function run(): Promise<void> {
   loadProjectEnv();
   const options = parseArgs(process.argv.slice(2));
   const resolvedPdfPath = path.resolve(options.pdfPath);
+  const fileName = path.basename(resolvedPdfPath);
+  const fileStem = path.basename(resolvedPdfPath, path.extname(resolvedPdfPath));
+  let filenameDerived: ReturnType<typeof parseSermonMetadataFromFilenameStem> | null = null;
+
+  try {
+    filenameDerived = parseSermonMetadataFromFilenameStem(fileStem);
+  } catch (error) {
+    const hasAllOverrides = options.sermonCode != null && options.title != null && options.date != null;
+    if (!hasAllOverrides) {
+      throw error;
+    }
+  }
+
+  const resolvedSermonCode = options.sermonCode ?? filenameDerived?.sermonCode;
+  const resolvedTitle = options.title ?? filenameDerived?.title;
+  const resolvedDate = options.date ?? filenameDerived?.date;
+
+  if (!resolvedSermonCode || !resolvedTitle || !resolvedDate) {
+    throw new Error(
+      'Could not resolve sermon metadata. Provide --sermon-code, --title, and --date or use filename format YY-MMDD Title [VGR].'
+    );
+  }
+
   const extraction = extractPdfTextWithPython(resolvedPdfPath);
-  const titleFromFilename = deriveTitleFromFilename(resolvedPdfPath);
 
   const parsed = parseSermonParagraphsFromExtractedPages(extraction.texts);
   if (parsed.paragraphs.length === 0) {
@@ -220,7 +333,7 @@ async function run(): Promise<void> {
 
   const canonicalText = buildCanonicalSermonText(parsed.paragraphs);
 
-  const chunks = parsed.paragraphs.flatMap((paragraph) =>
+  const chunkSeeds: SermonChunkSeed[] = parsed.paragraphs.flatMap((paragraph) =>
     chunkParagraphText(paragraph.paragraph_text, options.chunkSize, options.chunkOverlap).map((chunk) => ({
       paragraph_number: paragraph.paragraph_number,
       chunk_index: chunk.chunk_index,
@@ -230,7 +343,9 @@ async function run(): Promise<void> {
     }))
   );
 
-  console.log(`Parsed ${parsed.paragraphs.length} paragraphs and ${chunks.length} chunks from ${resolvedPdfPath}`);
+  console.log(
+    `Parsed ${parsed.paragraphs.length} paragraphs and ${chunkSeeds.length} chunks from ${resolvedPdfPath}`
+  );
 
   if (options.dryRun) {
     const preview = parsed.paragraphs.slice(0, 4).map((paragraph) => ({
@@ -239,13 +354,24 @@ async function run(): Promise<void> {
       paragraph_text: paragraph.paragraph_text.slice(0, 120),
     }));
 
-    console.log(JSON.stringify({
-      sermon_code: options.sermonCode,
-      title_from_pdf: parsed.title_from_pdf,
-      preview,
-      chunk_size: options.chunkSize,
-      chunk_overlap: options.chunkOverlap,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          derived_from_filename: filenameDerived,
+          import_values: {
+            sermon_code: resolvedSermonCode,
+            title: resolvedTitle,
+            date: resolvedDate,
+          },
+          title_from_pdf: parsed.title_from_pdf,
+          preview,
+          chunk_size: options.chunkSize,
+          chunk_overlap: options.chunkOverlap,
+        },
+        null,
+        2
+      )
+    );
     return;
   }
 
@@ -256,14 +382,10 @@ async function run(): Promise<void> {
     throw new Error('SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required');
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
-
-  const sermonPayload = {
-    sermon_code: options.sermonCode,
-    title: titleFromFilename || options.title,
-    date: options.date,
+  const sermonPayload: SermonPayload = {
+    sermon_code: resolvedSermonCode,
+    title: resolvedTitle,
+    date: resolvedDate,
     location: options.location,
     scripture: options.scripture,
     city: options.city,
@@ -272,105 +394,39 @@ async function run(): Promise<void> {
     tags: [],
   };
 
-  const { data: sermonRow, error: sermonError } = await supabase
-    .from('sermons')
-    .upsert(sermonPayload, { onConflict: 'sermon_code' })
-    .select('id')
-    .single();
+  const sermonDocumentPayload: SermonDocumentPayload = {
+    pdf_source_path: fileName,
+    pdf_filename: fileName,
+    pdf_sha256: sha256OfFile(resolvedPdfPath),
+    page_count: extraction.page_count,
+    metadata: {
+      local_pdf_path: resolvedPdfPath,
+      title_from_pdf: parsed.title_from_pdf,
+      imported_via: 'scripts/import-sermon-pdf.ts',
+      chunk_size: options.chunkSize,
+      chunk_overlap: options.chunkOverlap,
+      filename_derived: filenameDerived,
+    },
+  };
 
-  if (sermonError || !sermonRow) {
-    throw new Error(`Failed to upsert sermon: ${sermonError?.message ?? 'unknown error'}`);
-  }
+  const paragraphPayloads: SermonParagraphPayload[] = parsed.paragraphs.map((paragraph) => ({
+    paragraph_number: paragraph.paragraph_number,
+    printed_paragraph_number: paragraph.printed_paragraph_number,
+    paragraph_text: paragraph.paragraph_text,
+  }));
 
-  const sermonId = sermonRow.id as string;
-  const fileName = path.basename(resolvedPdfPath);
-
-  const { error: docError } = await supabase
-    .from('sermon_documents')
-    .upsert({
-      sermon_id: sermonId,
-      pdf_source_path: fileName,
-      pdf_filename: fileName,
-      pdf_sha256: sha256OfFile(resolvedPdfPath),
-      page_count: extraction.page_count,
-      metadata: {
-        local_pdf_path: resolvedPdfPath,
-        title_from_pdf: parsed.title_from_pdf,
-        imported_via: 'scripts/import-sermon-pdf.ts',
-        chunk_size: options.chunkSize,
-        chunk_overlap: options.chunkOverlap,
-      },
-    }, { onConflict: 'sermon_id' });
-
-  if (docError) {
-    throw new Error(`Failed to upsert sermon document: ${docError.message}`);
-  }
-
-  const { error: deleteChunksError } = await supabase
-    .from('sermon_chunks')
-    .delete()
-    .eq('sermon_id', sermonId);
-
-  if (deleteChunksError) {
-    throw new Error(`Failed to delete existing sermon chunks: ${deleteChunksError.message}`);
-  }
-
-  const { error: deleteParagraphsError } = await supabase
-    .from('sermon_paragraphs')
-    .delete()
-    .eq('sermon_id', sermonId);
-
-  if (deleteParagraphsError) {
-    throw new Error(`Failed to delete existing sermon paragraphs: ${deleteParagraphsError.message}`);
-  }
-
-  const { data: paragraphRows, error: paragraphInsertError } = await supabase
-    .from('sermon_paragraphs')
-    .insert(parsed.paragraphs.map((paragraph) => ({
-      sermon_id: sermonId,
-      paragraph_number: paragraph.paragraph_number,
-      printed_paragraph_number: paragraph.printed_paragraph_number,
-      paragraph_text: paragraph.paragraph_text,
-    })))
-    .select('id,paragraph_number');
-
-  if (paragraphInsertError || !paragraphRows) {
-    throw new Error(`Failed to insert sermon paragraphs: ${paragraphInsertError?.message ?? 'unknown error'}`);
-  }
-
-  const paragraphIdByNumber = new Map<number, number>();
-  for (const row of paragraphRows as Array<{ id: number; paragraph_number: number }>) {
-    paragraphIdByNumber.set(row.paragraph_number, row.id);
-  }
-
-  const chunkRows = parsed.paragraphs.flatMap((paragraph) => {
-    const paragraphId = paragraphIdByNumber.get(paragraph.paragraph_number);
-    if (!paragraphId) {
-      throw new Error(`Missing paragraph id for paragraph ${paragraph.paragraph_number}`);
-    }
-
-    return chunkParagraphText(paragraph.paragraph_text, options.chunkSize, options.chunkOverlap).map((chunk) => ({
-      sermon_id: sermonId,
-      paragraph_id: paragraphId,
-      paragraph_number: paragraph.paragraph_number,
-      chunk_index: chunk.chunk_index,
-      chunk_text: chunk.chunk_text,
-      chunk_start: chunk.chunk_start,
-      chunk_end: chunk.chunk_end,
-    }));
+  const repository = createSermonImportRepository(supabaseUrl, serviceRoleKey);
+  const result = await persistSermonImport({
+    repository,
+    sermonPayload,
+    sermonDocumentPayload,
+    paragraphPayloads,
+    chunkSeeds,
   });
 
-  if (chunkRows.length > 0) {
-    const { error: chunkInsertError } = await supabase
-      .from('sermon_chunks')
-      .insert(chunkRows);
-
-    if (chunkInsertError) {
-      throw new Error(`Failed to insert sermon chunks: ${chunkInsertError.message}`);
-    }
-  }
-
-  console.log(`Imported sermon ${options.sermonCode}: ${parsed.paragraphs.length} paragraphs, ${chunkRows.length} chunks`);
+  console.log(
+    `Imported sermon ${resolvedSermonCode}: ${result.insertedParagraphCount} paragraphs, ${result.insertedChunkCount} chunks`
+  );
 }
 
 run().catch((error) => {
