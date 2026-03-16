@@ -22,6 +22,14 @@ function makeThenableBuilder(result: unknown) {
   return builder;
 }
 
+function getLatestSearchParamsUpdater(): ((prev: URLSearchParams) => URLSearchParams) {
+  const updater = setSearchParamsMock.mock.calls.at(-1)?.[0];
+  if (typeof updater !== 'function') {
+    throw new Error('Expected setSearchParams to be called with updater function.');
+  }
+  return updater as (prev: URLSearchParams) => URLSearchParams;
+}
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
@@ -62,6 +70,12 @@ describe('useSermons', () => {
 
           if (columns === 'location') {
             return Promise.resolve({ data: [{ location: 'Phoenix, AZ' }], error: null });
+          }
+
+          if (columns === 'title') {
+            return {
+              order: vi.fn().mockResolvedValue({ data: [{ title: 'God Hiding Himself' }], error: null }),
+            };
           }
 
           if (columns === '*') {
@@ -152,7 +166,7 @@ describe('useSermons', () => {
   });
 
   it('passes year, location, and page offset to search RPC', async () => {
-    currentParams = new URLSearchParams('q=test&year=1963&location=Phoenix%2C+AZ&page=2');
+    currentParams = new URLSearchParams('q=test&year=1963&title=God+Hiding+Himself&location=Phoenix%2C+AZ&page=2');
     rpcMock.mockResolvedValue({
       data: [],
       error: null,
@@ -167,6 +181,7 @@ describe('useSermons', () => {
     expect(rpcMock).toHaveBeenCalledWith('search_sermon_chunks', {
       p_query: 'test',
       p_year: 1963,
+      p_title: 'God Hiding Himself',
       p_location: 'Phoenix, AZ',
       p_limit: 25,
       p_offset: 25,
@@ -194,6 +209,7 @@ describe('useSermons', () => {
     expect(rpcMock).toHaveBeenCalledWith('search_sermon_chunks', {
       p_query: 'Only Believe',
       p_year: null,
+      p_title: null,
       p_location: null,
       p_limit: 25,
       p_offset: 0,
@@ -201,5 +217,113 @@ describe('useSermons', () => {
       p_match_case: true,
       p_match_whole_word: true,
     });
+  });
+
+  it('updates year, title, and location query params via setFilter', async () => {
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    result.current.setFilter('year', '1963');
+    let nextParams = getLatestSearchParamsUpdater()(new URLSearchParams('q=faith&page=3'));
+    expect(nextParams.get('year')).toBe('1963');
+    expect(nextParams.get('page')).toBeNull();
+
+    result.current.setFilter('title', 'God Hiding Himself');
+    nextParams = getLatestSearchParamsUpdater()(new URLSearchParams('q=faith&page=4'));
+    expect(nextParams.get('title')).toBe('God Hiding Himself');
+    expect(nextParams.get('page')).toBeNull();
+
+    result.current.setFilter('location', 'Phoenix, AZ');
+    nextParams = getLatestSearchParamsUpdater()(new URLSearchParams('q=faith&page=5'));
+    expect(nextParams.get('location')).toBe('Phoenix, AZ');
+    expect(nextParams.get('page')).toBeNull();
+  });
+
+  it('passes keyword and all structured filters together to search RPC', async () => {
+    currentParams = new URLSearchParams('q=test&year=1963&title=God+Hiding+Himself&location=Phoenix%2C+AZ');
+    rpcMock.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith('search_sermon_chunks', {
+      p_query: 'test',
+      p_year: 1963,
+      p_title: 'God Hiding Himself',
+      p_location: 'Phoenix, AZ',
+      p_limit: 25,
+      p_offset: 0,
+      p_sort: 'relevance-desc',
+      p_match_case: false,
+      p_match_whole_word: true,
+    });
+  });
+
+  it('applies structured filters on non-search query path', async () => {
+    currentParams = new URLSearchParams('year=1963&title=God+Hiding+Himself&location=Jeffersonville%2C+IN');
+
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.isSearchMode).toBe(false);
+    expect(listQueryBuilder).not.toBeNull();
+    expect(listQueryBuilder?.eq).toHaveBeenCalledWith('year', 1963);
+    expect(listQueryBuilder?.eq).toHaveBeenCalledWith('title', 'God Hiding Himself');
+    expect(listQueryBuilder?.eq).toHaveBeenCalledWith('location', 'Jeffersonville, IN');
+    expect(result.current.sermons).toHaveLength(1);
+  });
+
+  it('handles search RPC error path gracefully', async () => {
+    currentParams = new URLSearchParams('q=test&year=1963&title=God+Hiding+Himself&location=Phoenix%2C+AZ');
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: 'rpc failure' },
+    });
+
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.searchHits).toEqual([]);
+    expect(result.current.sermons).toEqual([]);
+    expect(result.current.total).toBe(0);
+  });
+
+  it('clearFilters removes only structured filters and page', async () => {
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    result.current.clearFilters();
+    const nextParams = getLatestSearchParamsUpdater()(
+      new URLSearchParams('q=faith&year=1963&title=God+Hiding+Himself&location=Phoenix%2C+AZ&page=3&sort=date-desc&view=table&matchCase=1&wholeWord=0')
+    );
+
+    expect(nextParams.get('q')).toBe('faith');
+    expect(nextParams.get('sort')).toBe('date-desc');
+    expect(nextParams.get('view')).toBe('table');
+    expect(nextParams.get('matchCase')).toBe('1');
+    expect(nextParams.get('wholeWord')).toBe('0');
+
+    expect(nextParams.get('year')).toBeNull();
+    expect(nextParams.get('title')).toBeNull();
+    expect(nextParams.get('location')).toBeNull();
+    expect(nextParams.get('page')).toBeNull();
   });
 });

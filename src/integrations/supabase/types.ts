@@ -283,6 +283,7 @@ export type Database = {
           p_offset?: number
           p_query: string
           p_sort?: string | null
+          p_title?: string | null
           p_year?: number | null
         }
         Returns: {

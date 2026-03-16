@@ -6,6 +6,7 @@ import type { SearchHit } from '@/hooks/useSermons';
 
 const useSermonsMock = vi.fn();
 const setFilterMock = vi.fn();
+const clearFiltersMock = vi.fn();
 
 vi.mock('@/hooks/useSermons', () => ({
   useSermons: () => useSermonsMock(),
@@ -72,6 +73,33 @@ const defaultHits: SearchHit[] = [
   },
 ];
 
+function buildUseSermonsMockValue(overrides?: Partial<ReturnType<typeof useSermonsMock>>) {
+  return {
+    searchHits: defaultHits,
+    isSearchMode: true,
+    total: 1,
+    loading: false,
+    filters: {
+      q: 'leadership',
+      year: '',
+      title: '',
+      location: '',
+      page: 1,
+      sort: 'relevance-desc',
+      view: 'card',
+      matchCase: false,
+      wholeWord: false,
+    },
+    setFilter: setFilterMock,
+    clearFilters: clearFiltersMock,
+    years: [1965, 1964],
+    titles: ['Leadership', 'Only Believe'],
+    locations: ['Jeffersonville, IN', 'Phoenix, AZ'],
+    pageSize: 25,
+    ...overrides,
+  };
+}
+
 function renderSharedSearch() {
   return render(
     <MemoryRouter initialEntries={['/sermons/sermon-1?q=leadership']}>
@@ -83,25 +111,9 @@ function renderSharedSearch() {
 describe('SharedSearchExperience', () => {
   beforeEach(() => {
     setFilterMock.mockReset();
+    clearFiltersMock.mockReset();
     useSermonsMock.mockReset();
-    useSermonsMock.mockReturnValue({
-      searchHits: defaultHits,
-      isSearchMode: true,
-      total: 1,
-      loading: false,
-      filters: {
-        q: 'leadership',
-        year: '',
-        location: '',
-        page: 1,
-        sort: 'relevance-desc',
-        view: 'card',
-        matchCase: false,
-        wholeWord: false,
-      },
-      setFilter: setFilterMock,
-      pageSize: 25,
-    });
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue());
   });
 
   it('renders modal surface without page header chrome', () => {
@@ -166,6 +178,144 @@ describe('SharedSearchExperience', () => {
     expect(setFilterMock).toHaveBeenCalledWith('matchCase', true);
     expect(setFilterMock).toHaveBeenCalledWith('wholeWord', true);
     expect(setFilterMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders filter trigger beside sort and hides badge at zero active filters', () => {
+    renderSharedSearch();
+
+    const sortSelect = screen.getByLabelText('Sort search results');
+    const controlRow = sortSelect.closest('div');
+    expect(controlRow).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Open filters' })).toBeInTheDocument();
+    expect(screen.queryByTestId('filter-count-badge')).not.toBeInTheDocument();
+  });
+
+  it('opens filter popup from trigger and renders filter controls', () => {
+    renderSharedSearch();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open filters' }));
+
+    expect(screen.getByLabelText('Filter by year')).toHaveDisplayValue('All years');
+    expect(screen.getByLabelText('Filter by sermon title')).toHaveDisplayValue('All titles');
+    expect(screen.getByLabelText('Filter by location')).toHaveDisplayValue('All locations');
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeDisabled();
+  });
+
+  it('updates year filter when a year option is selected', () => {
+    renderSharedSearch();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open filters' }));
+    fireEvent.change(screen.getByLabelText('Filter by year'), { target: { value: '1965' } });
+
+    expect(setFilterMock).toHaveBeenCalledWith('year', '1965');
+  });
+
+  it('updates title filter when a title option is selected', () => {
+    renderSharedSearch();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open filters' }));
+    fireEvent.change(screen.getByLabelText('Filter by sermon title'), { target: { value: 'Leadership' } });
+
+    expect(setFilterMock).toHaveBeenCalledWith('title', 'Leadership');
+  });
+
+  it('updates location filter when a location option is selected', () => {
+    renderSharedSearch();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open filters' }));
+    fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'Phoenix, AZ' } });
+
+    expect(setFilterMock).toHaveBeenCalledWith('location', 'Phoenix, AZ');
+  });
+
+  it('shows selected filter count badge from 1 to 3', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      filters: {
+        q: 'leadership',
+        year: '1965',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+      },
+    }));
+    const { rerender } = renderSharedSearch();
+    expect(screen.getByTestId('filter-count-badge')).toHaveTextContent('1');
+
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      filters: {
+        q: 'leadership',
+        year: '1965',
+        title: 'Leadership',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+      },
+    }));
+    rerender(
+      <MemoryRouter initialEntries={['/sermons/sermon-1?q=leadership']}>
+        <SharedSearchExperience surface="modal" />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId('filter-count-badge')).toHaveTextContent('2');
+
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      filters: {
+        q: 'leadership',
+        year: '1965',
+        title: 'Leadership',
+        location: 'Phoenix, AZ',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+      },
+    }));
+    rerender(
+      <MemoryRouter initialEntries={['/sermons/sermon-1?q=leadership']}>
+        <SharedSearchExperience surface="modal" />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId('filter-count-badge')).toHaveTextContent('3');
+  });
+
+  it('clears filters from popup and reflects zero badge after rerender', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      filters: {
+        q: 'leadership',
+        year: '1965',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+      },
+    }));
+
+    const { rerender } = renderSharedSearch();
+    expect(screen.getByTestId('filter-count-badge')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open filters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(clearFiltersMock).toHaveBeenCalledTimes(1);
+
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue());
+    rerender(
+      <MemoryRouter initialEntries={['/sermons/sermon-1?q=leadership']}>
+        <SharedSearchExperience surface="modal" />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByTestId('filter-count-badge')).not.toBeInTheDocument();
   });
 });
 

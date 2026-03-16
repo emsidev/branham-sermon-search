@@ -59,6 +59,8 @@ Use this file to route work through the local `.claude` assets in this repo.
   File: `.claude/skills/senior-prompt-engineer/SKILL.md`
 - `systematic-debugging`: Root-cause-first debugging process before proposing fixes.  
   File: `.claude/skills/systematic-debugging/SKILL.md`
+- `todo-feature-executor`: Implement one feature from todos.md and auto-update its status to done after verification.  
+  File: `.claude/skills/todo-feature-executor/SKILL.md`
 - `ui-ux-pro-max`: UI/UX design intelligence with styles, palettes, typography, and stack guidance.  
   File: `.claude/skills/ui-ux-pro-max/SKILL.md`
 

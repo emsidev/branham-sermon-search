@@ -22,6 +22,7 @@ export interface SermonDetail extends Sermon {
 interface UseSermonFilters {
   q: string;
   year: string;
+  title: string;
   location: string;
   page: number;
   sort: 'relevance-desc' | 'date-desc' | 'date-asc' | 'title-asc' | 'title-desc';
@@ -40,6 +41,7 @@ interface UseSermonsResult {
   setFilter: (key: keyof UseSermonFilters, value: string | number | boolean) => void;
   clearFilters: () => void;
   years: number[];
+  titles: string[];
   locations: string[];
   pageSize: number;
 }
@@ -61,11 +63,13 @@ export function useSermons(): UseSermonsResult {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [years, setYears] = useState<number[]>([]);
+  const [titles, setTitles] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
 
   const filters: UseSermonFilters = useMemo(() => ({
     q: searchParams.get('q') || '',
     year: searchParams.get('year') || '',
+    title: searchParams.get('title') || '',
     location: searchParams.get('location') || '',
     page: parseInt(searchParams.get('page') || '1', 10),
     sort: (searchParams.get('sort') as UseSermonFilters['sort']) || 'relevance-desc',
@@ -99,19 +103,31 @@ export function useSermons(): UseSermonsResult {
   }, [setSearchParams]);
 
   const clearFilters = useCallback(() => {
-    setSearchParams({});
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('year');
+      next.delete('title');
+      next.delete('location');
+      next.delete('page');
+      return next;
+    });
   }, [setSearchParams]);
 
-  // Fetch meta (years, locations)
+  // Fetch meta (years, titles, locations)
   useEffect(() => {
     async function fetchMeta() {
-      const [yearsRes, locationsRes] = await Promise.all([
+      const [yearsRes, titlesRes, locationsRes] = await Promise.all([
         supabase.from('sermons').select('year').order('year', { ascending: false }),
+        supabase.from('sermons').select('title').order('title', { ascending: true }),
         supabase.from('sermons').select('location'),
       ]);
       if (yearsRes.data) {
         const uniqueYears = [...new Set(yearsRes.data.map(r => r.year).filter(Boolean))] as number[];
         setYears(uniqueYears.sort((a, b) => b - a));
+      }
+      if (titlesRes.data) {
+        const uniqueTitles = [...new Set(titlesRes.data.map(r => r.title).filter(Boolean))] as string[];
+        setTitles(uniqueTitles.sort((a, b) => a.localeCompare(b)));
       }
       if (locationsRes.data) {
         const uniqueLocations = [...new Set(locationsRes.data.map(r => r.location).filter(Boolean))] as string[];
@@ -131,6 +147,7 @@ export function useSermons(): UseSermonsResult {
         const { data, error } = await supabase.rpc('search_sermon_chunks', {
           p_query: filters.q.trim(),
           p_year: filters.year ? parseInt(filters.year, 10) : null,
+          p_title: filters.title || null,
           p_location: filters.location || null,
           p_limit: PAGE_SIZE,
           p_offset: from,
@@ -158,6 +175,9 @@ export function useSermons(): UseSermonsResult {
       // Filters
       if (filters.year) {
         query = query.eq('year', parseInt(filters.year, 10));
+      }
+      if (filters.title) {
+        query = query.eq('title', filters.title);
       }
       if (filters.location) {
         query = query.eq('location', filters.location);
@@ -191,7 +211,20 @@ export function useSermons(): UseSermonsResult {
     fetchSermons();
   }, [filters, isSearchMode]);
 
-  return { sermons, searchHits, isSearchMode, total, loading, filters, setFilter, clearFilters, years, locations, pageSize: PAGE_SIZE };
+  return {
+    sermons,
+    searchHits,
+    isSearchMode,
+    total,
+    loading,
+    filters,
+    setFilter,
+    clearFilters,
+    years,
+    titles,
+    locations,
+    pageSize: PAGE_SIZE,
+  };
 }
 
 export async function fetchSermonById(id: string): Promise<SermonDetail | null> {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutGrid, List } from 'lucide-react';
+import { ArrowUpDown, LayoutGrid, List } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   useKeyboardShortcuts,
@@ -12,6 +12,8 @@ import SearchHitsTable from '@/components/SearchHitsTable';
 import SearchHitsCards from '@/components/SearchHitsCards';
 import BookMatchCard from '@/components/cards/BookMatchCard';
 import SermonPagination from '@/components/SermonPagination';
+import SermonSearchFilters from '@/components/search/SermonSearchFilters';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   buildSermonHitHref,
   hasNormalizedBoundedMatch,
@@ -116,6 +118,10 @@ export default function SharedSearchExperience({
     loading,
     filters,
     setFilter,
+    clearFilters,
+    years,
+    titles,
+    locations,
     pageSize,
   } = useSermons();
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -253,6 +259,12 @@ export default function SharedSearchExperience({
   }, [exactTitleMatches, rankedSearchHits]);
 
   const visibleHitCount = visibleSearchHits.length;
+  const selectedStructuredFilterCount = useMemo(() => {
+    const activeCount = [filters.year, filters.title, filters.location]
+      .filter((value) => (value ?? '').trim() !== '')
+      .length;
+    return Math.min(activeCount, 3);
+  }, [filters.location, filters.title, filters.year]);
 
   const exactTitleHitHref = useMemo(() => {
     if (!exactTitleHit) {
@@ -345,6 +357,16 @@ export default function SharedSearchExperience({
   const handleViewChange = useCallback((view: 'card' | 'table') => {
     setFilter('view', view);
   }, [setFilter]);
+
+  const handleStructuredFilterChange = useCallback((key: 'year' | 'title' | 'location', value: string) => {
+    setFilter(key, value);
+    setSelectedIndex(-1);
+  }, [setFilter]);
+
+  const handleClearStructuredFilters = useCallback(() => {
+    clearFilters?.();
+    setSelectedIndex(-1);
+  }, [clearFilters]);
 
   const toggleMatchCase = useCallback(() => {
     setFilter('matchCase', !filters.matchCase);
@@ -476,6 +498,39 @@ export default function SharedSearchExperience({
                   </option>
                 ))}
               </select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring/35"
+                    aria-label="Open filters"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                    {selectedStructuredFilterCount > 0 && (
+                      <span
+                        data-testid="filter-count-badge"
+                        className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 font-mono text-[10px] leading-none text-background"
+                        aria-label={`${selectedStructuredFilterCount} active filters`}
+                      >
+                        {selectedStructuredFilterCount}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-[min(92vw,460px)] p-0">
+                  <SermonSearchFilters
+                    year={filters.year}
+                    title={filters.title}
+                    location={filters.location}
+                    years={Array.isArray(years) ? years : []}
+                    titles={Array.isArray(titles) ? titles : []}
+                    locations={Array.isArray(locations) ? locations : []}
+                    onFilterChange={handleStructuredFilterChange}
+                    onClearFilters={handleClearStructuredFilters}
+                  />
+                </PopoverContent>
+              </Popover>
 
               <div className="inline-flex items-center rounded-md border border-border bg-background p-1">
                 <button
