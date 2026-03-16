@@ -10,7 +10,7 @@
   - `L` = Organization and Library
   - `X` = Sharing and Reference
 - Ownership contract:
-  - Builder-owned surfaces: `src/features/<feature-id>/**` and colocated tests only.
+  - Builder-owned surfaces: `src/{components,hooks,lib}/** (feature-scoped)` and colocated tests only.
   - Integration-owned shared files only: `src/App.tsx`, `src/pages/*`, global nav/shortcut wiring, route registration.
   - DB-only owner: `supabase/migrations/**` and generated type updates.
 - PR/branch naming: `feat/<FeatureID>-<short-kebab-name>` (example: `feat/S06-fuzzy-search`)
@@ -27,68 +27,68 @@
 ## Backlog
 | Status | FeatureID | Feature name | Primary agent | Owned surface | Integrator |
 |---|---|---|---|---|---|
-| DONE-LOCKED | S01 | Full-text search + keyword highlighting across all sermons | frontend-developer(search) | src/features/S01/** | integration-owner |
-| DONE-LOCKED | S02 | Next/Prev hit navigation (N / Shift+N) | frontend-developer(search) | src/features/S02/** | integration-owner |
-| DONE-LOCKED | S03 | Only active hit highlighted; all others dimmed | frontend-developer(search) | src/features/S03/** | integration-owner |
-| DONE-LOCKED | S04 | Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut | frontend-developer(search) | src/features/S04/** | integration-owner |
-| TODO | S05 | Search filters by year, sermon title, location | backend-architect | src/features/S05/**; supabase/migrations/*_s05_*.sql | integration-owner |
-| TODO | S06 | Fuzzy search (typo-tolerant) | backend-architect | src/features/S06/**; supabase/migrations/*_s06_*.sql | integration-owner |
-| TODO | S07 | Search history saved locally | frontend-developer(search) | src/features/S07/** | integration-owner |
-| TODO | S08 | Jump to hit number | frontend-developer(search) | src/features/S08/** | integration-owner |
-| TODO | S09 | Search filters extended by scripture reference | backend-architect | src/features/S09/**; supabase/migrations/*_s09_*.sql | integration-owner |
-| TODO | S10 | AI-assisted semantic search | prompt-engineer | src/features/S10/**; scripts/s10/** | integration-owner |
-| TODO | R01 | Enter/Exit reading mode (R) | frontend-developer(reader) | src/features/R01/** | integration-owner |
-| TODO | R02 | Sticky bottom progress bar for sermon progress | frontend-developer(reader) | src/features/R02/** | integration-owner |
-| DONE-LOCKED | R03 | Resume position per sermon | frontend-developer(reader) | src/features/R03/** | integration-owner |
-| TODO | R04 | Word-by-word highlighting with Space or Right, and Left to go back | frontend-developer(reader) | src/features/R04/** | integration-owner |
-| TODO | R05 | Highlight mode toggle: word, sentence, paragraph | frontend-developer(reader) | src/features/R05/** | integration-owner |
-| TODO | R06 | Auto-scroll with adjustable speed | frontend-developer(reader) | src/features/R06/** | integration-owner |
-| TODO | R07 | Read-aloud sync: word/sentence highlight follows sermon audio playback | frontend-developer(reader) | src/features/R07/** | integration-owner |
-| TODO | P01 | Slide view of highlighted/selected text (P) | frontend-developer(presentation) | src/features/P01/** | integration-owner |
-| TODO | P02 | Fullscreen presentation (F) | frontend-developer(presentation) | src/features/P02/** | integration-owner |
-| TODO | P03 | Next/Prev slide (Right / Left) | frontend-developer(presentation) | src/features/P03/** | integration-owner |
-| TODO | P04 | Sermon code + title + author auto-shown as slide subtitle | frontend-developer(presentation) | src/features/P04/** | integration-owner |
-| TODO | P05 | Multi-selection passage queue for slides | frontend-developer(presentation) | src/features/P05/** | integration-owner |
-| TODO | P06 | Slide themes (background, font, color scheme) | ui-ux-designer | src/features/P06/** | integration-owner |
-| TODO | P07 | Scripture watermark option | frontend-developer(presentation) | src/features/P07/** | integration-owner |
-| TODO | P08 | Export slides as PDF/images | frontend-developer(presentation) | src/features/P08/** | integration-owner |
-| TODO | E01 | Font size control and font family selection in settings | frontend-developer(reading-tools) | src/features/E01/** | integration-owner |
-| TODO | E02 | Dark/Sepia/Light mode with D shortcut | frontend-developer(reading-tools) | src/features/E02/** | integration-owner |
-| TODO | E03 | Word count and estimated reading time in sermon header | frontend-developer(reading-tools) | src/features/E03/** | integration-owner |
-| TODO | E04 | Page view vs scroll view toggle | frontend-developer(reading-tools) | src/features/E04/** | integration-owner |
-| TODO | E05 | Bookmarks (B) | frontend-developer(reading-tools) | src/features/E05/** | integration-owner |
-| TODO | E06 | Highlights and colors (H then 1-4) | frontend-developer(reading-tools) | src/features/E06/** | integration-owner |
-| TODO | E07 | Table of contents jump to paragraphs | frontend-developer(reading-tools) | src/features/E07/** | integration-owner |
-| TODO | E08 | Line spacing and margin controls | frontend-developer(reading-tools) | src/features/E08/** | integration-owner |
-| TODO | E09 | Scripture cross-reference preview inline | backend-architect | src/features/E09/**; supabase/migrations/*_e09_*.sql | integration-owner |
-| TODO | E10 | Personal notes/annotations (M) | frontend-developer(reading-tools) | src/features/E10/** | integration-owner |
-| TODO | E11 | Margin notes rendering | frontend-developer(reading-tools) | src/features/E11/** | integration-owner |
-| TODO | E12 | Dictionary/definition on hover for uncommon words | backend-architect | src/features/E12/**; supabase/migrations/*_e12_*.sql | integration-owner |
-| TODO | E13 | Print-friendly view via toolbar button | frontend-developer(reading-tools) | src/features/E13/** | integration-owner |
-| TODO | E14 | Built-in audio player integration synced to transcript | frontend-developer(reader) | src/features/E14/** | integration-owner |
-| TODO | L01 | Year page: browse sermons by year | frontend-developer(library) | src/features/L01/** | integration-owner |
-| TODO | L02 | Sermon index: alphabetical and chronological listing | frontend-developer(library) | src/features/L02/** | integration-owner |
-| TODO | L03 | Continue reading: home shows recently opened sermons | frontend-developer(library) | src/features/L03/** | integration-owner |
-| TODO | L04 | Favorites: star sermons for quick access | frontend-developer(library) | src/features/L04/** | integration-owner |
-| TODO | L05 | Collections/Reading lists | frontend-developer(library) | src/features/L05/** | integration-owner |
-| TODO | L06 | User-defined tags per sermon | frontend-developer(library) | src/features/L06/** | integration-owner |
-| TODO | L07 | Reading stats: sermons read, time spent, words read | frontend-developer(library) | src/features/L07/** | integration-owner |
-| TODO | L08 | User accounts and cloud sync | backend-architect | src/features/L08/**; supabase/migrations/*_l08_*.sql | integration-owner |
-| TODO | L09 | Community highlights | backend-architect | src/features/L09/**; supabase/migrations/*_l09_*.sql | integration-owner |
-| TODO | L10 | Multi-language support for translated sermon display | backend-architect | src/features/L10/**; supabase/migrations/*_l10_*.sql | integration-owner |
-| TODO | L11 | Mobile app (PWA or native) with offline reading support | frontend-developer(library) | src/features/L11/** | integration-owner |
-| TODO | X01 | Canonical reference format in sermon header | frontend-developer(sharing) | src/features/X01/** | integration-owner |
-| TODO | X02 | Copy with citation: text + sermon code/title/author + paragraph number | frontend-developer(sharing) | src/features/X02/** | integration-owner |
-| TODO | X03 | Shareable deep link to specific paragraph | frontend-developer(sharing) | src/features/X03/** | integration-owner |
-| TODO | X04 | Export passage as .txt or .pdf | frontend-developer(sharing) | src/features/X04/** | integration-owner |
-| TODO | X05 | Social share styled quote card image | ui-ux-designer | src/features/X05/** | integration-owner |
-| TODO | X06 | Export passage as .docx | frontend-developer(sharing) | src/features/X06/** | integration-owner |
+| DONE-LOCKED | S01 | Full-text search + keyword highlighting across all sermons | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| DONE-LOCKED | S02 | Next/Prev hit navigation (N / Shift+N) | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| DONE-LOCKED | S03 | Only active hit highlighted; all others dimmed | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| DONE-LOCKED | S04 | Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | S05 | Search filters by year, sermon title, location | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s05_*.sql | integration-owner |
+| TODO | S06 | Fuzzy search (typo-tolerant) | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s06_*.sql | integration-owner |
+| TODO | S07 | Search history saved locally | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | S08 | Jump to hit number | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | S09 | Search filters extended by scripture reference | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s09_*.sql | integration-owner |
+| TODO | S10 | AI-assisted semantic search | prompt-engineer | src/{components,hooks,lib}/** (feature-scoped); scripts/s10/** | integration-owner |
+| TODO | R01 | Enter/Exit reading mode (R) | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | R02 | Sticky bottom progress bar for sermon progress | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| DONE-LOCKED | R03 | Resume position per sermon | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | R04 | Word-by-word highlighting with Space or Right, and Left to go back | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | R05 | Highlight mode toggle: word, sentence, paragraph | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | R06 | Auto-scroll with adjustable speed | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | R07 | Read-aloud sync: word/sentence highlight follows sermon audio playback | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P01 | Slide view of highlighted/selected text (P) | frontend-developer(presentation) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P02 | Fullscreen presentation (F) | frontend-developer(presentation) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P03 | Next/Prev slide (Right / Left) | frontend-developer(presentation) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P04 | Sermon code + title + author auto-shown as slide subtitle | frontend-developer(presentation) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P05 | Multi-selection passage queue for slides | frontend-developer(presentation) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P06 | Slide themes (background, font, color scheme) | ui-ux-designer | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P07 | Scripture watermark option | frontend-developer(presentation) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | P08 | Export slides as PDF/images | frontend-developer(presentation) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E01 | Font size control and font family selection in settings | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E02 | Dark/Sepia/Light mode with D shortcut | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E03 | Word count and estimated reading time in sermon header | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E04 | Page view vs scroll view toggle | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E05 | Bookmarks (B) | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E06 | Highlights and colors (H then 1-4) | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E07 | Table of contents jump to paragraphs | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E08 | Line spacing and margin controls | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E09 | Scripture cross-reference preview inline | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_e09_*.sql | integration-owner |
+| TODO | E10 | Personal notes/annotations (M) | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E11 | Margin notes rendering | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E12 | Dictionary/definition on hover for uncommon words | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_e12_*.sql | integration-owner |
+| TODO | E13 | Print-friendly view via toolbar button | frontend-developer(reading-tools) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | E14 | Built-in audio player integration synced to transcript | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L01 | Year page: browse sermons by year | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L02 | Sermon index: alphabetical and chronological listing | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L03 | Continue reading: home shows recently opened sermons | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L04 | Favorites: star sermons for quick access | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L05 | Collections/Reading lists | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L06 | User-defined tags per sermon | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L07 | Reading stats: sermons read, time spent, words read | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | L08 | User accounts and cloud sync | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_l08_*.sql | integration-owner |
+| TODO | L09 | Community highlights | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_l09_*.sql | integration-owner |
+| TODO | L10 | Multi-language support for translated sermon display | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_l10_*.sql | integration-owner |
+| TODO | L11 | Mobile app (PWA or native) with offline reading support | frontend-developer(library) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | X01 | Canonical reference format in sermon header | frontend-developer(sharing) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | X02 | Copy with citation: text + sermon code/title/author + paragraph number | frontend-developer(sharing) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | X03 | Shareable deep link to specific paragraph | frontend-developer(sharing) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | X04 | Export passage as .txt or .pdf | frontend-developer(sharing) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | X05 | Social share styled quote card image | ui-ux-designer | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| TODO | X06 | Export passage as .docx | frontend-developer(sharing) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 
 ## Backlog Validation Checklist
 - [ ] Confirm 56 features are listed exactly once by FeatureID.
 - [ ] Confirm exactly 5 features are marked `DONE-LOCKED` (S01, S02, S03, S04, R03).
 - [ ] Confirm every feature has one primary agent.
-- [ ] Confirm every feature has a non-overlapping owned surface.
+- [ ] Confirm every feature has clear feature-scoped ownership boundaries in src/{components,hooks,lib}/**.
 - [ ] Confirm only `integration-owner` touches shared shell files.
 
 ## Per-Feature Acceptance Template
@@ -108,7 +108,7 @@
 - Follow the current page/layout system and tokenized styling patterns from [Search.tsx](src/pages/Search.tsx).
 - Follow existing data flow and query conventions from [useSermons.ts](src/hooks/useSermons.ts); avoid introducing parallel data-access abstractions.
 - Follow settings, shortcut, and preference conventions from [Settings.tsx](src/pages/Settings.tsx) and existing keyboard shortcut utilities.
-- Keep feature implementation isolated in src/features/<FeatureID>/**; shared shell wiring remains integrator-only.
+- Keep feature implementation isolated in src/{components,hooks,lib}/** (feature-scoped); shared shell wiring remains integrator-only.
 - Do not add dependencies without explicit approval in the feature handoff.
 - Maintain TypeScript strictness and existing test stack (vitest + @testing-library/react).
 
@@ -145,7 +145,7 @@ Out of scope:
 - Direct route/header/global-shortcut shell edits by builder agents.
 - Large refactors or redesigns of already-complete behavior.
 Allowed files:
-- src/features/S01/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -157,7 +157,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for S01 behavior in src/features/S01/** test files.
+- Add or extend vitest coverage for S01 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Existing S01 capability remains functionally unchanged unless fixing a proven regression.
@@ -171,14 +171,14 @@ Status: TODO
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Next/Prev hit navigation (N / Shift+N) in src/features/S02/** with reusable module boundaries for integrator wiring.
+- Implement Next/Prev hit navigation (N / Shift+N) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S02/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -190,7 +190,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for S02 behavior in src/features/S02/** test files.
+- Add or extend vitest coverage for S02 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -205,14 +205,14 @@ Status: TODO
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Only active hit highlighted; all others dimmed in src/features/S03/** with reusable module boundaries for integrator wiring.
+- Implement Only active hit highlighted; all others dimmed in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S03/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -224,7 +224,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for S03 behavior in src/features/S03/** test files.
+- Add or extend vitest coverage for S03 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Only active hit highlighted; all others dimmed works end-to-end within feature-owned module boundaries.
@@ -238,14 +238,14 @@ Status: TODO
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut in src/features/S04/** with reusable module boundaries for integrator wiring.
+- Implement Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S04/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -257,7 +257,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for S04 behavior in src/features/S04/** test files.
+- Add or extend vitest coverage for S04 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -272,14 +272,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the S05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Search filters by year, sermon title, location in src/features/S05/** with reusable module boundaries for integrator wiring.
+- Implement Search filters by year, sermon title, location in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S05/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -293,7 +293,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for S05 behavior in src/features/S05/** test files.
+- Add or extend vitest coverage for S05 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 Acceptance criteria:
@@ -308,14 +308,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the S06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Fuzzy search (typo-tolerant) in src/features/S06/** with reusable module boundaries for integrator wiring.
+- Implement Fuzzy search (typo-tolerant) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S06/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -329,7 +329,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for S06 behavior in src/features/S06/** test files.
+- Add or extend vitest coverage for S06 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
@@ -345,14 +345,14 @@ Status: TODO
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Search history saved locally in src/features/S07/** with reusable module boundaries for integrator wiring.
+- Implement Search history saved locally in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S07/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -364,7 +364,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for S07 behavior in src/features/S07/** test files.
+- Add or extend vitest coverage for S07 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Search history saved locally works end-to-end within feature-owned module boundaries.
@@ -378,14 +378,14 @@ Status: TODO
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Jump to hit number in src/features/S08/** with reusable module boundaries for integrator wiring.
+- Implement Jump to hit number in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S08/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -397,7 +397,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for S08 behavior in src/features/S08/** test files.
+- Add or extend vitest coverage for S08 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Jump to hit number works end-to-end within feature-owned module boundaries.
@@ -411,14 +411,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the S09 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Search filters extended by scripture reference in src/features/S09/** with reusable module boundaries for integrator wiring.
+- Implement Search filters extended by scripture reference in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S09/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -432,7 +432,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for S09 behavior in src/features/S09/** test files.
+- Add or extend vitest coverage for S09 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 Acceptance criteria:
@@ -447,14 +447,14 @@ Status: TODO
 Primary agent: prompt-engineer
 Goal: Deliver and verify the S10 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement AI-assisted semantic search in src/features/S10/** with reusable module boundaries for integrator wiring.
+- Implement AI-assisted semantic search in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/S10/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - scripts/s10/** (only for AI-service plumbing tied to this feature)
 Forbidden files:
 - src/App.tsx
@@ -467,7 +467,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: ai-service
 Required tests:
-- Add or extend vitest coverage for S10 behavior in src/features/S10/** test files.
+- Add or extend vitest coverage for S10 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add AI-service contract test for request/response shaping and fallback behavior on provider failure.
 Acceptance criteria:
 - AI-assisted semantic search works end-to-end within feature-owned module boundaries.
@@ -481,14 +481,14 @@ Status: TODO
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Enter/Exit reading mode (R) in src/features/R01/** with reusable module boundaries for integrator wiring.
+- Implement Enter/Exit reading mode (R) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/R01/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -500,7 +500,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for R01 behavior in src/features/R01/** test files.
+- Add or extend vitest coverage for R01 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -515,14 +515,14 @@ Status: TODO
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Sticky bottom progress bar for sermon progress in src/features/R02/** with reusable module boundaries for integrator wiring.
+- Implement Sticky bottom progress bar for sermon progress in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/R02/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -534,7 +534,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for R02 behavior in src/features/R02/** test files.
+- Add or extend vitest coverage for R02 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Sticky bottom progress bar for sermon progress works end-to-end within feature-owned module boundaries.
@@ -556,7 +556,7 @@ Out of scope:
 - Direct route/header/global-shortcut shell edits by builder agents.
 - Large refactors or redesigns of already-complete behavior.
 Allowed files:
-- src/features/R03/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -568,7 +568,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for R03 behavior in src/features/R03/** test files.
+- Add or extend vitest coverage for R03 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Existing R03 capability remains functionally unchanged unless fixing a proven regression.
@@ -582,14 +582,14 @@ Status: TODO
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Word-by-word highlighting with Space or Right, and Left to go back in src/features/R04/** with reusable module boundaries for integrator wiring.
+- Implement Word-by-word highlighting with Space or Right, and Left to go back in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/R04/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -601,7 +601,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for R04 behavior in src/features/R04/** test files.
+- Add or extend vitest coverage for R04 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Word-by-word highlighting with Space or Right, and Left to go back works end-to-end within feature-owned module boundaries.
@@ -615,14 +615,14 @@ Status: TODO
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Highlight mode toggle: word, sentence, paragraph in src/features/R05/** with reusable module boundaries for integrator wiring.
+- Implement Highlight mode toggle: word, sentence, paragraph in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/R05/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -634,7 +634,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for R05 behavior in src/features/R05/** test files.
+- Add or extend vitest coverage for R05 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Highlight mode toggle: word, sentence, paragraph works end-to-end within feature-owned module boundaries.
@@ -648,14 +648,14 @@ Status: TODO
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Auto-scroll with adjustable speed in src/features/R06/** with reusable module boundaries for integrator wiring.
+- Implement Auto-scroll with adjustable speed in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/R06/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -667,7 +667,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for R06 behavior in src/features/R06/** test files.
+- Add or extend vitest coverage for R06 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Auto-scroll with adjustable speed works end-to-end within feature-owned module boundaries.
@@ -681,14 +681,14 @@ Status: TODO
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Read-aloud sync: word/sentence highlight follows sermon audio playback in src/features/R07/** with reusable module boundaries for integrator wiring.
+- Implement Read-aloud sync: word/sentence highlight follows sermon audio playback in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/R07/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -700,7 +700,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for R07 behavior in src/features/R07/** test files.
+- Add or extend vitest coverage for R07 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Read-aloud sync: word/sentence highlight follows sermon audio playback works end-to-end within feature-owned module boundaries.
@@ -714,14 +714,14 @@ Status: TODO
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Slide view of highlighted/selected text (P) in src/features/P01/** with reusable module boundaries for integrator wiring.
+- Implement Slide view of highlighted/selected text (P) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P01/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -733,7 +733,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P01 behavior in src/features/P01/** test files.
+- Add or extend vitest coverage for P01 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -748,14 +748,14 @@ Status: TODO
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Fullscreen presentation (F) in src/features/P02/** with reusable module boundaries for integrator wiring.
+- Implement Fullscreen presentation (F) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P02/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -767,7 +767,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P02 behavior in src/features/P02/** test files.
+- Add or extend vitest coverage for P02 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -782,14 +782,14 @@ Status: TODO
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Next/Prev slide (Right / Left) in src/features/P03/** with reusable module boundaries for integrator wiring.
+- Implement Next/Prev slide (Right / Left) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P03/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -801,7 +801,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P03 behavior in src/features/P03/** test files.
+- Add or extend vitest coverage for P03 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -816,14 +816,14 @@ Status: TODO
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Sermon code + title + author auto-shown as slide subtitle in src/features/P04/** with reusable module boundaries for integrator wiring.
+- Implement Sermon code + title + author auto-shown as slide subtitle in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P04/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -835,7 +835,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P04 behavior in src/features/P04/** test files.
+- Add or extend vitest coverage for P04 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Sermon code + title + author auto-shown as slide subtitle works end-to-end within feature-owned module boundaries.
@@ -849,14 +849,14 @@ Status: TODO
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Multi-selection passage queue for slides in src/features/P05/** with reusable module boundaries for integrator wiring.
+- Implement Multi-selection passage queue for slides in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P05/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -868,7 +868,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P05 behavior in src/features/P05/** test files.
+- Add or extend vitest coverage for P05 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Multi-selection passage queue for slides works end-to-end within feature-owned module boundaries.
@@ -882,14 +882,14 @@ Status: TODO
 Primary agent: ui-ux-designer
 Goal: Deliver and verify the P06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Slide themes (background, font, color scheme) in src/features/P06/** with reusable module boundaries for integrator wiring.
+- Implement Slide themes (background, font, color scheme) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P06/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -901,7 +901,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P06 behavior in src/features/P06/** test files.
+- Add or extend vitest coverage for P06 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -916,14 +916,14 @@ Status: TODO
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Scripture watermark option in src/features/P07/** with reusable module boundaries for integrator wiring.
+- Implement Scripture watermark option in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P07/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -935,7 +935,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P07 behavior in src/features/P07/** test files.
+- Add or extend vitest coverage for P07 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Scripture watermark option works end-to-end within feature-owned module boundaries.
@@ -949,14 +949,14 @@ Status: TODO
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Export slides as PDF/images in src/features/P08/** with reusable module boundaries for integrator wiring.
+- Implement Export slides as PDF/images in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/P08/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -968,7 +968,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for P08 behavior in src/features/P08/** test files.
+- Add or extend vitest coverage for P08 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Export slides as PDF/images works end-to-end within feature-owned module boundaries.
@@ -982,14 +982,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Font size control and font family selection in settings in src/features/E01/** with reusable module boundaries for integrator wiring.
+- Implement Font size control and font family selection in settings in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E01/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1001,7 +1001,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E01 behavior in src/features/E01/** test files.
+- Add or extend vitest coverage for E01 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Font size control and font family selection in settings works end-to-end within feature-owned module boundaries.
@@ -1015,14 +1015,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Dark/Sepia/Light mode with D shortcut in src/features/E02/** with reusable module boundaries for integrator wiring.
+- Implement Dark/Sepia/Light mode with D shortcut in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E02/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1034,7 +1034,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E02 behavior in src/features/E02/** test files.
+- Add or extend vitest coverage for E02 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Dark/Sepia/Light mode with D shortcut works end-to-end within feature-owned module boundaries.
@@ -1048,14 +1048,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Word count and estimated reading time in sermon header in src/features/E03/** with reusable module boundaries for integrator wiring.
+- Implement Word count and estimated reading time in sermon header in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E03/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1067,7 +1067,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for E03 behavior in src/features/E03/** test files.
+- Add or extend vitest coverage for E03 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Word count and estimated reading time in sermon header works end-to-end within feature-owned module boundaries.
@@ -1081,14 +1081,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Page view vs scroll view toggle in src/features/E04/** with reusable module boundaries for integrator wiring.
+- Implement Page view vs scroll view toggle in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E04/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1100,7 +1100,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E04 behavior in src/features/E04/** test files.
+- Add or extend vitest coverage for E04 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Page view vs scroll view toggle works end-to-end within feature-owned module boundaries.
@@ -1114,14 +1114,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Bookmarks (B) in src/features/E05/** with reusable module boundaries for integrator wiring.
+- Implement Bookmarks (B) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E05/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1133,7 +1133,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E05 behavior in src/features/E05/** test files.
+- Add or extend vitest coverage for E05 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -1148,14 +1148,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Highlights and colors (H then 1-4) in src/features/E06/** with reusable module boundaries for integrator wiring.
+- Implement Highlights and colors (H then 1-4) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E06/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1167,7 +1167,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E06 behavior in src/features/E06/** test files.
+- Add or extend vitest coverage for E06 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -1182,14 +1182,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Table of contents jump to paragraphs in src/features/E07/** with reusable module boundaries for integrator wiring.
+- Implement Table of contents jump to paragraphs in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E07/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1201,7 +1201,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E07 behavior in src/features/E07/** test files.
+- Add or extend vitest coverage for E07 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Table of contents jump to paragraphs works end-to-end within feature-owned module boundaries.
@@ -1215,14 +1215,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Line spacing and margin controls in src/features/E08/** with reusable module boundaries for integrator wiring.
+- Implement Line spacing and margin controls in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E08/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1234,7 +1234,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E08 behavior in src/features/E08/** test files.
+- Add or extend vitest coverage for E08 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Line spacing and margin controls works end-to-end within feature-owned module boundaries.
@@ -1248,14 +1248,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the E09 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Scripture cross-reference preview inline in src/features/E09/** with reusable module boundaries for integrator wiring.
+- Implement Scripture cross-reference preview inline in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E09/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -1269,7 +1269,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for E09 behavior in src/features/E09/** test files.
+- Add or extend vitest coverage for E09 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 Acceptance criteria:
@@ -1284,14 +1284,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E10 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Personal notes/annotations (M) in src/features/E10/** with reusable module boundaries for integrator wiring.
+- Implement Personal notes/annotations (M) in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E10/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1303,7 +1303,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E10 behavior in src/features/E10/** test files.
+- Add or extend vitest coverage for E10 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -1318,14 +1318,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E11 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Margin notes rendering in src/features/E11/** with reusable module boundaries for integrator wiring.
+- Implement Margin notes rendering in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E11/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1337,7 +1337,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E11 behavior in src/features/E11/** test files.
+- Add or extend vitest coverage for E11 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Margin notes rendering works end-to-end within feature-owned module boundaries.
@@ -1351,14 +1351,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the E12 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Dictionary/definition on hover for uncommon words in src/features/E12/** with reusable module boundaries for integrator wiring.
+- Implement Dictionary/definition on hover for uncommon words in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E12/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -1372,7 +1372,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for E12 behavior in src/features/E12/** test files.
+- Add or extend vitest coverage for E12 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 Acceptance criteria:
@@ -1387,14 +1387,14 @@ Status: TODO
 Primary agent: frontend-developer(reading-tools)
 Goal: Deliver and verify the E13 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Print-friendly view via toolbar button in src/features/E13/** with reusable module boundaries for integrator wiring.
+- Implement Print-friendly view via toolbar button in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E13/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1406,7 +1406,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for E13 behavior in src/features/E13/** test files.
+- Add or extend vitest coverage for E13 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Print-friendly view via toolbar button works end-to-end within feature-owned module boundaries.
@@ -1420,14 +1420,14 @@ Status: TODO
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the E14 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Built-in audio player integration synced to transcript in src/features/E14/** with reusable module boundaries for integrator wiring.
+- Implement Built-in audio player integration synced to transcript in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/E14/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1439,7 +1439,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for E14 behavior in src/features/E14/** test files.
+- Add or extend vitest coverage for E14 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Built-in audio player integration synced to transcript works end-to-end within feature-owned module boundaries.
@@ -1453,14 +1453,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Year page: browse sermons by year in src/features/L01/** with reusable module boundaries for integrator wiring.
+- Implement Year page: browse sermons by year in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L01/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1472,7 +1472,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for L01 behavior in src/features/L01/** test files.
+- Add or extend vitest coverage for L01 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Year page: browse sermons by year works end-to-end within feature-owned module boundaries.
@@ -1486,14 +1486,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Sermon index: alphabetical and chronological listing in src/features/L02/** with reusable module boundaries for integrator wiring.
+- Implement Sermon index: alphabetical and chronological listing in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L02/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1505,7 +1505,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for L02 behavior in src/features/L02/** test files.
+- Add or extend vitest coverage for L02 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Sermon index: alphabetical and chronological listing works end-to-end within feature-owned module boundaries.
@@ -1519,14 +1519,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Continue reading: home shows recently opened sermons in src/features/L03/** with reusable module boundaries for integrator wiring.
+- Implement Continue reading: home shows recently opened sermons in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L03/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1538,7 +1538,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for L03 behavior in src/features/L03/** test files.
+- Add or extend vitest coverage for L03 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Continue reading: home shows recently opened sermons works end-to-end within feature-owned module boundaries.
@@ -1552,14 +1552,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Favorites: star sermons for quick access in src/features/L04/** with reusable module boundaries for integrator wiring.
+- Implement Favorites: star sermons for quick access in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L04/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1571,7 +1571,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for L04 behavior in src/features/L04/** test files.
+- Add or extend vitest coverage for L04 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Favorites: star sermons for quick access works end-to-end within feature-owned module boundaries.
@@ -1585,14 +1585,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Collections/Reading lists in src/features/L05/** with reusable module boundaries for integrator wiring.
+- Implement Collections/Reading lists in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L05/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1604,7 +1604,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for L05 behavior in src/features/L05/** test files.
+- Add or extend vitest coverage for L05 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Collections/Reading lists works end-to-end within feature-owned module boundaries.
@@ -1618,14 +1618,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement User-defined tags per sermon in src/features/L06/** with reusable module boundaries for integrator wiring.
+- Implement User-defined tags per sermon in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L06/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1637,7 +1637,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for L06 behavior in src/features/L06/** test files.
+- Add or extend vitest coverage for L06 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - User-defined tags per sermon works end-to-end within feature-owned module boundaries.
@@ -1651,14 +1651,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Reading stats: sermons read, time spent, words read in src/features/L07/** with reusable module boundaries for integrator wiring.
+- Implement Reading stats: sermons read, time spent, words read in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L07/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1670,7 +1670,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for L07 behavior in src/features/L07/** test files.
+- Add or extend vitest coverage for L07 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Reading stats: sermons read, time spent, words read works end-to-end within feature-owned module boundaries.
@@ -1684,14 +1684,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the L08 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement User accounts and cloud sync in src/features/L08/** with reusable module boundaries for integrator wiring.
+- Implement User accounts and cloud sync in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L08/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -1705,7 +1705,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for L08 behavior in src/features/L08/** test files.
+- Add or extend vitest coverage for L08 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 Acceptance criteria:
@@ -1720,14 +1720,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the L09 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Community highlights in src/features/L09/** with reusable module boundaries for integrator wiring.
+- Implement Community highlights in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L09/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -1741,7 +1741,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for L09 behavior in src/features/L09/** test files.
+- Add or extend vitest coverage for L09 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 Acceptance criteria:
@@ -1756,14 +1756,14 @@ Status: TODO
 Primary agent: backend-architect
 Goal: Deliver and verify the L10 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Multi-language support for translated sermon display in src/features/L10/** with reusable module boundaries for integrator wiring.
+- Implement Multi-language support for translated sermon display in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L10/**
+- src/{components,hooks,lib}/** (feature-scoped)
 - supabase/migrations/*_*.sql
 - src/integrations/supabase/types.ts (only when regenerated for this feature)
 Forbidden files:
@@ -1777,7 +1777,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: supabase-migration
 Required tests:
-- Add or extend vitest coverage for L10 behavior in src/features/L10/** test files.
+- Add or extend vitest coverage for L10 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add Supabase query/mutation tests with mocked responses and error-path assertions.
 - Include migration smoke validation notes in handoff (apply/rollback intent).
 Acceptance criteria:
@@ -1792,14 +1792,14 @@ Status: TODO
 Primary agent: frontend-developer(library)
 Goal: Deliver and verify the L11 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Mobile app (PWA or native) with offline reading support in src/features/L11/** with reusable module boundaries for integrator wiring.
+- Implement Mobile app (PWA or native) with offline reading support in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/L11/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1811,7 +1811,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for L11 behavior in src/features/L11/** test files.
+- Add or extend vitest coverage for L11 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 - Add keyboard-shortcut behavior and conflict-avoidance tests aligned with shortcut definitions.
 Acceptance criteria:
@@ -1826,14 +1826,14 @@ Status: TODO
 Primary agent: frontend-developer(sharing)
 Goal: Deliver and verify the X01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Canonical reference format in sermon header in src/features/X01/** with reusable module boundaries for integrator wiring.
+- Implement Canonical reference format in sermon header in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/X01/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1845,7 +1845,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for X01 behavior in src/features/X01/** test files.
+- Add or extend vitest coverage for X01 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Canonical reference format in sermon header works end-to-end within feature-owned module boundaries.
@@ -1859,14 +1859,14 @@ Status: TODO
 Primary agent: frontend-developer(sharing)
 Goal: Deliver and verify the X02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Copy with citation: text + sermon code/title/author + paragraph number in src/features/X02/** with reusable module boundaries for integrator wiring.
+- Implement Copy with citation: text + sermon code/title/author + paragraph number in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/X02/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1878,7 +1878,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: local-storage
 Required tests:
-- Add or extend vitest coverage for X02 behavior in src/features/X02/** test files.
+- Add or extend vitest coverage for X02 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add storage resilience tests for read/write and blocked-storage fallback behavior.
 Acceptance criteria:
 - Copy with citation: text + sermon code/title/author + paragraph number works end-to-end within feature-owned module boundaries.
@@ -1892,14 +1892,14 @@ Status: TODO
 Primary agent: frontend-developer(sharing)
 Goal: Deliver and verify the X03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Shareable deep link to specific paragraph in src/features/X03/** with reusable module boundaries for integrator wiring.
+- Implement Shareable deep link to specific paragraph in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/X03/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1911,7 +1911,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for X03 behavior in src/features/X03/** test files.
+- Add or extend vitest coverage for X03 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Shareable deep link to specific paragraph works end-to-end within feature-owned module boundaries.
@@ -1925,14 +1925,14 @@ Status: TODO
 Primary agent: frontend-developer(sharing)
 Goal: Deliver and verify the X04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Export passage as .txt or .pdf in src/features/X04/** with reusable module boundaries for integrator wiring.
+- Implement Export passage as .txt or .pdf in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/X04/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1944,7 +1944,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for X04 behavior in src/features/X04/** test files.
+- Add or extend vitest coverage for X04 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Export passage as .txt or .pdf works end-to-end within feature-owned module boundaries.
@@ -1958,14 +1958,14 @@ Status: TODO
 Primary agent: ui-ux-designer
 Goal: Deliver and verify the X05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Social share styled quote card image in src/features/X05/** with reusable module boundaries for integrator wiring.
+- Implement Social share styled quote card image in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/X05/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -1977,7 +1977,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for X05 behavior in src/features/X05/** test files.
+- Add or extend vitest coverage for X05 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Social share styled quote card image works end-to-end within feature-owned module boundaries.
@@ -1991,14 +1991,14 @@ Status: TODO
 Primary agent: frontend-developer(sharing)
 Goal: Deliver and verify the X06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
-- Implement Export passage as .docx in src/features/X06/** with reusable module boundaries for integrator wiring.
+- Implement Export passage as .docx in src/{components,hooks,lib}/** (feature-scoped) with reusable module boundaries for integrator wiring.
 - Keep state, event handling, and UX consistent with existing search/reading/settings patterns.
 - Provide deterministic handoff notes for integration-owner to wire shared shell files.
 Out of scope:
 - Any behavior from other FeatureIDs.
 - Direct route/header/global-shortcut shell edits by builder agents.
 Allowed files:
-- src/features/X06/**
+- src/{components,hooks,lib}/** (feature-scoped)
 Forbidden files:
 - src/App.tsx
 - src/pages/*
@@ -2010,7 +2010,7 @@ Pattern anchors:
 - [Settings.tsx](src/pages/Settings.tsx)
 Data profile: UI-only
 Required tests:
-- Add or extend vitest coverage for X06 behavior in src/features/X06/** test files.
+- Add or extend vitest coverage for X06 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
 - Add interaction and state-transition tests that validate user-visible behavior.
 Acceptance criteria:
 - Export passage as .docx works end-to-end within feature-owned module boundaries.
@@ -2029,3 +2029,4 @@ Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Test
 - [ ] Confirm each feature block includes all three pattern anchors.
 - [ ] Confirm forbidden shared-shell edits are explicit for builder agents.
 - [ ] Dry-run handoff format for one search, one reading, and one backend feature before assignment.
+

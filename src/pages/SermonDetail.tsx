@@ -7,9 +7,10 @@ import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
 import SharedSearchExperience from '@/components/search/SharedSearchExperience';
-import { useS02HitNavigation } from '@/features/S02';
-import { renderActiveHitHighlights } from '@/features/S03';
-import { S04SearchPopup, useS04SearchPopupController } from '@/features/S04';
+import { useHitNavigation } from '@/hooks/useHitNavigation';
+import { renderActiveHitHighlights } from '@/components/search/activeHitHighlighting';
+import { SearchPopup } from '@/components/search/SearchPopup';
+import { useSearchPopupController } from '@/hooks/useSearchPopupController';
 import {
   extractHitChunkIndex,
   extractQueryTerms,
@@ -232,7 +233,7 @@ export default function SermonDetail() {
     close: closeSearchPopup,
     consumeInputFocusRequest: consumeSearchPopupFocusRequest,
     handleGlobalKeyDown: handleSearchPopupShortcutKeyDown,
-  } = useS04SearchPopupController({
+  } = useSearchPopupController({
     shortcutKey: searchShortcutKey,
   });
 
@@ -329,7 +330,7 @@ export default function SermonDetail() {
   const {
     activeIndex: activeMatchIndex,
     handleKeyDown: handleHitNavigationKeyDown,
-  } = useS02HitNavigation({
+  } = useHitNavigation({
     containerRef: contentRef,
     enabled: highlightTerms.length > 0,
     initialIndex: initialMatchIndex,
@@ -439,7 +440,7 @@ export default function SermonDetail() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <S04SearchPopup
+      <SearchPopup
         isOpen={isSearchPopupOpen}
         onClose={closeSearchPopup}
       >
@@ -449,7 +450,7 @@ export default function SermonDetail() {
           onInputFocusHandled={consumeSearchPopupFocusRequest}
           onHitNavigate={closeSearchPopup}
         />
-      </S04SearchPopup>
+      </SearchPopup>
 
       <div ref={contentRef} className="mx-auto max-w-[900px] space-y-8 px-6 py-8 lg:px-0">
         <SermonBreadcrumb year={sermon.year} title={sermon.title} rootHref={breadcrumbRootHref} />
@@ -651,3 +652,4 @@ function formatDuration(durationSeconds: number | null): string | null {
 
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
+
