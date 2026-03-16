@@ -36,13 +36,13 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   },
   {
     action: 'result_next',
-    label: 'Next result',
-    description: 'Moves selection down in search results.',
+    label: 'Next/previous hit',
+    description: 'Moves between hits in the current sermon (hold Shift for previous).',
   },
   {
     action: 'result_prev',
-    label: 'Previous result',
-    description: 'Moves selection up in search results.',
+    label: 'Next/previous sermon hit',
+    description: 'Jumps to the first hit in adjacent sermons (hold Shift for previous sermon).',
   },
 ];
 
@@ -50,11 +50,12 @@ export const SHORTCUT_DEFAULT_BINDINGS: ShortcutBindings = {
   focus_search: '/',
   open_books: 'b',
   open_settings: ',',
-  result_next: 'j',
-  result_prev: 'k',
+  result_next: 'n',
+  result_prev: 'm',
 };
 
 const RESERVED_SHORTCUT_KEYS = new Set(['enter', 'escape', 'tab']);
+const REMOVED_SHORTCUT_KEYS = new Set(['j', 'k']);
 
 export function isShortcutAction(value: string): value is ShortcutAction {
   return (SHORTCUT_ACTIONS as readonly string[]).includes(value);
@@ -109,6 +110,13 @@ export function validateShortcutKey(rawKey: string): { key: string | null; error
     };
   }
 
+  if (REMOVED_SHORTCUT_KEYS.has(normalized)) {
+    return {
+      key: null,
+      error: `"${formatShortcutKey(normalized)}" is no longer supported.`,
+    };
+  }
+
   return {
     key: normalized,
     error: null,
@@ -136,7 +144,12 @@ export function coerceShortcutBindings(
     const preferredKey = candidate[action];
     const normalizedPreferred = preferredKey ? normalizeShortcutKey(preferredKey) : null;
 
-    if (normalizedPreferred && !RESERVED_SHORTCUT_KEYS.has(normalizedPreferred) && !usedKeys.has(normalizedPreferred)) {
+    if (
+      normalizedPreferred
+      && !RESERVED_SHORTCUT_KEYS.has(normalizedPreferred)
+      && !REMOVED_SHORTCUT_KEYS.has(normalizedPreferred)
+      && !usedKeys.has(normalizedPreferred)
+    ) {
       coerced[action] = normalizedPreferred;
       usedKeys.add(normalizedPreferred);
       continue;

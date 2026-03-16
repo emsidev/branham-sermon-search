@@ -33,7 +33,6 @@ export default function GlobalKeyboardShortcuts() {
   const {
     bindings,
     getSearchInputElement,
-    getResultListController,
   } = useKeyboardShortcuts();
 
   useEffect(() => {
@@ -60,13 +59,6 @@ export default function GlobalKeyboardShortcuts() {
 
       const normalizedKey = normalizeShortcutKey(event.key);
       if (!normalizedKey) {
-        if (event.key === 'Enter') {
-          const controller = getResultListController();
-          if (controller?.hasItems()) {
-            event.preventDefault();
-            controller.activateSelection();
-          }
-        }
         return;
       }
 
@@ -80,9 +72,20 @@ export default function GlobalKeyboardShortcuts() {
 
         const requestId = `shortcut-search-${Date.now()}-${shortcutRequestIdRef.current++}`;
         const persistedSearchHref = readSearchReturnTo(location.state);
-        const queryFromUrl = new URLSearchParams(location.search).get('q') ?? '';
+        const urlParams = new URLSearchParams(location.search);
+        const queryFromUrl = urlParams.get('q') ?? '';
+        const matchCaseFromUrl = urlParams.get('matchCase') === '1';
+        const wholeWordParam = urlParams.get('wholeWord');
+        const wholeWordFromUrl = wholeWordParam == null ? true : wholeWordParam === '1';
         const searchHref = persistedSearchHref
-          ?? (queryFromUrl.trim() ? buildSearchHrefFromQuery(queryFromUrl) : '/search');
+          ?? (
+            queryFromUrl.trim() || matchCaseFromUrl || wholeWordFromUrl
+              ? buildSearchHrefFromQuery(queryFromUrl, {
+                  matchCase: matchCaseFromUrl,
+                  wholeWord: wholeWordFromUrl,
+                })
+              : '/search'
+          );
 
         navigate(searchHref, {
           state: createShortcutSearchTransitionState(requestId),
@@ -102,26 +105,11 @@ export default function GlobalKeyboardShortcuts() {
         return;
       }
 
-      const controller = getResultListController();
-      if (!controller?.hasItems()) {
-        return;
-      }
-
-      if (normalizedKey === bindings.result_next) {
-        event.preventDefault();
-        controller.selectNext();
-        return;
-      }
-
-      if (normalizedKey === bindings.result_prev) {
-        event.preventDefault();
-        controller.selectPrevious();
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [bindings, getResultListController, getSearchInputElement, location.search, location.state, navigate]);
+  }, [bindings, getSearchInputElement, location.search, location.state, navigate]);
 
   return null;
 }

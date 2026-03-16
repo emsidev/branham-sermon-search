@@ -118,16 +118,20 @@ describe('useS02HitNavigation', () => {
     scrollSpy.mockRestore();
   });
 
-  it('handles N/Shift+N and ignores guarded keyboard contexts', async () => {
+  it('handles N/Shift+N and M/Shift+M while guarding typing/modifier contexts', async () => {
     const containerRef = {
       current: buildHitContainer(2),
     } as React.RefObject<HTMLElement | null>;
+    const onNextSermon = vi.fn();
+    const onPrevSermon = vi.fn();
 
     const { result } = renderHook(() => useS02HitNavigation({
       containerRef,
       enabled: true,
       initialIndex: 0,
       scrollBehavior: 'auto',
+      onNextSermon,
+      onPrevSermon,
     }));
 
     await waitFor(() => {
@@ -151,6 +155,23 @@ describe('useS02HitNavigation', () => {
     expect(prevEvent.defaultPrevented).toBe(true);
     expect(result.current.activeIndex).toBe(0);
 
+    const nextSermonEvent = createKeyboardEvent('m', { target: document.body });
+    act(() => {
+      result.current.handleKeyDown(nextSermonEvent);
+    });
+    expect(nextSermonEvent.defaultPrevented).toBe(true);
+    expect(onNextSermon).toHaveBeenCalledTimes(1);
+
+    const prevSermonEvent = createKeyboardEvent('M', {
+      shiftKey: true,
+      target: document.body,
+    });
+    act(() => {
+      result.current.handleKeyDown(prevSermonEvent);
+    });
+    expect(prevSermonEvent.defaultPrevented).toBe(true);
+    expect(onPrevSermon).toHaveBeenCalledTimes(1);
+
     const input = document.createElement('input');
     const typingEvent = createKeyboardEvent('n', { target: input });
     act(() => {
@@ -168,6 +189,8 @@ describe('useS02HitNavigation', () => {
     });
     expect(modifiedEvent.defaultPrevented).toBe(false);
     expect(result.current.activeIndex).toBe(0);
+    expect(onNextSermon).toHaveBeenCalledTimes(1);
+    expect(onPrevSermon).toHaveBeenCalledTimes(1);
   });
 
   it('honors enabled state and resets when hit list changes', async () => {

@@ -278,6 +278,8 @@ export type Database = {
         Args: {
           p_limit?: number
           p_location?: string | null
+          p_match_case?: boolean
+          p_match_whole_word?: boolean
           p_offset?: number
           p_query: string
           p_sort?: string | null

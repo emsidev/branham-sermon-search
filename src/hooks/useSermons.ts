@@ -26,6 +26,8 @@ interface UseSermonFilters {
   page: number;
   sort: 'relevance-desc' | 'date-desc' | 'date-asc' | 'title-asc' | 'title-desc';
   view: 'card' | 'table';
+  matchCase: boolean;
+  wholeWord: boolean;
 }
 
 interface UseSermonsResult {
@@ -35,7 +37,7 @@ interface UseSermonsResult {
   total: number;
   loading: boolean;
   filters: UseSermonFilters;
-  setFilter: (key: keyof UseSermonFilters, value: string | number) => void;
+  setFilter: (key: keyof UseSermonFilters, value: string | number | boolean) => void;
   clearFilters: () => void;
   years: number[];
   locations: string[];
@@ -43,6 +45,14 @@ interface UseSermonsResult {
 }
 
 const PAGE_SIZE = 25;
+
+function parseWholeWordParam(rawValue: string | null): boolean {
+  if (rawValue == null) {
+    return true;
+  }
+
+  return rawValue === '1';
+}
 
 export function useSermons(): UseSermonsResult {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -60,13 +70,23 @@ export function useSermons(): UseSermonsResult {
     page: parseInt(searchParams.get('page') || '1', 10),
     sort: (searchParams.get('sort') as UseSermonFilters['sort']) || 'relevance-desc',
     view: (searchParams.get('view') as UseSermonFilters['view']) || 'card',
+    matchCase: searchParams.get('matchCase') === '1',
+    wholeWord: parseWholeWordParam(searchParams.get('wholeWord')),
   }), [searchParams]);
   const isSearchMode = filters.q.trim().length > 0;
 
-  const setFilter = useCallback((key: keyof UseSermonFilters, value: string | number) => {
+  const setFilter = useCallback((key: keyof UseSermonFilters, value: string | number | boolean) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      if (value === '' || value === 0) {
+      if (typeof value === 'boolean') {
+        if (key === 'wholeWord') {
+          next.set('wholeWord', value ? '1' : '0');
+        } else if (value) {
+          next.set(key, '1');
+        } else {
+          next.delete(key);
+        }
+      } else if (value === '' || value === 0) {
         next.delete(key);
       } else {
         next.set(key, String(value));
@@ -115,6 +135,8 @@ export function useSermons(): UseSermonsResult {
           p_limit: PAGE_SIZE,
           p_offset: from,
           p_sort: filters.sort,
+          p_match_case: filters.matchCase,
+          p_match_whole_word: filters.wholeWord,
         });
 
         if (!error && data) {
@@ -214,5 +236,17 @@ export async function fetchAdjacentSermons(date: string): Promise<{ prev: Adjace
   return {
     prev: (prevRes.data?.[0] as AdjacentSermon) || null,
     next: (nextRes.data?.[0] as AdjacentSermon) || null,
+  };
+}
+
+export async function fetchBoundarySermons(): Promise<{ first: AdjacentSermon | null; last: AdjacentSermon | null }> {
+  const [firstRes, lastRes] = await Promise.all([
+    supabase.from('sermons').select('id,title,date').order('date', { ascending: true }).limit(1),
+    supabase.from('sermons').select('id,title,date').order('date', { ascending: false }).limit(1),
+  ]);
+
+  return {
+    first: (firstRes.data?.[0] as AdjacentSermon) || null,
+    last: (lastRes.data?.[0] as AdjacentSermon) || null,
   };
 }

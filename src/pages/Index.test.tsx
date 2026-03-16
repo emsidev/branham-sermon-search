@@ -23,8 +23,8 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
       focus_search: '/',
       open_books: 'b',
       open_settings: ',',
-      result_next: 'j',
-      result_prev: 'k',
+      result_next: 'n',
+      result_prev: 'm',
     },
     syncStatus: 'synced',
     syncWarning: null,
@@ -71,8 +71,6 @@ describe('Index', () => {
   beforeEach(() => {
     instantSearchEnabledMock = true;
     setInstantSearchEnabledMock.mockReset();
-    vi.stubGlobal('__APP_BUILD_DATE__', '2026-03-10T00:00:00.000Z');
-    vi.stubGlobal('__APP_VERSION__', '1.2.3');
 
     navigateMock.mockReset();
     useKeyboardNavMock.mockReset();
@@ -82,15 +80,11 @@ describe('Index', () => {
     });
   });
 
-  it('renders the hero page with nav and build metadata', () => {
+  it('renders the hero page content', () => {
     renderIndex();
 
     expect(screen.getByText('the table search')).toBeInTheDocument();
     expect(screen.getByText('a fast, modern browser for the table')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /books/i })).toHaveAttribute('href', '/books');
-    expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute('href', '/settings');
-    expect(screen.getByRole('link', { name: /about/i })).toHaveAttribute('href', '/about');
-    expect(screen.getByText(/built Mar 10, 2026 .* v1\.2\.3/)).toBeInTheDocument();
     expect(screen.getByText('1958')).toBeInTheDocument();
     expect(screen.getByText('1972')).toBeInTheDocument();
   });
@@ -106,7 +100,7 @@ describe('Index', () => {
     fireEvent.click(screen.getByRole('button', { name: /search/i }));
 
     expect(navigateMock).toHaveBeenCalledWith(
-      '/search?q=only+believe&sort=relevance-desc&view=card',
+      '/search?q=only+believe&sort=relevance-desc&view=card&wholeWord=1',
       expect.objectContaining({
         state: expect.objectContaining({
           source: 'home',
@@ -135,7 +129,7 @@ describe('Index', () => {
     });
 
     expect(navigateMock).toHaveBeenCalledWith(
-      '/search?q=amen&sort=relevance-desc&view=card',
+      '/search?q=amen&sort=relevance-desc&view=card&wholeWord=1',
       expect.objectContaining({
         state: expect.objectContaining({
           source: 'home',
@@ -161,7 +155,7 @@ describe('Index', () => {
     fireEvent.compositionEnd(searchInput);
 
     expect(navigateMock).toHaveBeenCalledWith(
-      '/search?q=%E3%82%A2&sort=relevance-desc&view=card',
+      '/search?q=%E3%82%A2&sort=relevance-desc&view=card&wholeWord=1',
       expect.objectContaining({
         state: expect.objectContaining({
           source: 'home',
@@ -170,6 +164,30 @@ describe('Index', () => {
           requestId: expect.any(String),
         }),
       })
+    );
+  });
+
+  it('applies match toggles to search navigation URLs', () => {
+    instantSearchEnabledMock = true;
+    renderIndex();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, {
+      target: { value: 'amen' },
+    });
+    navigateMock.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle match case' }));
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=amen&sort=relevance-desc&view=card&matchCase=1&wholeWord=1',
+      expect.any(Object),
+    );
+
+    navigateMock.mockClear();
+    fireEvent.keyDown(input, { key: 'w', altKey: true });
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=amen&sort=relevance-desc&view=card&matchCase=1&wholeWord=0',
+      expect.any(Object),
     );
   });
 });

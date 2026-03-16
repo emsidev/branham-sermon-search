@@ -9,6 +9,7 @@ import {
   resolveHighlightTermsForText,
   sanitizeSearchSnippet,
   splitTextByTerms,
+  type SearchMatchOptions,
 } from '@/lib/search';
 
 interface SearchHitsTableProps {
@@ -16,6 +17,7 @@ interface SearchHitsTableProps {
   loading: boolean;
   selectedIndex: number;
   query: string;
+  matchOptions?: SearchMatchOptions;
   linkState?: unknown;
   onHitNavigate?: () => void;
 }
@@ -38,6 +40,7 @@ export default function SearchHitsTable({
   loading,
   selectedIndex,
   query,
+  matchOptions,
   linkState,
   onHitNavigate,
 }: SearchHitsTableProps) {
@@ -88,6 +91,8 @@ export default function SearchHitsTable({
                   matchSource: hit.match_source,
                   paragraphNumber: hit.paragraph_number,
                   hitId: hit.hit_id,
+                  matchCase: matchOptions?.matchCase,
+                  wholeWord: matchOptions?.wholeWord,
                 });
 
                 return (
@@ -127,7 +132,7 @@ export default function SearchHitsTable({
                       <div className="mb-2 flex items-center gap-2 md:hidden">
                         <span className="font-mono text-xs font-semibold text-foreground">{hit.title}</span>
                       </div>
-                      {renderHighlightedSnippet(hit.snippet, queryTerms)}
+                      {renderHighlightedSnippet(hit.snippet, queryTerms, matchOptions)}
                     </td>
                     <td className="py-3 px-4 hidden sm:table-cell text-muted-foreground text-xs font-mono whitespace-nowrap">
                       {hit.sermon_code}
@@ -166,15 +171,19 @@ export default function SearchHitsTable({
   );
 }
 
-function renderHighlightedSnippet(snippet: string, queryTerms: string[]): React.ReactNode {
+function renderHighlightedSnippet(
+  snippet: string,
+  queryTerms: string[],
+  matchOptions?: SearchMatchOptions,
+): React.ReactNode {
   const cleanedSnippet = sanitizeSearchSnippet(snippet);
   if (!queryTerms.length) {
     return cleanedSnippet || snippet;
   }
 
   const snippetText = cleanedSnippet || snippet;
-  const effectiveTerms = resolveHighlightTermsForText(snippetText, queryTerms);
-  const parts = splitTextByTerms(snippetText, effectiveTerms);
+  const effectiveTerms = resolveHighlightTermsForText(snippetText, queryTerms, matchOptions);
+  const parts = splitTextByTerms(snippetText, effectiveTerms, matchOptions);
 
   return parts.map((part, idx) => {
     if (part.matched) {

@@ -4,11 +4,18 @@ export interface SermonHitLinkInput {
   matchSource?: string | null;
   paragraphNumber?: number | null;
   hitId?: string;
+  matchCase?: boolean;
+  wholeWord?: boolean;
 }
 
 export interface HighlightSegment {
   text: string;
   matched: boolean;
+}
+
+export interface SearchMatchOptions {
+  matchCase?: boolean;
+  wholeWord?: boolean;
 }
 
 const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
@@ -27,7 +34,18 @@ interface NormalizedSearchText {
   indexMap: number[];
 }
 
-function normalizeForSearchMatchingInternal(value: string): NormalizedSearchText {
+function resolveSearchMatchOptions(options?: SearchMatchOptions): Required<SearchMatchOptions> {
+  return {
+    matchCase: options?.matchCase ?? false,
+    wholeWord: options?.wholeWord ?? false,
+  };
+}
+
+function normalizeForSearchMatchingInternal(
+  value: string,
+  options?: SearchMatchOptions,
+): NormalizedSearchText {
+  const { matchCase } = resolveSearchMatchOptions(options);
   const normalizedChars: string[] = [];
   const indexMap: number[] = [];
 
@@ -42,7 +60,7 @@ function normalizeForSearchMatchingInternal(value: string): NormalizedSearchText
     }
 
     if (isWordChar(char)) {
-      normalizedChars.push(char.toLowerCase());
+      normalizedChars.push(matchCase ? char : char.toLowerCase());
       indexMap.push(index);
       continue;
     }
@@ -66,24 +84,67 @@ function normalizeForSearchMatchingInternal(value: string): NormalizedSearchText
   };
 }
 
-export function normalizeSearchComparableText(value: string | null | undefined): string {
+function isMatchBoundary(value: string, index: number): boolean {
+  return index <= 0 || value[index - 1] === ' ';
+}
+
+function hasNormalizedTermMatch(
+  normalizedText: string,
+  normalizedTerm: string,
+  options?: SearchMatchOptions,
+): boolean {
+  const { wholeWord } = resolveSearchMatchOptions(options);
+  if (!normalizedText || !normalizedTerm) {
+    return false;
+  }
+
+  if (!wholeWord) {
+    return normalizedText.includes(normalizedTerm);
+  }
+
+  let searchFrom = 0;
+  while (searchFrom <= normalizedText.length - normalizedTerm.length) {
+    const matchIndex = normalizedText.indexOf(normalizedTerm, searchFrom);
+    if (matchIndex === -1) {
+      return false;
+    }
+
+    const endIndexExclusive = matchIndex + normalizedTerm.length;
+    const startsAtWordBoundary = isMatchBoundary(normalizedText, matchIndex);
+    const endsAtWordBoundary = endIndexExclusive >= normalizedText.length
+      || normalizedText[endIndexExclusive] === ' ';
+    if (startsAtWordBoundary && endsAtWordBoundary) {
+      return true;
+    }
+
+    searchFrom = matchIndex + 1;
+  }
+
+  return false;
+}
+
+export function normalizeSearchComparableText(
+  value: string | null | undefined,
+  options?: SearchMatchOptions,
+): string {
   if (!value) {
     return '';
   }
 
-  return normalizeForSearchMatchingInternal(value).value;
+  return normalizeForSearchMatchingInternal(value, options).value;
 }
 
 export function hasNormalizedBoundedMatch(
   candidateText: string | null | undefined,
   queryText: string,
+  options?: SearchMatchOptions,
 ): boolean {
-  const normalizedQuery = normalizeSearchComparableText(queryText);
+  const normalizedQuery = normalizeSearchComparableText(queryText, options);
   if (!normalizedQuery) {
     return false;
   }
 
-  const normalizedCandidate = normalizeSearchComparableText(candidateText);
+  const normalizedCandidate = normalizeSearchComparableText(candidateText, options);
   if (!normalizedCandidate) {
     return false;
   }
@@ -97,6 +158,8 @@ export function buildSermonHitHref({
   matchSource,
   paragraphNumber,
   hitId,
+  matchCase,
+  wholeWord,
 }: SermonHitLinkInput): string {
   const params = new URLSearchParams();
   const trimmedQuery = query?.trim() ?? '';
@@ -112,6 +175,14 @@ export function buildSermonHitHref({
   }
   if (hitId) {
     params.set('hit', hitId);
+  }
+  if (matchCase) {
+    params.set('matchCase', '1');
+  }
+  if (wholeWord === true) {
+    params.set('wholeWord', '1');
+  } else if (wholeWord === false) {
+    params.set('wholeWord', '0');
   }
 
   const queryString = params.toString();
@@ -181,7 +252,12 @@ export function extractQueryTerms(query: string, maxTerms = 8): string[] {
   return result;
 }
 
-export function splitTextByTerms(text: string, terms: string[]): HighlightSegment[] {
+export function splitTextByTerms(
+  text: string,
+  terms: string[],
+  options?: SearchMatchOptions,
+): HighlightSegment[] {
+  const resolvedOptions = resolveSearchMatchOptions(options);
   if (!text) {
     return [];
   }
@@ -189,11 +265,11 @@ export function splitTextByTerms(text: string, terms: string[]): HighlightSegmen
     return [{ text, matched: false }];
   }
 
-  const normalizedText = normalizeForSearchMatchingInternal(text);
+  const normalizedText = normalizeForSearchMatchingInternal(text, resolvedOptions);
   const normalizedTerms = Array.from(
     new Set(
       terms
-        .map((term) => normalizeSearchComparableText(term))
+        .map((term) => normalizeSearchComparableText(term, resolvedOptions))
         .filter(Boolean)
     )
   ).sort((a, b) => b.length - a.length);
@@ -211,6 +287,15 @@ export function splitTextByTerms(text: string, terms: string[]): HighlightSegmen
       const matchIndex = normalizedText.value.indexOf(term, searchFrom);
       if (matchIndex === -1) {
         break;
+      }
+
+      const endIndexExclusive = matchIndex + term.length;
+      const startsAtWordBoundary = isMatchBoundary(normalizedText.value, matchIndex);
+      const endsAtWordBoundary = endIndexExclusive >= normalizedText.value.length
+        || normalizedText.value[endIndexExclusive] === ' ';
+      if (resolvedOptions.wholeWord && (!startsAtWordBoundary || !endsAtWordBoundary)) {
+        searchFrom = matchIndex + 1;
+        continue;
       }
 
       const start = normalizedText.indexMap[matchIndex];
@@ -259,7 +344,12 @@ export function splitTextByTerms(text: string, terms: string[]): HighlightSegmen
   return segments.length > 0 ? segments : [{ text, matched: false }];
 }
 
-export function resolveHighlightTermsForText(text: string, terms: string[]): string[] {
+export function resolveHighlightTermsForText(
+  text: string,
+  terms: string[],
+  options?: SearchMatchOptions,
+): string[] {
+  const resolvedOptions = resolveSearchMatchOptions(options);
   if (!terms.length || !text) {
     return terms;
   }
@@ -269,16 +359,21 @@ export function resolveHighlightTermsForText(text: string, terms: string[]): str
     return terms;
   }
 
-  const normalizedText = normalizeSearchComparableText(text);
+  const normalizedText = normalizeSearchComparableText(text, resolvedOptions);
   const matchedPhrases = phraseTerms
     .filter((term) => {
-      const normalizedTerm = normalizeSearchComparableText(term);
-      return normalizedTerm !== '' && normalizedText.includes(normalizedTerm);
+      const normalizedTerm = normalizeSearchComparableText(term, resolvedOptions);
+      return normalizedTerm !== '' && hasNormalizedTermMatch(normalizedText, normalizedTerm, resolvedOptions);
     })
     .sort((a, b) => b.length - a.length);
 
   if (matchedPhrases.length > 0) {
     return matchedPhrases;
+  }
+
+  if (resolvedOptions.wholeWord && phraseTerms.length > 0) {
+    // In whole-word mode, phrase queries should not fall back to per-token highlighting.
+    return phraseTerms;
   }
 
   const fallbackTerms = terms.filter((term) => !/\s/.test(term.trim()));

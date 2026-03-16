@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Play, Share2, Check, FileText, Search as SearchIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { fetchSermonById, fetchAdjacentSermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
+import { fetchSermonById, fetchAdjacentSermons, fetchBoundarySermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
 import SharedSearchExperience from '@/components/search/SharedSearchExperience';
 import { useS02HitNavigation } from '@/features/S02';
@@ -15,8 +16,10 @@ import {
   formatMatchSourceLabel,
   resolveHighlightTermsForText,
   splitTextByTerms,
+  type SearchMatchOptions,
 } from '@/lib/search';
 import { buildSearchHrefFromQuery, readSearchReturnTo } from '@/lib/searchNavigation';
+import { getEffectiveHitScrollBehavior } from '@/lib/preferences';
 
 interface AdjacentSermon {
   id: string;
@@ -78,7 +81,11 @@ function buildMatchPreview(text: string, start: number, end: number): string {
   return snippet;
 }
 
-function buildSermonFindModel(sermon: Sermon | null, terms: string[]): SermonFindModel {
+function buildSermonFindModel(
+  sermon: Sermon | null,
+  terms: string[],
+  matchOptions: SearchMatchOptions,
+): SermonFindModel {
   if (!sermon || terms.length === 0) {
     return {
       totalMatches: 0,
@@ -97,8 +104,8 @@ function buildSermonFindModel(sermon: Sermon | null, terms: string[]): SermonFin
     text: string,
     paragraphNumber: number | null,
   ) => {
-    const effectiveTerms = resolveHighlightTermsForText(text, terms);
-    const parts = splitTextByTerms(text, effectiveTerms);
+    const effectiveTerms = resolveHighlightTermsForText(text, terms, matchOptions);
+    const parts = splitTextByTerms(text, effectiveTerms, matchOptions);
     const regionOffset = absoluteIndex;
     let localMatchIndex = 0;
     let cursor = 0;
@@ -194,19 +201,28 @@ function resolveRouteTargetMatchIndex(
 
 export default function SermonDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [adjacent, setAdjacent] = useState<{ prev: AdjacentSermon | null; next: AdjacentSermon | null }>({ prev: null, next: null });
+  const [boundarySermons, setBoundarySermons] = useState<{ first: AdjacentSermon | null; last: AdjacentSermon | null }>({
+    first: null,
+    last: null,
+  });
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const { play } = useAudioPlayer();
+  const { bindings } = useKeyboardShortcuts();
 
   const searchQuery = searchParams.get('q')?.trim() ?? '';
   const matchSource = searchParams.get('source');
   const paragraphParam = searchParams.get('paragraph');
   const hitId = searchParams.get('hit');
+  const matchCase = searchParams.get('matchCase') === '1';
+  const wholeWordParam = searchParams.get('wholeWord');
+  const wholeWord = wholeWordParam == null ? true : wholeWordParam === '1';
   const searchShortcutKey = 'f';
 
   const {
@@ -226,20 +242,57 @@ export default function SermonDetail() {
     const parsedParagraph = paragraphParam ? Number.parseInt(paragraphParam, 10) : null;
     return Number.isFinite(parsedParagraph ?? NaN) ? parsedParagraph : null;
   }, [paragraphParam]);
+  const highlightMatchOptions = useMemo<SearchMatchOptions>(() => ({
+    matchCase,
+    wholeWord,
+  }), [matchCase, wholeWord]);
   const isRouteSearchContext = searchQuery.length > 0;
+  const searchReturnTo = useMemo(() => readSearchReturnTo(location.state), [location.state]);
   const breadcrumbRootHref = useMemo(() => {
-    const searchReturnTo = readSearchReturnTo(location.state);
     if (searchReturnTo) {
       return searchReturnTo;
     }
 
     if (searchQuery) {
-      return buildSearchHrefFromQuery(searchQuery);
+      return buildSearchHrefFromQuery(searchQuery, highlightMatchOptions);
     }
 
-    return '/search';
-  }, [location.state, searchQuery]);
-  const findModel = useMemo(() => buildSermonFindModel(sermon, highlightTerms), [highlightTerms, sermon]);
+    return buildSearchHrefFromQuery('', highlightMatchOptions);
+  }, [highlightMatchOptions, searchQuery, searchReturnTo]);
+  const findModel = useMemo(
+    () => buildSermonFindModel(sermon, highlightTerms, highlightMatchOptions),
+    [highlightMatchOptions, highlightTerms, sermon],
+  );
+
+  const navigateToAdjacentSermon = useCallback((targetSermon: AdjacentSermon | null) => {
+    if (!targetSermon) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (searchQuery) {
+      params.set('q', searchQuery);
+    }
+    if (matchCase) {
+      params.set('matchCase', '1');
+    }
+    params.set('wholeWord', wholeWord ? '1' : '0');
+
+    const href = params.toString()
+      ? `/sermons/${targetSermon.id}?${params.toString()}`
+      : `/sermons/${targetSermon.id}`;
+
+    if (searchReturnTo) {
+      navigate(href, {
+        state: {
+          searchReturnTo,
+        },
+      });
+      return;
+    }
+
+    navigate(href);
+  }, [matchCase, navigate, searchQuery, searchReturnTo, wholeWord]);
 
   const initialMatchIndex = useMemo(() => {
     if (findModel.totalMatches === 0) {
@@ -280,8 +333,16 @@ export default function SermonDetail() {
     containerRef: contentRef,
     enabled: highlightTerms.length > 0,
     initialIndex: initialMatchIndex,
-    scrollBehavior: 'smooth',
+    scrollBehavior: getEffectiveHitScrollBehavior(),
     resetKey: `${id ?? 'unknown'}:${searchQuery}:${initialMatchIndex}:${sermon ? 'ready' : 'loading'}`,
+    hitCycleKey: bindings.result_next,
+    sermonCycleKey: bindings.result_prev,
+    onNextSermon: (adjacent.next ?? boundarySermons.first)
+      ? () => navigateToAdjacentSermon(adjacent.next ?? boundarySermons.first)
+      : undefined,
+    onPrevSermon: (adjacent.prev ?? boundarySermons.last)
+      ? () => navigateToAdjacentSermon(adjacent.prev ?? boundarySermons.last)
+      : undefined,
   });
 
   useEffect(() => {
@@ -291,7 +352,16 @@ export default function SermonDetail() {
       setSermon(data);
       setLoading(false);
       if (data?.date) {
-        fetchAdjacentSermons(data.date).then(setAdjacent);
+        Promise.all([
+          fetchAdjacentSermons(data.date),
+          fetchBoundarySermons(),
+        ]).then(([adjacentSermons, sermonBoundaries]) => {
+          setAdjacent(adjacentSermons);
+          setBoundarySermons(sermonBoundaries);
+        });
+      } else {
+        setAdjacent({ prev: null, next: null });
+        setBoundarySermons({ first: null, last: null });
       }
     });
   }, [id]);
@@ -329,6 +399,7 @@ export default function SermonDetail() {
     const relativeActiveIndex = activeMatchIndex - regionMeta.offset;
     return renderActiveHitHighlights(text, highlightTerms, relativeActiveIndex, {
       fallbackToFirstMatch: false,
+      matchOptions: highlightMatchOptions,
       getMatchAttributes: (localMatchIndex) => ({
         'data-search-match-origin': regionMeta.origin,
         'data-search-match-local-index': String(localMatchIndex),
@@ -338,7 +409,7 @@ export default function SermonDetail() {
           : {}),
       }),
     }).content;
-  }, [activeMatchIndex, findModel.regionMetaByKey, highlightTerms]);
+  }, [activeMatchIndex, findModel.regionMetaByKey, highlightMatchOptions, highlightTerms]);
 
   if (loading) {
     return (

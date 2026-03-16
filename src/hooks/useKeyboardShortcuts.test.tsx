@@ -70,7 +70,7 @@ function ShortcutSnapshot() {
 function ShortcutEditor() {
   const { setShortcutBinding } = useKeyboardShortcuts();
   return (
-    <button type="button" onClick={() => setShortcutBinding('open_books', 'n')}>
+    <button type="button" onClick={() => setShortcutBinding('open_books', 'x')}>
       set books shortcut
     </button>
   );
@@ -98,8 +98,8 @@ describe('KeyboardShortcutsProvider', () => {
       { action: 'open_books', key: 'n', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'focus_search', key: '/', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'open_settings', key: ',', updated_at: '2026-03-11T09:00:00.000Z' },
-      { action: 'result_next', key: 'j', updated_at: '2026-03-11T09:00:00.000Z' },
-      { action: 'result_prev', key: 'k', updated_at: '2026-03-11T09:00:00.000Z' },
+      { action: 'result_next', key: 'x', updated_at: '2026-03-11T09:00:00.000Z' },
+      { action: 'result_prev', key: 'm', updated_at: '2026-03-11T09:00:00.000Z' },
     ];
 
     render(
@@ -122,8 +122,8 @@ describe('KeyboardShortcutsProvider', () => {
         focus_search: '/',
         open_books: 'n',
         open_settings: ',',
-        result_next: 'j',
-        result_prev: 'k',
+        result_next: 'x',
+        result_prev: 'm',
       },
       updatedAt: Date.now(),
     }));
@@ -146,8 +146,8 @@ describe('KeyboardShortcutsProvider', () => {
         focus_search: '/',
         open_books: 'n',
         open_settings: ',',
-        result_next: 'j',
-        result_prev: 'k',
+        result_next: 'x',
+        result_prev: 'm',
       },
       updatedAt: Date.parse('2026-03-11T11:00:00.000Z'),
     }));
@@ -156,8 +156,8 @@ describe('KeyboardShortcutsProvider', () => {
       { action: 'open_books', key: 'b', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'focus_search', key: '/', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'open_settings', key: ',', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'result_next', key: 'j', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'result_prev', key: 'k', updated_at: '2026-03-11T10:00:00.000Z' },
+      { action: 'result_next', key: 'x', updated_at: '2026-03-11T10:00:00.000Z' },
+      { action: 'result_prev', key: 'm', updated_at: '2026-03-11T10:00:00.000Z' },
     ];
 
     render(
@@ -188,6 +188,6 @@ describe('KeyboardShortcutsProvider', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /set books shortcut/i }));
-    expect(screen.getByTestId('books-shortcut')).toHaveTextContent('n');
+    expect(screen.getByTestId('books-shortcut')).toHaveTextContent('x');
   });
 });

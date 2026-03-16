@@ -8,6 +8,7 @@ import { AudioProvider } from "@/hooks/useAudioPlayer";
 import { KeyboardShortcutsProvider } from "@/hooks/useKeyboardShortcuts";
 import AudioPlayerBar from "@/components/AudioPlayerBar";
 import GlobalKeyboardShortcuts from "@/components/GlobalKeyboardShortcuts";
+import AppChrome from "@/components/layout/AppChrome";
 import { THEME_STORAGE_KEY } from "@/lib/preferences";
 import Index from "./pages/Index";
 import Search from "./pages/Search";
@@ -23,12 +24,14 @@ const AppRoutes = () => (
   <>
     <GlobalKeyboardShortcuts />
     <Routes>
-      <Route path="/" element={<Index />} />
-      <Route path="/search" element={<Search />} />
-      <Route path="/sermons/:id" element={<SermonDetail />} />
-      <Route path="/books" element={<Books />} />
-      <Route path="/settings" element={<Settings />} />
-      <Route path="/about" element={<About />} />
+      <Route element={<AppChrome />}>
+        <Route path="/" element={<Index />} />
+        <Route path="/search" element={<Search />} />
+        <Route path="/sermons/:id" element={<SermonDetail />} />
+        <Route path="/books" element={<Books />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/about" element={<About />} />
+      </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
   </>

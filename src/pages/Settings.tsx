@@ -1,19 +1,25 @@
 import { useCallback, useMemo, useState } from 'react';
 import type React from 'react';
-import { Link } from 'react-router-dom';
 import { useTheme } from 'next-themes';
+import SubpageLayout from '@/components/layout/SubpageLayout';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import {
   SHORTCUT_DEFINITIONS,
   formatShortcutKey,
   type ShortcutAction,
 } from '@/lib/keyboardShortcuts';
-import { getInstantSearchEnabled, setInstantSearchEnabled } from '@/lib/preferences';
+import {
+  getHitSmoothScrollEnabled,
+  getInstantSearchEnabled,
+  setHitSmoothScrollEnabled,
+  setInstantSearchEnabled,
+} from '@/lib/preferences';
 
 type ThemeOption = 'system' | 'light' | 'dark';
 
 export default function Settings() {
   const [instantSearchEnabled, setInstantSearchEnabledState] = useState(() => getInstantSearchEnabled());
+  const [smoothHitScrollingEnabled, setSmoothHitScrollingEnabledState] = useState(() => getHitSmoothScrollEnabled());
   const [capturingAction, setCapturingAction] = useState<ShortcutAction | null>(null);
   const [shortcutErrors, setShortcutErrors] = useState<Partial<Record<ShortcutAction, string>>>({});
   const { theme, setTheme } = useTheme();
@@ -37,6 +43,14 @@ export default function Settings() {
     setInstantSearchEnabledState((currentValue) => {
       const nextValue = !currentValue;
       setInstantSearchEnabled(nextValue);
+      return nextValue;
+    });
+  }, []);
+
+  const handleSmoothHitScrollingToggle = useCallback(() => {
+    setSmoothHitScrollingEnabledState((currentValue) => {
+      const nextValue = !currentValue;
+      setHitSmoothScrollEnabled(nextValue);
       return nextValue;
     });
   }, []);
@@ -117,15 +131,12 @@ export default function Settings() {
   }, [resetAllShortcutBindings]);
 
   return (
-    <div className="min-h-screen bg-background px-6 py-16">
-      <div className="mx-auto w-full max-w-[760px]">
-        <h1 className="font-mono text-3xl font-semibold text-foreground">settings</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Customize your table search experience.</p>
-
-        <div className="mt-6 space-y-4">
-          <section className="surface-card p-4">
-            <h2 className="font-mono text-sm font-semibold text-foreground">Appearance</h2>
-            <label className="mt-3 block text-xs font-mono text-muted-foreground" htmlFor="theme-select">
+    <SubpageLayout title="settings" description="Customize your table search experience.">
+      <div className="space-y-7">
+        <section>
+          <h2 className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">Appearance</h2>
+          <div className="mt-3 surface-card p-4">
+            <label className="block text-xs font-mono text-muted-foreground" htmlFor="theme-select">
               Theme
             </label>
             <select
@@ -139,38 +150,73 @@ export default function Settings() {
               <option value="light">Light</option>
               <option value="dark">Dark</option>
             </select>
-          </section>
+          </div>
+        </section>
 
-          <section className="surface-card p-4">
-            <h2 className="font-mono text-sm font-semibold text-foreground">Search features</h2>
-            <div className="mt-3 font-mono text-sm text-muted-foreground">
-              <span aria-hidden>*</span>{' '}
-              Instant search {instantSearchEnabled ? 'on' : 'off'} -{' '}
-              <button
-                type="button"
-                onClick={handleInstantSearchToggle}
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                {instantSearchEnabled ? 'turn off' : 'turn on'}
-              </button>
+        <section>
+          <h2 className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">Preferences</h2>
+          <div className="mt-3 surface-card p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="px-2 py-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">Preference</th>
+                    <th className="px-2 py-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">Status</th>
+                    <th className="px-2 py-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border-subtle align-top">
+                    <td className="px-2 py-3 font-mono text-sm text-foreground">Instant search</td>
+                    <td className="px-2 py-3">
+                      <button
+                        type="button"
+                        onClick={handleInstantSearchToggle}
+                        className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
+                        aria-label={`${instantSearchEnabled ? 'Turn off' : 'Turn on'} instant search`}
+                      >
+                        {instantSearchEnabled ? 'on - turn off' : 'off - turn on'}
+                      </button>
+                    </td>
+                    <td className="px-2 py-3 text-sm text-muted-foreground">
+                      When off, search runs only when you press Enter.
+                    </td>
+                  </tr>
+                  <tr className="border-b border-border-subtle align-top">
+                    <td className="px-2 py-3 font-mono text-sm text-foreground">Smooth hit scrolling</td>
+                    <td className="px-2 py-3">
+                      <button
+                        type="button"
+                        onClick={handleSmoothHitScrollingToggle}
+                        className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
+                        aria-label={`${smoothHitScrollingEnabled ? 'Turn off' : 'Turn on'} smooth hit scrolling`}
+                      >
+                        {smoothHitScrollingEnabled ? 'on - turn off' : 'off - turn on'}
+                      </button>
+                    </td>
+                    <td className="px-2 py-3 text-sm text-muted-foreground">
+                      Controls hit-to-hit movement in sermon pages. Automatically disabled when reduced motion is enabled.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              When off, search runs only when you press Enter.
-            </p>
-          </section>
+          </div>
+        </section>
 
-          <section className="surface-card p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-mono text-sm font-semibold text-foreground">Keyboard shortcuts</h2>
-              <button
-                type="button"
-                onClick={handleShortcutResetAll}
-                className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
-              >
-                reset all defaults
-              </button>
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+        <section>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">Keyboard shortcuts</h2>
+            <button
+              type="button"
+              onClick={handleShortcutResetAll}
+              className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
+            >
+              reset all defaults
+            </button>
+          </div>
+          <div className="mt-3 surface-card p-4">
+            <p className="text-sm text-muted-foreground">
               Click a shortcut key to capture a new single-key binding.
             </p>
 
@@ -227,16 +273,9 @@ export default function Settings() {
             {syncWarning && (
               <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">{syncWarning}</p>
             )}
-          </section>
-        </div>
-
-        <Link
-          to="/"
-          className="mt-8 inline-block font-mono text-sm text-link underline underline-offset-4"
-        >
-          return to home
-        </Link>
+          </div>
+        </section>
       </div>
-    </div>
+    </SubpageLayout>
   );
 }

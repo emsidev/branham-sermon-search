@@ -1,5 +1,9 @@
 import React from 'react';
-import { resolveHighlightTermsForText, splitTextByTerms } from '@/lib/search';
+import {
+  resolveHighlightTermsForText,
+  splitTextByTerms,
+  type SearchMatchOptions,
+} from '@/lib/search';
 
 const ACTIVE_MATCH_CLASS = 'rounded-sm bg-yellow-200/70 px-0.5 text-foreground';
 const DIMMED_MATCH_CLASS = 'rounded-sm bg-yellow-200/10 px-0.5 text-foreground/45';
@@ -13,6 +17,7 @@ export interface ActiveHitHighlightRenderResult {
 export interface ActiveHitHighlightOptions {
   fallbackToFirstMatch?: boolean;
   getMatchAttributes?: (matchIndex: number) => Record<string, string>;
+  matchOptions?: SearchMatchOptions;
 }
 
 export function resolveActiveMatchIndex(
@@ -50,8 +55,8 @@ export function renderActiveHitHighlights(
     };
   }
 
-  const effectiveTerms = resolveHighlightTermsForText(text, terms);
-  const parts = splitTextByTerms(text, effectiveTerms);
+  const effectiveTerms = resolveHighlightTermsForText(text, terms, options.matchOptions);
+  const parts = splitTextByTerms(text, effectiveTerms, options.matchOptions);
   const totalMatches = parts.reduce((count, part) => count + (part.matched ? 1 : 0), 0);
 
   if (totalMatches === 0) {

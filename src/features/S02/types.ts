@@ -1,6 +1,6 @@
 import type React from 'react';
 
-export type S02HitNavigationCommand = 'next' | 'prev' | null;
+export type S02HitNavigationCommand = 'next' | 'prev' | 'next_sermon' | 'prev_sermon' | null;
 
 export interface S02HitNavigationKeyContext {
   key: string;
@@ -17,6 +17,10 @@ export interface UseS02HitNavigationOptions {
   initialIndex?: number;
   scrollBehavior?: ScrollBehavior;
   resetKey?: string | number | null;
+  hitCycleKey?: string;
+  sermonCycleKey?: string;
+  onNextSermon?: () => void;
+  onPrevSermon?: () => void;
 }
 
 export interface UseS02HitNavigationResult {

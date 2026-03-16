@@ -15,16 +15,13 @@ describe('useKeyboardNav', () => {
   });
 
   it('navigates to selected item href when Enter is pressed', () => {
-    const onSelectedIndexChange = vi.fn();
     const searchInputRef = {
       current: document.createElement('input'),
     } as React.RefObject<HTMLInputElement>;
 
     renderHook(() =>
       useKeyboardNav({
-        itemCount: 2,
         selectedIndex: 1,
-        onSelectedIndexChange,
         itemHrefs: ['/sermons/a', '/sermons/b?q=search&source=page_text&page=2'],
         searchInputRef,
       })
@@ -37,16 +34,13 @@ describe('useKeyboardNav', () => {
   });
 
   it('navigates to books shortcut when b is pressed outside input', () => {
-    const onSelectedIndexChange = vi.fn();
     const searchInputRef = {
       current: document.createElement('input'),
     } as React.RefObject<HTMLInputElement>;
 
     renderHook(() =>
       useKeyboardNav({
-        itemCount: 0,
         selectedIndex: -1,
-        onSelectedIndexChange,
         itemHrefs: [],
         searchInputRef,
         booksShortcutHref: '/books',
@@ -60,7 +54,6 @@ describe('useKeyboardNav', () => {
   });
 
   it('does not trigger books shortcut while typing in an input', () => {
-    const onSelectedIndexChange = vi.fn();
     const input = document.createElement('input');
     const searchInputRef = {
       current: input,
@@ -68,9 +61,7 @@ describe('useKeyboardNav', () => {
 
     renderHook(() =>
       useKeyboardNav({
-        itemCount: 0,
         selectedIndex: -1,
-        onSelectedIndexChange,
         itemHrefs: [],
         searchInputRef,
         booksShortcutHref: '/books',
@@ -83,16 +74,13 @@ describe('useKeyboardNav', () => {
   });
 
   it('navigates to settings shortcut when comma is pressed outside input', () => {
-    const onSelectedIndexChange = vi.fn();
     const searchInputRef = {
       current: document.createElement('input'),
     } as React.RefObject<HTMLInputElement>;
 
     renderHook(() =>
       useKeyboardNav({
-        itemCount: 0,
         selectedIndex: -1,
-        onSelectedIndexChange,
         itemHrefs: [],
         searchInputRef,
         settingsShortcutHref: '/settings',
@@ -106,7 +94,6 @@ describe('useKeyboardNav', () => {
   });
 
   it('does not trigger settings shortcut while typing in an input', () => {
-    const onSelectedIndexChange = vi.fn();
     const input = document.createElement('input');
     const searchInputRef = {
       current: input,
@@ -114,9 +101,7 @@ describe('useKeyboardNav', () => {
 
     renderHook(() =>
       useKeyboardNav({
-        itemCount: 0,
         selectedIndex: -1,
-        onSelectedIndexChange,
         itemHrefs: [],
         searchInputRef,
         settingsShortcutHref: '/settings',

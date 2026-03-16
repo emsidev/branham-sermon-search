@@ -171,6 +171,35 @@ describe('useSermons', () => {
       p_limit: 25,
       p_offset: 25,
       p_sort: 'relevance-desc',
+      p_match_case: false,
+      p_match_whole_word: true,
+    });
+  });
+
+  it('passes strict match flags to search RPC when enabled in URL params', async () => {
+    currentParams = new URLSearchParams('q=Only+Believe&matchCase=1&wholeWord=1');
+    rpcMock.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.filters.matchCase).toBe(true);
+    expect(result.current.filters.wholeWord).toBe(true);
+    expect(rpcMock).toHaveBeenCalledWith('search_sermon_chunks', {
+      p_query: 'Only Believe',
+      p_year: null,
+      p_location: null,
+      p_limit: 25,
+      p_offset: 0,
+      p_sort: 'relevance-desc',
+      p_match_case: true,
+      p_match_whole_word: true,
     });
   });
 });

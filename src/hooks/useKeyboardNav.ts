@@ -2,9 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface UseKeyboardNavOptions {
-  itemCount: number;
   selectedIndex: number;
-  onSelectedIndexChange: (index: number) => void;
   itemHrefs: string[];
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   booksShortcutHref?: string;
@@ -12,9 +10,7 @@ interface UseKeyboardNavOptions {
 }
 
 export function useKeyboardNav({
-  itemCount,
   selectedIndex,
-  onSelectedIndexChange,
   itemHrefs,
   searchInputRef,
   booksShortcutHref,
@@ -67,14 +63,7 @@ export function useKeyboardNav({
 
     if (isInput) return;
 
-    // j/k navigate list
-    if (e.key === 'j') {
-      e.preventDefault();
-      onSelectedIndexChange(Math.min(selectedIndex + 1, itemCount - 1));
-    } else if (e.key === 'k') {
-      e.preventDefault();
-      onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
-    } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < itemHrefs.length) {
+    if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < itemHrefs.length) {
       e.preventDefault();
       navigate(itemHrefs[selectedIndex]);
     }
@@ -82,11 +71,9 @@ export function useKeyboardNav({
     booksShortcutHref,
     settingsShortcutHref,
     selectedIndex,
-    itemCount,
     itemHrefs,
     navigate,
     searchInputRef,
-    onSelectedIndexChange,
   ]);
 
   useEffect(() => {

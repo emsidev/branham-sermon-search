@@ -3,17 +3,16 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GlobalKeyboardShortcuts from './GlobalKeyboardShortcuts';
 import type { ShortcutBindings } from '@/lib/keyboardShortcuts';
-import type { ShortcutResultListController } from '@/hooks/useKeyboardShortcuts';
 
 let bindingsMock: ShortcutBindings = {
   focus_search: '/',
   open_books: 'b',
   open_settings: ',',
-  result_next: 'j',
-  result_prev: 'k',
+  result_next: 'n',
+  result_prev: 'm',
 };
 let searchInputMock: HTMLInputElement | null = null;
-let resultControllerMock: ShortcutResultListController | null = null;
+const getResultListControllerMock = vi.fn();
 
 vi.mock('@/hooks/useKeyboardShortcuts', () => ({
   useKeyboardShortcuts: () => ({
@@ -26,7 +25,7 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
     registerSearchInputResolver: () => () => undefined,
     getSearchInputElement: () => searchInputMock,
     registerResultListController: () => () => undefined,
-    getResultListController: () => resultControllerMock,
+    getResultListController: getResultListControllerMock,
   }),
 }));
 
@@ -57,11 +56,11 @@ describe('GlobalKeyboardShortcuts', () => {
       focus_search: '/',
       open_books: 'b',
       open_settings: ',',
-      result_next: 'j',
-      result_prev: 'k',
+      result_next: 'n',
+      result_prev: 'm',
     };
     searchInputMock = null;
-    resultControllerMock = null;
+    getResultListControllerMock.mockReset();
   });
 
   it('navigates to search when focus shortcut is pressed with no active search input', async () => {
@@ -100,6 +99,18 @@ describe('GlobalKeyboardShortcuts', () => {
     });
   });
 
+  it('preserves match options from the current URL when slash shortcut falls back', async () => {
+    renderWithRouter('/sermons/sermon-1?q=Only+Believe&matchCase=1&wholeWord=1');
+
+    fireEvent.keyDown(window, { key: '/' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('full-path')).toHaveTextContent(
+        '/search?q=Only+Believe&matchCase=1&wholeWord=1',
+      );
+    });
+  });
+
   it('focuses the active search input instead of navigating', async () => {
     searchInputMock = document.createElement('input');
     document.body.appendChild(searchInputMock);
@@ -115,17 +126,17 @@ describe('GlobalKeyboardShortcuts', () => {
     searchInputMock.remove();
   });
 
-  it('routes list navigation keys only when list context exists', () => {
+  it('does not route j/k/Enter through result-list shortcuts anymore', () => {
     const selectNext = vi.fn();
     const selectPrevious = vi.fn();
     const activateSelection = vi.fn();
 
-    resultControllerMock = {
+    getResultListControllerMock.mockReturnValue({
       hasItems: () => true,
       selectNext,
       selectPrevious,
       activateSelection,
-    };
+    });
 
     renderWithRouter('/search');
 
@@ -133,23 +144,9 @@ describe('GlobalKeyboardShortcuts', () => {
     fireEvent.keyDown(window, { key: 'k' });
     fireEvent.keyDown(window, { key: 'Enter' });
 
-    expect(selectNext).toHaveBeenCalledTimes(1);
-    expect(selectPrevious).toHaveBeenCalledTimes(1);
-    expect(activateSelection).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not intercept j/k when list controller has no items', () => {
-    const selectNext = vi.fn();
-    resultControllerMock = {
-      hasItems: () => false,
-      selectNext,
-      selectPrevious: vi.fn(),
-      activateSelection: vi.fn(),
-    };
-
-    renderWithRouter('/search');
-    fireEvent.keyDown(window, { key: 'j' });
-
     expect(selectNext).not.toHaveBeenCalled();
+    expect(selectPrevious).not.toHaveBeenCalled();
+    expect(activateSelection).not.toHaveBeenCalled();
+    expect(screen.getByTestId('path')).toHaveTextContent('/search');
   });
 });

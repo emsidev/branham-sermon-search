@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List } from 'lucide-react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   useKeyboardShortcuts,
   useShortcutResultListRegistration,
@@ -17,6 +17,7 @@ import {
   hasNormalizedBoundedMatch,
   normalizeSearchComparableText,
   sanitizeSearchSnippet,
+  type SearchMatchOptions,
 } from '@/lib/search';
 import { formatShortcutKey } from '@/lib/keyboardShortcuts';
 import { getInstantSearchEnabled } from '@/lib/preferences';
@@ -41,7 +42,7 @@ export interface SharedSearchExperienceProps {
   onHitNavigate?: () => void;
 }
 
-function normalizeExactTitleQuery(query: string): string {
+function normalizeExactTitleQuery(query: string, matchCase: boolean): string {
   const collapsed = query.trim().replace(/\s+/g, ' ');
   if (!collapsed) {
     return '';
@@ -51,21 +52,27 @@ function normalizeExactTitleQuery(query: string): string {
     (collapsed.startsWith('"') && collapsed.endsWith('"')) ||
     (collapsed.startsWith("'") && collapsed.endsWith("'"))
   ) {
-    return collapsed.slice(1, -1).trim().replace(/\s+/g, ' ').toLowerCase();
+    const unwrapped = collapsed.slice(1, -1).trim().replace(/\s+/g, ' ');
+    return matchCase ? unwrapped : unwrapped.toLowerCase();
   }
 
-  return collapsed.toLowerCase();
+  return matchCase ? collapsed : collapsed.toLowerCase();
 }
 
-function normalizeExactCandidateText(value: string | null | undefined): string {
-  return (value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+function normalizeExactCandidateText(value: string | null | undefined, matchCase: boolean): string {
+  const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
+  return matchCase ? normalized : normalized.toLowerCase();
 }
 
-function normalizePhraseExactQuery(query: string): string {
-  return normalizeSearchComparableText(normalizeExactTitleQuery(query));
+function normalizePhraseExactQuery(query: string, matchOptions: SearchMatchOptions): string {
+  return normalizeSearchComparableText(normalizeExactTitleQuery(query, matchOptions.matchCase ?? false), matchOptions);
 }
 
-function shouldTreatAsExact(hit: SearchHit, normalizedQuery: string): boolean {
+function shouldTreatAsExact(
+  hit: SearchHit,
+  normalizedQuery: string,
+  matchOptions: SearchMatchOptions,
+): boolean {
   if (hit.is_exact_match) {
     return true;
   }
@@ -75,12 +82,12 @@ function shouldTreatAsExact(hit: SearchHit, normalizedQuery: string): boolean {
   }
 
   const snippetText = sanitizeSearchSnippet(hit.snippet);
-  if (hasNormalizedBoundedMatch(snippetText, normalizedQuery)) {
+  if (hasNormalizedBoundedMatch(snippetText, normalizedQuery, matchOptions)) {
     return true;
   }
 
   if (hit.match_source === 'title') {
-    return hasNormalizedBoundedMatch(hit.title, normalizedQuery);
+    return hasNormalizedBoundedMatch(hit.title, normalizedQuery, matchOptions);
   }
 
   return false;
@@ -120,6 +127,10 @@ export default function SharedSearchExperience({
   const isPageSurface = surface === 'page';
   const transitionState = isPageSurface && isSearchAutofocusTransitionState(location.state) ? location.state : null;
   const shouldAnimateSearchFallback = isPageSurface && Boolean(transitionState) && !supportsNativeViewTransition();
+  const matchOptions = useMemo<SearchMatchOptions>(() => ({
+    matchCase: filters.matchCase,
+    wholeWord: filters.wholeWord,
+  }), [filters.matchCase, filters.wholeWord]);
   const searchReturnState = useMemo(
     () => createSearchReturnState(`${location.pathname}${location.search}`),
     [location.pathname, location.search],
@@ -194,9 +205,9 @@ export default function SharedSearchExperience({
   }, [isPageSurface, location.key, onInputFocusHandled, shouldFocusInput, transitionState]);
 
   const rankedSearchHits = useMemo(() => {
-    const normalizedQuery = normalizePhraseExactQuery(filters.q);
+    const normalizedQuery = normalizePhraseExactQuery(filters.q, matchOptions);
     const computedExactHits = searchHits.map((hit) => {
-      const computedExact = shouldTreatAsExact(hit, normalizedQuery);
+      const computedExact = shouldTreatAsExact(hit, normalizedQuery, matchOptions);
       return computedExact === hit.is_exact_match
         ? hit
         : { ...hit, is_exact_match: computedExact };
@@ -207,18 +218,18 @@ export default function SharedSearchExperience({
     }
 
     return [...computedExactHits].sort((a, b) => Number(b.is_exact_match) - Number(a.is_exact_match));
-  }, [filters.q, filters.sort, searchHits]);
+  }, [filters.q, filters.sort, matchOptions, searchHits]);
 
   const exactTitleMatches = useMemo(() => {
-    const normalizedQuery = normalizeExactTitleQuery(filters.q);
+    const normalizedQuery = normalizeExactTitleQuery(filters.q, filters.matchCase);
     if (!normalizedQuery) {
       return [];
     }
 
     return rankedSearchHits.filter(
-      (hit) => normalizeExactCandidateText(hit.title) === normalizedQuery
+      (hit) => normalizeExactCandidateText(hit.title, filters.matchCase) === normalizedQuery
     );
-  }, [filters.q, rankedSearchHits]);
+  }, [filters.matchCase, filters.q, rankedSearchHits]);
 
   const exactTitleHit = useMemo(() => {
     if (!exactTitleMatches.length) {
@@ -254,8 +265,10 @@ export default function SharedSearchExperience({
       matchSource: exactTitleHit.match_source,
       paragraphNumber: exactTitleHit.paragraph_number,
       hitId: exactTitleHit.hit_id,
+      matchCase: filters.matchCase,
+      wholeWord: filters.wholeWord,
     });
-  }, [exactTitleHit, filters.q]);
+  }, [exactTitleHit, filters.matchCase, filters.q, filters.wholeWord]);
 
   const itemHrefs = useMemo(() => {
     if (!isSearchMode) {
@@ -268,8 +281,10 @@ export default function SharedSearchExperience({
       matchSource: hit.match_source,
       paragraphNumber: hit.paragraph_number,
       hitId: hit.hit_id,
+      matchCase: filters.matchCase,
+      wholeWord: filters.wholeWord,
     }));
-  }, [filters.q, isSearchMode, visibleSearchHits]);
+  }, [filters.matchCase, filters.q, filters.wholeWord, isSearchMode, visibleSearchHits]);
 
   const shortcutResultListController = useMemo<ShortcutResultListController | null>(() => {
     if (!isSearchMode || itemHrefs.length === 0) {
@@ -331,6 +346,33 @@ export default function SharedSearchExperience({
     setFilter('view', view);
   }, [setFilter]);
 
+  const toggleMatchCase = useCallback(() => {
+    setFilter('matchCase', !filters.matchCase);
+    setSelectedIndex(-1);
+  }, [filters.matchCase, setFilter]);
+
+  const toggleWholeWord = useCallback(() => {
+    setFilter('wholeWord', !filters.wholeWord);
+    setSelectedIndex(-1);
+  }, [filters.wholeWord, setFilter]);
+
+  const handleSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+
+    const loweredKey = event.key.toLowerCase();
+    if (loweredKey === 'c') {
+      event.preventDefault();
+      toggleMatchCase();
+      return;
+    }
+    if (loweredKey === 'w') {
+      event.preventDefault();
+      toggleWholeWord();
+    }
+  }, [toggleMatchCase, toggleWholeWord]);
+
   const inputForm = (
     <form
       onSubmit={handleSearchSubmit}
@@ -346,21 +388,48 @@ export default function SharedSearchExperience({
           type="text"
           value={draftSearch}
           onChange={(event) => handleSearchInputChange(event.target.value)}
+          onKeyDown={handleSearchInputKeyDown}
           placeholder="search sermons ..."
           className="h-full w-full bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           aria-label="Search sermons"
         />
+        <div className="ml-3 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleMatchCase}
+            className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
+              filters.matchCase
+                ? 'border-foreground bg-foreground text-background'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
+            }`}
+            aria-label="Toggle match case"
+            title="Match case (Alt+C)"
+          >
+            Aa
+          </button>
+          <button
+            type="button"
+            onClick={toggleWholeWord}
+            className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
+              filters.wholeWord
+                ? 'border-foreground bg-foreground text-background'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
+            }`}
+            aria-label="Toggle whole word"
+            title="Whole word (Alt+W)"
+          >
+            W
+          </button>
+        </div>
       </div>
     </form>
   );
 
   const body = (
     <>
-      {!isPageSurface && (
-        <section className="mb-6">
-          {inputForm}
-        </section>
-      )}
+      <section className={isPageSurface ? 'mb-8' : 'mb-6'}>
+        {inputForm}
+      </section>
 
       <h1 className="font-mono text-4xl font-medium text-foreground">search</h1>
 
@@ -436,6 +505,7 @@ export default function SharedSearchExperience({
                 loading={loading}
                 selectedIndex={selectedIndex}
                 query={filters.q}
+                matchOptions={matchOptions}
                 linkState={searchReturnState ?? undefined}
                 onHitNavigate={onHitNavigate}
               />
@@ -445,6 +515,7 @@ export default function SharedSearchExperience({
                 loading={loading}
                 selectedIndex={selectedIndex}
                 query={filters.q}
+                matchOptions={matchOptions}
                 linkState={searchReturnState ?? undefined}
                 onHitNavigate={onHitNavigate}
               />
@@ -464,41 +535,9 @@ export default function SharedSearchExperience({
     </>
   );
 
-  if (!isPageSurface) {
-    return (
-      <main className="mx-auto w-full max-w-[860px] px-6 pb-10 pt-2">
-        {body}
-      </main>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border-subtle">
-        <div className="mx-auto flex w-full max-w-[1200px] items-center gap-4 px-6 py-3">
-          <Link to="/" className="shrink-0 font-mono text-sm font-medium text-foreground">
-            the table search
-          </Link>
-
-          {inputForm}
-
-          <nav className="flex shrink-0 items-center gap-6 font-mono text-sm">
-            <NavLink to="/books" className="text-muted-foreground hover:text-foreground">
-              books <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{formatShortcutKey(bindings.open_books)}</kbd>
-            </NavLink>
-            <NavLink to="/settings" className="text-muted-foreground hover:text-foreground">
-              settings <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{formatShortcutKey(bindings.open_settings)}</kbd>
-            </NavLink>
-            <NavLink to="/about" className="text-muted-foreground hover:text-foreground">
-              about
-            </NavLink>
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-[860px] px-6 pb-24 pt-10">
-        {body}
-      </main>
-    </div>
+    <main className={isPageSurface ? 'mx-auto w-full max-w-[860px] px-6 pb-24 pt-10' : 'mx-auto w-full max-w-[860px] px-6 pb-10 pt-2'}>
+      {body}
+    </main>
   );
 }

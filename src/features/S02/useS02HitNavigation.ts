@@ -27,6 +27,10 @@ export function useS02HitNavigation({
   initialIndex = -1,
   scrollBehavior = 'smooth',
   resetKey,
+  hitCycleKey = 'n',
+  sermonCycleKey = 'm',
+  onNextSermon,
+  onPrevSermon,
 }: UseS02HitNavigationOptions): UseS02HitNavigationResult {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [totalHits, setTotalHits] = useState(0);
@@ -126,20 +130,43 @@ export function useS02HitNavigation({
       ctrlKey: event.ctrlKey,
       metaKey: event.metaKey,
       target: event.target,
+    }, {
+      hitCycleKey,
+      sermonCycleKey,
     });
 
     if (!command) {
       return;
     }
 
-    event.preventDefault();
     if (command === 'next') {
+      event.preventDefault();
       goNext();
       return;
     }
 
-    goPrev();
-  }, [enabled, goNext, goPrev]);
+    if (command === 'prev') {
+      event.preventDefault();
+      goPrev();
+      return;
+    }
+
+    if (command === 'next_sermon') {
+      if (!onNextSermon) {
+        return;
+      }
+      event.preventDefault();
+      onNextSermon();
+      return;
+    }
+
+    if (!onPrevSermon) {
+      return;
+    }
+
+    event.preventDefault();
+    onPrevSermon();
+  }, [enabled, goNext, goPrev, hitCycleKey, onNextSermon, onPrevSermon, sermonCycleKey]);
 
   useEffect(() => {
     refreshMatches(true);

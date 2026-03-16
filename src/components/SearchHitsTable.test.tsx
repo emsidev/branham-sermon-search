@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import SearchHitsTable from './SearchHitsTable';
 import type { SearchHit } from '@/hooks/useSermons';
+import type { SearchMatchOptions } from '@/lib/search';
 
 const navigateMock = vi.fn();
 
@@ -14,7 +15,12 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-function renderTable(hits: SearchHit[], query: string, linkState?: unknown) {
+function renderTable(
+  hits: SearchHit[],
+  query: string,
+  linkState?: unknown,
+  matchOptions?: SearchMatchOptions,
+) {
   return render(
     <MemoryRouter>
       <SearchHitsTable
@@ -22,6 +28,7 @@ function renderTable(hits: SearchHit[], query: string, linkState?: unknown) {
         loading={false}
         selectedIndex={-1}
         query={query}
+        matchOptions={matchOptions}
         linkState={linkState}
       />
     </MemoryRouter>
@@ -69,6 +76,36 @@ describe('SearchHitsTable', () => {
     expect(screen.getByText('Aug 15, 1954')).toBeInTheDocument();
     expect(screen.getByText('Jeffersonville, IN')).toBeInTheDocument();
     expect(screen.getByText('Paragraph 3 [PDF 4]')).toBeInTheDocument();
+  });
+
+  it('includes active match options in hit links', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-case:para:2:chunk:1',
+        sermon_id: 'sermon-case',
+        sermon_code: '54-0815',
+        title: 'Questions And Answers',
+        summary: null,
+        date: '1954-08-15',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 2,
+        printed_paragraph_number: 2,
+        chunk_index: 1,
+        chunk_total: 1,
+        match_source: 'paragraph_text',
+        snippet: 'Only Believe',
+        relevance: 2.4,
+        is_exact_match: true,
+        tags: [],
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'Only Believe', undefined, { matchCase: true, wholeWord: true });
+
+    const titleLink = screen.getByRole('link', { name: 'Questions And Answers' });
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('matchCase=1'));
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('wholeWord=1'));
   });
 
   it('highlights fallback-style incomplete term like "unle"', () => {

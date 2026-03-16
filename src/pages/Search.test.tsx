@@ -66,8 +66,8 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
       focus_search: '/',
       open_books: 'b',
       open_settings: ',',
-      result_next: 'j',
-      result_prev: 'k',
+      result_next: 'n',
+      result_prev: 'm',
     },
     syncStatus: 'synced',
     syncWarning: null,
@@ -170,6 +170,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -212,6 +214,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -236,6 +240,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -269,6 +275,8 @@ describe('SearchPage', () => {
         page: 2,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -307,6 +315,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -331,6 +341,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'table',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -371,6 +383,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -421,6 +435,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -446,6 +462,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -479,6 +497,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -511,6 +531,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -543,6 +565,8 @@ describe('SearchPage', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -642,4 +666,17 @@ describe('SearchPage', () => {
       '{"searchReturnTo":"/search?q=lord&sort=date-desc&view=table&page=3"}',
     );
   });
+
+  it('toggles match options from search input shortcuts and controls', () => {
+    renderSearchPage();
+    setFilterMock.mockClear();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.keyDown(input, { key: 'c', altKey: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle whole word' }));
+
+    expect(setFilterMock).toHaveBeenCalledWith('matchCase', true);
+    expect(setFilterMock).toHaveBeenCalledWith('wholeWord', true);
+  });
 });
+

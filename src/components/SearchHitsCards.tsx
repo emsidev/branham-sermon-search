@@ -7,6 +7,7 @@ import {
   resolveHighlightTermsForText,
   sanitizeSearchSnippet,
   splitTextByTerms,
+  type SearchMatchOptions,
 } from '@/lib/search';
 import SearchHitCard from '@/components/cards/SearchHitCard';
 
@@ -15,6 +16,7 @@ interface SearchHitsCardsProps {
   loading: boolean;
   selectedIndex: number;
   query: string;
+  matchOptions?: SearchMatchOptions;
   linkState?: unknown;
   onHitNavigate?: () => void;
 }
@@ -37,6 +39,7 @@ export default function SearchHitsCards({
   loading,
   selectedIndex,
   query,
+  matchOptions,
   linkState,
   onHitNavigate,
 }: SearchHitsCardsProps) {
@@ -61,6 +64,8 @@ export default function SearchHitsCards({
               matchSource: hit.match_source,
               paragraphNumber: hit.paragraph_number,
               hitId: hit.hit_id,
+              matchCase: matchOptions?.matchCase,
+              wholeWord: matchOptions?.wholeWord,
             });
 
             return (
@@ -70,7 +75,7 @@ export default function SearchHitsCards({
                 linkState={linkState}
                 onNavigate={onHitNavigate}
                 title={hit.title}
-                snippet={renderHighlightedSnippet(hit.snippet, queryTerms)}
+                snippet={renderHighlightedSnippet(hit.snippet, queryTerms, matchOptions)}
                 sermonCode={hit.sermon_code}
                 location={hit.location}
                 date={hit.date}
@@ -89,15 +94,19 @@ export default function SearchHitsCards({
   );
 }
 
-function renderHighlightedSnippet(snippet: string, queryTerms: string[]): React.ReactNode {
+function renderHighlightedSnippet(
+  snippet: string,
+  queryTerms: string[],
+  matchOptions?: SearchMatchOptions,
+): React.ReactNode {
   const cleanedSnippet = sanitizeSearchSnippet(snippet);
   if (!queryTerms.length) {
     return cleanedSnippet || snippet;
   }
 
   const snippetText = cleanedSnippet || snippet;
-  const effectiveTerms = resolveHighlightTermsForText(snippetText, queryTerms);
-  const parts = splitTextByTerms(snippetText, effectiveTerms);
+  const effectiveTerms = resolveHighlightTermsForText(snippetText, queryTerms, matchOptions);
+  const parts = splitTextByTerms(snippetText, effectiveTerms, matchOptions);
 
   return parts.map((part, idx) => {
     if (part.matched) {

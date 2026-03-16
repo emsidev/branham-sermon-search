@@ -1,21 +1,28 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SermonDetail from './SermonDetail';
 
 const fetchSermonByIdMock = vi.fn();
 const fetchAdjacentSermonsMock = vi.fn();
+const fetchBoundarySermonsMock = vi.fn();
 const useSermonsMock = vi.fn();
 const setFilterMock = vi.fn();
+let effectiveHitScrollBehaviorMock: ScrollBehavior = 'smooth';
 
 vi.mock('@/hooks/useSermons', () => ({
   useSermons: () => useSermonsMock(),
   fetchSermonById: (...args: unknown[]) => fetchSermonByIdMock(...args),
   fetchAdjacentSermons: (...args: unknown[]) => fetchAdjacentSermonsMock(...args),
+  fetchBoundarySermons: (...args: unknown[]) => fetchBoundarySermonsMock(...args),
 }));
 
 vi.mock('@/hooks/useAudioPlayer', () => ({
   useAudioPlayer: () => ({ play: vi.fn() }),
+}));
+
+vi.mock('@/lib/preferences', () => ({
+  getEffectiveHitScrollBehavior: () => effectiveHitScrollBehaviorMock,
 }));
 
 vi.mock('@/hooks/useKeyboardShortcuts', () => ({
@@ -24,8 +31,8 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
       focus_search: '/',
       open_books: 'b',
       open_settings: ',',
-      result_next: 'j',
-      result_prev: 'k',
+      result_next: 'n',
+      result_prev: 'm',
     },
     syncStatus: 'synced',
     syncWarning: null,
@@ -81,9 +88,27 @@ function renderDetail(entry: string | { pathname: string; search?: string; state
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
-        <Route path="/sermons/:id" element={<SermonDetail />} />
+        <Route
+          path="/sermons/:id"
+          element={(
+            <>
+              <SermonDetail />
+              <LocationStateSpy />
+            </>
+          )}
+        />
       </Routes>
     </MemoryRouter>
+  );
+}
+
+function LocationStateSpy() {
+  const location = useLocation();
+  return (
+    <>
+      <div data-testid="location-path">{`${location.pathname}${location.search}`}</div>
+      <div data-testid="location-state">{JSON.stringify(location.state ?? null)}</div>
+    </>
   );
 }
 
@@ -95,10 +120,15 @@ describe('SermonDetail', () => {
   beforeEach(() => {
     fetchSermonByIdMock.mockReset();
     fetchAdjacentSermonsMock.mockReset();
+    fetchBoundarySermonsMock.mockReset();
     useSermonsMock.mockReset();
     setFilterMock.mockReset();
     fetchSermonByIdMock.mockResolvedValue(sermonDetailFixture);
     fetchAdjacentSermonsMock.mockResolvedValue({ prev: null, next: null });
+    fetchBoundarySermonsMock.mockResolvedValue({
+      first: { id: 'sermon-first', title: 'First Sermon', date: '1957-01-01' },
+      last: { id: 'sermon-last', title: 'Last Sermon', date: '1965-12-31' },
+    });
     useSermonsMock.mockReturnValue({
       searchHits: [
         {
@@ -131,10 +161,14 @@ describe('SermonDetail', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
     });
+
+    effectiveHitScrollBehaviorMock = 'smooth';
 
     if (!HTMLElement.prototype.scrollIntoView) {
       HTMLElement.prototype.scrollIntoView = () => {};
@@ -159,7 +193,7 @@ describe('SermonDetail', () => {
   });
 
   it('activates first title match when source is title', async () => {
-    renderDetail('/sermons/sermon-1?q=lead&source=title&hit=sermon-1:title');
+    renderDetail('/sermons/sermon-1?q=lead&source=title&hit=sermon-1:title&wholeWord=0');
 
     await waitFor(() => {
       expect(document.querySelectorAll('mark[data-search-match="true"]')).toHaveLength(1);
@@ -229,6 +263,133 @@ describe('SermonDetail', () => {
     });
   });
 
+  it('uses auto scroll behavior when effective preference resolves to auto', async () => {
+    effectiveHitScrollBehaviorMock = 'auto';
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+
+    renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('mark[data-search-match="true"]')).toHaveLength(2);
+      expect(scrollSpy).toHaveBeenCalled();
+    });
+
+    const scrollOptions = scrollSpy.mock.calls[0]?.[0] as ScrollIntoViewOptions;
+    expect(scrollOptions).toEqual(expect.objectContaining({ behavior: 'auto', block: 'center' }));
+    scrollSpy.mockRestore();
+  });
+
+  it('uses smooth scroll behavior when effective preference resolves to smooth', async () => {
+    effectiveHitScrollBehaviorMock = 'smooth';
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+
+    renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('mark[data-search-match="true"]')).toHaveLength(2);
+      expect(scrollSpy).toHaveBeenCalled();
+    });
+
+    const scrollOptions = scrollSpy.mock.calls[0]?.[0] as ScrollIntoViewOptions;
+    expect(scrollOptions).toEqual(expect.objectContaining({ behavior: 'smooth', block: 'center' }));
+    scrollSpy.mockRestore();
+  });
+
+  it('navigates to next adjacent sermon first hit with m and preserves query context', async () => {
+    fetchAdjacentSermonsMock.mockResolvedValue({
+      prev: { id: 'sermon-0', title: 'Prev', date: '1965-10-09' },
+      next: { id: 'sermon-2', title: 'Next', date: '1965-10-11' },
+    });
+
+    renderDetail('/sermons/sermon-1?q=only+believe&source=paragraph_text&paragraph=4&hit=sermon-1:para:4:chunk:2');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /find/i })).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: 'm' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-2?q=only+believe');
+    });
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('source=');
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('paragraph=');
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('hit=');
+    expect(fetchSermonByIdMock).toHaveBeenCalledWith('sermon-2');
+  });
+
+  it('navigates to previous adjacent sermon with Shift+M and preserves searchReturnTo state', async () => {
+    fetchAdjacentSermonsMock.mockResolvedValue({
+      prev: { id: 'sermon-0', title: 'Prev', date: '1965-10-09' },
+      next: { id: 'sermon-2', title: 'Next', date: '1965-10-11' },
+    });
+
+    renderDetail({
+      pathname: '/sermons/sermon-1',
+      search: '?q=only+believe',
+      state: { searchReturnTo: '/search?q=only+believe&sort=date-desc&view=table&page=4' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /find/i })).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: 'M', shiftKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-0?q=only+believe');
+    });
+    expect(screen.getByTestId('location-state')).toHaveTextContent(
+      '"searchReturnTo":"/search?q=only+believe&sort=date-desc&view=table&page=4"',
+    );
+  });
+
+  it('wraps m to the first sermon when there is no next adjacent sermon', async () => {
+    fetchAdjacentSermonsMock.mockResolvedValue({
+      prev: { id: 'sermon-0', title: 'Prev', date: '1965-10-09' },
+      next: null,
+    });
+    fetchBoundarySermonsMock.mockResolvedValue({
+      first: { id: 'sermon-first', title: 'First Sermon', date: '1957-01-01' },
+      last: { id: 'sermon-last', title: 'Last Sermon', date: '1965-12-31' },
+    });
+
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /find/i })).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: 'm' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-first?q=only+believe');
+    });
+  });
+
+  it('wraps Shift+M to the last sermon when there is no previous adjacent sermon', async () => {
+    fetchAdjacentSermonsMock.mockResolvedValue({
+      prev: null,
+      next: { id: 'sermon-2', title: 'Next', date: '1965-10-11' },
+    });
+    fetchBoundarySermonsMock.mockResolvedValue({
+      first: { id: 'sermon-first', title: 'First Sermon', date: '1957-01-01' },
+      last: { id: 'sermon-last', title: 'Last Sermon', date: '1965-12-31' },
+    });
+
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /find/i })).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: 'M', shiftKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-last?q=only+believe');
+    });
+  });
+
   it('prefers navigation state search return target for breadcrumb root link', async () => {
     renderDetail({
       pathname: '/sermons/sermon-1',
@@ -253,7 +414,20 @@ describe('SermonDetail', () => {
       expect(screen.getByTestId('breadcrumb-root')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('breadcrumb-root')).toHaveAttribute('href', '/search?q=only+believe');
+    expect(screen.getByTestId('breadcrumb-root')).toHaveAttribute('href', '/search?q=only+believe&wholeWord=1');
+  });
+
+  it('includes match options in breadcrumb fallback when present in route query', async () => {
+    renderDetail('/sermons/sermon-1?q=Only+Believe&matchCase=1&wholeWord=1');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('breadcrumb-root')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('breadcrumb-root')).toHaveAttribute(
+      'href',
+      '/search?q=Only+Believe&matchCase=1&wholeWord=1',
+    );
   });
 
   it('falls back to /search when no query or return state exists', async () => {
@@ -263,6 +437,7 @@ describe('SermonDetail', () => {
       expect(screen.getByTestId('breadcrumb-root')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('breadcrumb-root')).toHaveAttribute('href', '/search');
+    expect(screen.getByTestId('breadcrumb-root')).toHaveAttribute('href', '/search?wholeWord=1');
   });
 });
+

@@ -26,6 +26,16 @@ describe('keyboardShortcuts', () => {
     expect(result.error).toBe('Use a single printable key.');
   });
 
+  it('rejects removed legacy navigation keys', () => {
+    const jResult = validateShortcutKey('j');
+    expect(jResult.key).toBeNull();
+    expect(jResult.error).toContain('no longer supported');
+
+    const kResult = validateShortcutKey('k');
+    expect(kResult.key).toBeNull();
+    expect(kResult.error).toContain('no longer supported');
+  });
+
   it('coerces partial and duplicate bindings into a unique set', () => {
     const coerced = coerceShortcutBindings({
       focus_search: 'B',

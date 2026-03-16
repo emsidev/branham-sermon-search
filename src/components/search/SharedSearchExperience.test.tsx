@@ -17,8 +17,8 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
       focus_search: '/',
       open_books: 'b',
       open_settings: ',',
-      result_next: 'j',
-      result_prev: 'k',
+      result_next: 'n',
+      result_prev: 'm',
     },
     syncStatus: 'synced',
     syncWarning: null,
@@ -96,6 +96,8 @@ describe('SharedSearchExperience', () => {
         page: 1,
         sort: 'relevance-desc',
         view: 'card',
+        matchCase: false,
+        wholeWord: false,
       },
       setFilter: setFilterMock,
       pageSize: 25,
@@ -142,4 +144,28 @@ describe('SharedSearchExperience', () => {
     fireEvent.click(screen.getByRole('button', { name: 'trigger-hit' }));
     expect(onHitNavigate).toHaveBeenCalledTimes(1);
   });
+
+  it('toggles match options from search bar controls', () => {
+    renderSharedSearch();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle match case' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle whole word' }));
+
+    expect(setFilterMock).toHaveBeenCalledWith('matchCase', true);
+    expect(setFilterMock).toHaveBeenCalledWith('wholeWord', true);
+  });
+
+  it('supports Alt+C and Alt+W on focused search input', () => {
+    renderSharedSearch();
+    const input = screen.getByLabelText('Search sermons');
+
+    fireEvent.keyDown(input, { key: 'c', altKey: true });
+    fireEvent.keyDown(input, { key: 'w', altKey: true });
+    fireEvent.keyDown(input, { key: 'c', altKey: true, ctrlKey: true });
+
+    expect(setFilterMock).toHaveBeenCalledWith('matchCase', true);
+    expect(setFilterMock).toHaveBeenCalledWith('wholeWord', true);
+    expect(setFilterMock).toHaveBeenCalledTimes(2);
+  });
 });
+
