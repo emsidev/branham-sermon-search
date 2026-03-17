@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, LayoutGrid, List } from 'lucide-react';
+import { ArrowUpDown, Hash, LayoutGrid, List } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   useKeyboardShortcuts,
@@ -23,6 +23,7 @@ import {
   type SearchMatchOptions,
 } from '@/lib/search';
 import { formatShortcutKey } from '@/lib/keyboardShortcuts';
+import { resolveJumpToHitIndex } from '@/lib/hitNavigation';
 import { getInstantSearchEnabled } from '@/lib/preferences';
 import {
   createSearchReturnState,
@@ -119,6 +120,8 @@ export default function SharedSearchExperience({
   } = useSermons();
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [draftSearch, setDraftSearch] = useState(filters.q);
+  const [jumpToHitInput, setJumpToHitInput] = useState('');
+  const [isJumpPopoverOpen, setIsJumpPopoverOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const selectedIndexRef = useRef(selectedIndex);
   const { bindings } = useKeyboardShortcuts();
@@ -254,6 +257,22 @@ export default function SharedSearchExperience({
     }));
   }, [effectiveMatchCase, effectiveWholeWord, filters.fuzzy, filters.q, isSearchMode, visibleSearchHits]);
 
+  const navigateToHitIndex = useCallback((index: number) => {
+    if (index < 0 || index >= itemHrefs.length) {
+      return;
+    }
+
+    setSelectedIndex(index);
+    onHitNavigate?.();
+
+    if (searchReturnState) {
+      navigate(itemHrefs[index], { state: searchReturnState });
+      return;
+    }
+
+    navigate(itemHrefs[index]);
+  }, [itemHrefs, navigate, onHitNavigate, searchReturnState]);
+
   const shortcutResultListController = useMemo<ShortcutResultListController | null>(() => {
     if (!isSearchMode || itemHrefs.length === 0) {
       return null;
@@ -273,16 +292,10 @@ export default function SharedSearchExperience({
           return;
         }
 
-        onHitNavigate?.();
-        if (searchReturnState) {
-          navigate(itemHrefs[currentIndex], { state: searchReturnState });
-          return;
-        }
-
-        navigate(itemHrefs[currentIndex]);
+        navigateToHitIndex(currentIndex);
       },
     };
-  }, [isSearchMode, itemHrefs, navigate, onHitNavigate, searchReturnState]);
+  }, [isSearchMode, itemHrefs, navigateToHitIndex]);
 
   useShortcutResultListRegistration(shortcutResultListController);
 
@@ -324,6 +337,19 @@ export default function SharedSearchExperience({
     clearFilters?.();
     setSelectedIndex(-1);
   }, [clearFilters]);
+
+  const handleJumpToHitSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const targetIndex = resolveJumpToHitIndex(jumpToHitInput, itemHrefs.length);
+    if (targetIndex == null) {
+      return;
+    }
+
+    setJumpToHitInput(String(targetIndex + 1));
+    setIsJumpPopoverOpen(false);
+    navigateToHitIndex(targetIndex);
+  }, [itemHrefs.length, jumpToHitInput, navigateToHitIndex]);
 
   const toggleMatchCase = useCallback(() => {
     if (filters.fuzzy) {
@@ -416,6 +442,44 @@ export default function SharedSearchExperience({
             </p>
 
             <div className="flex items-center gap-2">
+              {visibleHitCount > 0 && (
+                <Popover open={isJumpPopoverOpen} onOpenChange={setIsJumpPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring/35"
+                      aria-label="Open jump to hit"
+                    >
+                      <Hash className="h-4 w-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[min(72vw,200px)]">
+                    <form onSubmit={handleJumpToHitSubmit} className="flex items-center gap-2">
+                      <label htmlFor="jump-to-hit-input" className="sr-only">
+                        Jump to hit number
+                      </label>
+                      <input
+                        id="jump-to-hit-input"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={jumpToHitInput}
+                        onChange={(event) => setJumpToHitInput(event.target.value)}
+                        placeholder={`1-${visibleHitCount}`}
+                        className="h-10 w-full rounded-md border border-border bg-background px-2 font-mono text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/35"
+                        aria-label="Jump to hit number"
+                      />
+                      <button
+                        type="submit"
+                        className="h-10 rounded-md border border-border bg-background px-3 font-mono text-xs text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring/35"
+                      >
+                        Jump
+                      </button>
+                    </form>
+                  </PopoverContent>
+                </Popover>
+              )}
+
               <select
                 value={filters.sort}
                 onChange={(event) => handleSortChange(event.target.value)}
