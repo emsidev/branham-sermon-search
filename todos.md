@@ -31,12 +31,13 @@
 | DONE-LOCKED | S02 | Next/Prev hit navigation (N / Shift+N) | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | DONE-LOCKED | S03 | Only active hit highlighted; all others dimmed | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | DONE-LOCKED | S04 | Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
-| TODO | S05 | Search filters by year, sermon title, location | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s05_*.sql | integration-owner |
+| DONE | S05 | Search filters by year, sermon title, location | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s05_*.sql | integration-owner |
 | DONE | S06 | Fuzzy search (typo-tolerant) | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s06_*.sql | integration-owner |
-| TODO | S07 | Search history saved locally | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| DONE | S07 | Search history saved locally | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | S08 | Jump to hit number | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | S09 | Search filters extended by scripture reference | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s09_*.sql | integration-owner |
 | TODO | S10 | AI-assisted semantic search | prompt-engineer | src/{components,hooks,lib}/** (feature-scoped); scripts/s10/** | integration-owner |
+| TODO | S11 | Sermon detail fixed chevrons (prev/next sermon hit + jump to top) | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | R01 | Enter/Exit reading mode (R) | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | R02 | Sticky bottom progress bar for sermon progress | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | DONE-LOCKED | R03 | Resume position per sermon | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
@@ -85,7 +86,7 @@
 | TODO | X06 | Export passage as .docx | frontend-developer(sharing) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 
 ## Backlog Validation Checklist
-- [ ] Confirm 56 features are listed exactly once by FeatureID.
+- [ ] Confirm 57 features are listed exactly once by FeatureID.
 - [ ] Confirm exactly 5 features are marked `DONE-LOCKED` (S01, S02, S03, S04, R03).
 - [ ] Confirm every feature has one primary agent.
 - [ ] Confirm every feature has clear feature-scoped ownership boundaries in src/{components,hooks,lib}/**.
@@ -167,7 +168,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ### S02 - Next/Prev hit navigation (N / Shift+N)
-Status: TODO
+Status: DONE-LOCKED
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -201,7 +202,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ### S03 - Only active hit highlighted; all others dimmed
-Status: TODO
+Status: DONE-LOCKED
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -234,7 +235,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ### S04 - Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut
-Status: TODO
+Status: DONE-LOCKED
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -268,7 +269,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ### S05 - Search filters by year, sermon title, location
-Status: TODO
+Status: DONE
 Primary agent: backend-architect
 Goal: Deliver and verify the S05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -341,7 +342,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ### S07 - Search history saved locally
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S07 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -471,6 +472,47 @@ Required tests:
 - Add AI-service contract test for request/response shaping and fallback behavior on provider failure.
 Acceptance criteria:
 - AI-assisted semantic search works end-to-end within feature-owned module boundaries.
+- No edits outside allowed ownership boundaries for builder work.
+- Required tests pass and evidence is included in handoff.
+- Integrator notes are actionable without follow-up decisions.
+Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
+
+### S11 - Sermon detail fixed chevrons (prev/next sermon hit + jump to top)
+Status: TODO
+Primary agent: frontend-developer(search)
+Goal: Deliver and verify the S11 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
+In scope:
+- Implement fixed-position left/right chevrons on Sermon Detail that navigate to previous/next sermon search hit context only when an adjacent sermon is available.
+- Implement a fixed-position up chevron on Sermon Detail that jumps to the top of the screen.
+- Preserve query/context parameters during sermon navigation and keep behavior aligned with existing search hit navigation patterns.
+- Provide deterministic handoff notes for integration-owner to wire shared shell files.
+Out of scope:
+- Any behavior from other FeatureIDs.
+- Keyboard remapping or new global shortcut definitions.
+- Direct route/header/global-shortcut shell edits by builder agents.
+- Non-sermon pages.
+Allowed files:
+- src/{components,hooks,lib}/** (feature-scoped)
+Forbidden files:
+- src/App.tsx
+- src/pages/*
+- src/components/GlobalKeyboardShortcuts.tsx
+- Global route registration, nav wiring, and shared shell composition files (integrator-only).
+Pattern anchors:
+- [Search.tsx](src/pages/Search.tsx)
+- [useSermons.ts](src/hooks/useSermons.ts)
+- [Settings.tsx](src/pages/Settings.tsx)
+Data profile: UI-only
+Required tests:
+- Add or extend vitest coverage for S11 behavior in src/{components,hooks,lib}/** (feature-scoped) test files.
+- Add fixed-position rendering tests for left/right and up chevrons.
+- Add visibility/edge-behavior tests that verify left/right controls only act when adjacent sermons are available.
+- Add behavior parity tests proving left/right fixed controls use the same next/prev sermon-hit navigation path.
+- Add jump-to-top behavior tests for the fixed up chevron.
+Acceptance criteria:
+- Sermon Detail shows permanent-position left/right chevrons for adjacent sermon hit navigation and a permanent-position up chevron for jump-to-top.
+- Left/right chevrons do not wrap and only navigate when adjacent sermon is available.
+- URL/state search context is preserved on fixed left/right navigation.
 - No edits outside allowed ownership boundaries for builder work.
 - Required tests pass and evidence is included in handoff.
 - Integrator notes are actionable without follow-up decisions.
@@ -2020,9 +2062,9 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ## Governance Validation Checklist
-- [ ] Confirm backlog table still has exactly 56 feature rows.
+- [ ] Confirm backlog table still has exactly 57 feature rows.
 - [ ] Confirm exactly 5 rows are DONE-LOCKED (S01, S02, S03, S04, R03).
-- [ ] Confirm feature spec block count is exactly 56.
+- [ ] Confirm feature spec block count is exactly 57.
 - [ ] Confirm table FeatureIDs and spec-block FeatureIDs are a 1:1 exact match.
 - [ ] Confirm each feature block has non-empty In scope and Out of scope.
 - [ ] Confirm each feature block includes Required tests, Acceptance criteria, and Handoff required.

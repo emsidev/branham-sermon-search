@@ -7,6 +7,7 @@ import {
   useShortcutSearchInputRegistration,
   type ShortcutResultListController,
 } from '@/hooks/useKeyboardShortcuts';
+import UnifiedSearchInput from '@/components/search/UnifiedSearchInput';
 import { useSermons, type SearchHit } from '@/hooks/useSermons';
 import SearchHitsTable from '@/components/SearchHitsTable';
 import SearchHitsCards from '@/components/SearchHitsCards';
@@ -25,7 +26,6 @@ import { formatShortcutKey } from '@/lib/keyboardShortcuts';
 import { getInstantSearchEnabled } from '@/lib/preferences';
 import {
   createSearchReturnState,
-  isSearchAutofocusTransitionState,
 } from '@/lib/searchNavigation';
 import { extractYear } from '@/lib/utils';
 
@@ -95,14 +95,6 @@ function shouldTreatAsExact(
   return false;
 }
 
-function supportsNativeViewTransition(): boolean {
-  if (typeof document === 'undefined') {
-    return false;
-  }
-
-  return typeof (document as Document & { startViewTransition?: unknown }).startViewTransition === 'function';
-}
-
 export default function SharedSearchExperience({
   surface = 'page',
   shouldFocusInput = false,
@@ -129,13 +121,10 @@ export default function SharedSearchExperience({
   const [draftSearch, setDraftSearch] = useState(filters.q);
   const searchRef = useRef<HTMLInputElement>(null);
   const selectedIndexRef = useRef(selectedIndex);
-  const handledFocusTransitionsRef = useRef<Set<string>>(new Set());
   const { bindings } = useKeyboardShortcuts();
   const isPageSurface = surface === 'page';
   const effectiveMatchCase = !filters.fuzzy && filters.matchCase;
   const effectiveWholeWord = !filters.fuzzy && filters.wholeWord;
-  const transitionState = isPageSurface && isSearchAutofocusTransitionState(location.state) ? location.state : null;
-  const shouldAnimateSearchFallback = isPageSurface && Boolean(transitionState) && !supportsNativeViewTransition();
   const matchOptions = useMemo<SearchMatchOptions>(() => ({
     matchCase: effectiveMatchCase,
     wholeWord: effectiveWholeWord,
@@ -146,7 +135,7 @@ export default function SharedSearchExperience({
     [location.pathname, location.search],
   );
 
-  useShortcutSearchInputRegistration(searchRef);
+  useShortcutSearchInputRegistration(searchRef, !isPageSurface);
 
   useEffect(() => {
     selectedIndexRef.current = selectedIndex;
@@ -157,45 +146,6 @@ export default function SharedSearchExperience({
   }, [filters.q]);
 
   useEffect(() => {
-    if (isPageSurface) {
-      if (!transitionState) {
-        return;
-      }
-
-      const { requestId } = transitionState;
-      if (handledFocusTransitionsRef.current.has(requestId)) {
-        return;
-      }
-
-      const input = searchRef.current;
-      if (!input) {
-        return;
-      }
-
-      handledFocusTransitionsRef.current.add(requestId);
-      const maxCaret = input.value.length;
-      const rawCaret = transitionState.source === 'home'
-        ? transitionState.caret ?? maxCaret
-        : maxCaret;
-      const numericCaret = typeof rawCaret === 'number' && Number.isFinite(rawCaret) ? Math.floor(rawCaret) : maxCaret;
-      const safeCaret = Math.max(0, Math.min(numericCaret, maxCaret));
-
-      const applyFocus = () => {
-        input.focus({ preventScroll: true });
-        input.setSelectionRange(safeCaret, safeCaret);
-      };
-
-      if (typeof window.requestAnimationFrame === 'function') {
-        const rafId = window.requestAnimationFrame(applyFocus);
-        return () => {
-          window.cancelAnimationFrame(rafId);
-        };
-      }
-
-      applyFocus();
-      return undefined;
-    }
-
     if (!shouldFocusInput) {
       return;
     }
@@ -212,7 +162,7 @@ export default function SharedSearchExperience({
 
     applyFocus();
     return undefined;
-  }, [isPageSurface, location.key, onInputFocusHandled, shouldFocusInput, transitionState]);
+  }, [onInputFocusHandled, shouldFocusInput]);
 
   const rankedSearchHits = useMemo(() => {
     const normalizedQuery = normalizePhraseExactQuery(filters.q, matchOptions);
@@ -337,24 +287,25 @@ export default function SharedSearchExperience({
   useShortcutResultListRegistration(shortcutResultListController);
 
   const handleSearchInputChange = useCallback((value: string) => {
+    const instantSearchEnabled = getInstantSearchEnabled();
     setDraftSearch(value);
-    if (getInstantSearchEnabled()) {
+    if (instantSearchEnabled) {
       setFilter('q', value);
     }
     setSelectedIndex(-1);
   }, [setFilter]);
 
-  const handleSearchSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = draftSearch.trim();
+  const handleSearchExecute = useCallback((rawQuery: string) => {
+    const trimmed = rawQuery.trim();
     if (!trimmed) {
       navigate('/');
-      return;
+      return false;
     }
 
     setFilter('q', trimmed);
     setSelectedIndex(-1);
-  }, [draftSearch, navigate, setFilter]);
+    return true;
+  }, [navigate, setFilter]);
 
   const handleSortChange = useCallback((value: string) => {
     setFilter('sort', value);
@@ -395,113 +346,49 @@ export default function SharedSearchExperience({
     setSelectedIndex(-1);
   }, [filters.fuzzy, setFilters]);
 
-  const handleSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!event.altKey || event.ctrlKey || event.metaKey) {
-      return;
-    }
-
-    const loweredKey = event.key.toLowerCase();
-    if (loweredKey === 'c') {
-      if (filters.fuzzy) {
-        return;
-      }
-      event.preventDefault();
-      toggleMatchCase();
-      return;
-    }
-    if (loweredKey === 'w') {
-      if (filters.fuzzy) {
-        return;
-      }
-      event.preventDefault();
-      toggleWholeWord();
-      return;
-    }
-    if (loweredKey === 'f') {
-      event.preventDefault();
-      toggleFuzzy();
-    }
-  }, [filters.fuzzy, toggleFuzzy, toggleMatchCase, toggleWholeWord]);
-
   const inputForm = (
-    <form
-      onSubmit={handleSearchSubmit}
-      className={isPageSurface ? 'mx-auto w-full max-w-[520px]' : 'w-full'}
-    >
-      <div
-        className={`flex h-11 items-center rounded-lg border border-border bg-bg-muted px-3 ${shouldAnimateSearchFallback ? 'home-search-fallback-enter' : ''}`}
-        style={{ viewTransitionName: isPageSurface ? 'global-search' : undefined }}
-      >
-        <span className="pr-3 font-mono text-base text-muted-foreground">{formatShortcutKey(bindings.focus_search)}</span>
-        <input
-          ref={searchRef}
-          type="text"
-          value={draftSearch}
-          onChange={(event) => handleSearchInputChange(event.target.value)}
-          onKeyDown={handleSearchInputKeyDown}
-          placeholder="search sermons ..."
-          className="h-full w-full bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-          aria-label="Search sermons"
-        />
-        <div className="ml-3 flex items-center gap-1">
-          <button
-            type="button"
-            onClick={toggleMatchCase}
-            disabled={filters.fuzzy}
-            className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-              effectiveMatchCase
-                ? 'border-foreground bg-foreground text-background'
-                : 'border-border bg-background text-muted-foreground hover:text-foreground'
-            } ${filters.fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
-            aria-label="Toggle match case"
-            title={filters.fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Match case (Alt+C)'}
-          >
-            Aa
-          </button>
-          <button
-            type="button"
-            onClick={toggleWholeWord}
-            disabled={filters.fuzzy}
-            className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-              effectiveWholeWord
-                ? 'border-foreground bg-foreground text-background'
-                : 'border-border bg-background text-muted-foreground hover:text-foreground'
-            } ${filters.fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
-            aria-label="Toggle whole word"
-            title={filters.fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Whole word (Alt+W)'}
-          >
-            W
-          </button>
-          <button
-            type="button"
-            onClick={toggleFuzzy}
-            className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-              filters.fuzzy
-                ? 'border-foreground bg-foreground text-background'
-                : 'border-border bg-background text-muted-foreground hover:text-foreground'
-            }`}
-            aria-label="Toggle fuzzy search"
-            title="Fuzzy search (Alt+F)"
-          >
-            Fz
-          </button>
-        </div>
-      </div>
-    </form>
+    <div className="w-full">
+      <UnifiedSearchInput
+        query={draftSearch}
+        shortcutLabel={formatShortcutKey(bindings.focus_search)}
+        instantSearchEnabled={getInstantSearchEnabled()}
+        matchCase={effectiveMatchCase}
+        wholeWord={effectiveWholeWord}
+        fuzzy={filters.fuzzy}
+        onQueryChange={(value, meta) => {
+          if (meta.isComposing) {
+            setDraftSearch(value);
+            return;
+          }
+          handleSearchInputChange(value);
+        }}
+        onExecuteQuery={(value) => handleSearchExecute(value)}
+        onToggleMatchCase={toggleMatchCase}
+        onToggleWholeWord={toggleWholeWord}
+        onToggleFuzzy={toggleFuzzy}
+        inputRef={searchRef}
+        containerClassName="relative flex h-11 items-center rounded-lg border border-border bg-bg-muted px-3"
+        inputClassName="h-full w-full bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+        shortcutClassName="pr-3 font-mono text-base text-muted-foreground"
+        toggleContainerClassName="ml-3 flex items-center gap-1"
+      />
+    </div>
   );
 
   const body = (
     <>
-      <section className={isPageSurface ? 'mb-8' : 'mb-6'}>
-        {inputForm}
-      </section>
+      {!isPageSurface && (
+        <section className="mb-6">
+          {inputForm}
+        </section>
+      )}
 
       <h1 className="font-mono text-4xl font-medium text-foreground">search</h1>
 
       {!isSearchMode && (
         <div className="mt-8 rounded-lg border border-border bg-card px-6 py-8 text-center">
           <p className="font-mono text-sm text-muted-foreground">
-            Type in the search box to find sermons.
+            Use the header search box to find sermons.
           </p>
         </div>
       )}

@@ -1,9 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SearchPage from './Search';
 import type { SearchHit } from '@/hooks/useSermons';
-import type { HomeSearchTransitionState } from '@/lib/searchNavigation';
 
 const useSermonsMock = vi.fn();
 const useKeyboardNavMock = vi.fn();
@@ -604,74 +603,6 @@ describe('SearchPage', () => {
     expect(setFilterMock).toHaveBeenCalledWith('view', 'table');
   });
 
-  it('runs search on submit only when instant search is off', () => {
-    instantSearchEnabledMock = false;
-    renderSearchPage();
-    setFilterMock.mockClear();
-
-    fireEvent.change(screen.getByLabelText('Search sermons'), {
-      target: { value: 'new phrase' },
-    });
-    expect(setFilterMock).not.toHaveBeenCalledWith('q', 'new phrase');
-
-    fireEvent.submit(screen.getByLabelText('Search sermons').closest('form')!);
-    expect(setFilterMock).toHaveBeenCalledWith('q', 'new phrase');
-  });
-
-  it('focuses the nav search input and restores the caret for home transfer state', async () => {
-    const transitionState: HomeSearchTransitionState = {
-      source: 'home',
-      autofocus: true,
-      requestId: 'home-transition-1',
-      caret: 5,
-    };
-
-    renderSearchPage([{ pathname: '/search', state: transitionState }]);
-
-    const searchInput = screen.getByLabelText('Search sermons') as HTMLInputElement;
-    await waitFor(() => {
-      expect(document.activeElement).toBe(searchInput);
-    });
-    expect(searchInput.selectionStart).toBe(5);
-    expect(searchInput.selectionEnd).toBe(5);
-    expect(searchInput.closest('div')).toHaveClass('home-search-fallback-enter');
-  });
-
-  it('defaults the caret to the end of text when home transfer state omits caret', async () => {
-    const transitionState: HomeSearchTransitionState = {
-      source: 'home',
-      autofocus: true,
-      requestId: 'home-transition-2',
-    };
-
-    renderSearchPage([{ pathname: '/search', state: transitionState }]);
-
-    const searchInput = screen.getByLabelText('Search sermons') as HTMLInputElement;
-    await waitFor(() => {
-      expect(document.activeElement).toBe(searchInput);
-    });
-    const textLength = searchInput.value.length;
-    expect(searchInput.selectionStart).toBe(textLength);
-    expect(searchInput.selectionEnd).toBe(textLength);
-  });
-
-  it('autofocuses search input for shortcut transfer state', async () => {
-    renderSearchPage([{ pathname: '/search', state: { source: 'shortcut', autofocus: true, requestId: 'shortcut-1' } }]);
-
-    const searchInput = screen.getByLabelText('Search sermons') as HTMLInputElement;
-    await waitFor(() => {
-      expect(document.activeElement).toBe(searchInput);
-    });
-  });
-
-  it('does not force autofocus for non-home route state', () => {
-    renderSearchPage([{ pathname: '/search', state: { source: 'books', autofocus: true, requestId: 'x' } }]);
-
-    const searchInput = screen.getByLabelText('Search sermons');
-    expect(document.activeElement).not.toBe(searchInput);
-    expect(searchInput.closest('div')).not.toHaveClass('home-search-fallback-enter');
-  });
-
   it('passes full search return context into hit list renderers', () => {
     renderSearchPage(['/search?q=lord&sort=date-desc&view=table&page=3']);
 
@@ -681,16 +612,40 @@ describe('SearchPage', () => {
     );
   });
 
-  it('toggles match options from search input shortcuts and controls', () => {
+  it('does not render page-level search input anymore', () => {
     renderSearchPage();
-    setFiltersMock.mockClear();
 
-    const input = screen.getByLabelText('Search sermons');
-    fireEvent.keyDown(input, { key: 'c', altKey: true });
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle whole word' }));
+    expect(screen.queryByLabelText('Search sermons')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Toggle match case' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Toggle whole word' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Toggle fuzzy search' })).not.toBeInTheDocument();
+  });
 
-    expect(setFiltersMock).toHaveBeenCalledWith({ matchCase: true });
-    expect(setFiltersMock).toHaveBeenCalledWith({ wholeWord: true });
+  it('uses header-specific empty-state copy when there is no active search query', () => {
+    useSermonsMock.mockReturnValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      loading: false,
+      filters: {
+        q: '',
+        year: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: true,
+        fuzzy: false,
+      },
+      setFilter: setFilterMock,
+      setFilters: setFiltersMock,
+      pageSize: 25,
+    });
+
+    renderSearchPage(['/search']);
+
+    expect(screen.getByText('Use the header search box to find sermons.')).toBeInTheDocument();
   });
 });
 

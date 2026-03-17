@@ -1,13 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
 import type React from 'react';
 import { useTheme } from 'next-themes';
+import { useNavigate } from 'react-router-dom';
 import SubpageLayout from '@/components/layout/SubpageLayout';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useSearchHistory } from '@/hooks/useSearchHistory';
 import {
   SHORTCUT_DEFINITIONS,
   formatShortcutKey,
   type ShortcutAction,
 } from '@/lib/keyboardShortcuts';
+import { buildSearchHrefFromQuery } from '@/lib/searchNavigation';
 import {
   getHitSmoothScrollEnabled,
   getInstantSearchEnabled,
@@ -18,10 +21,16 @@ import {
 type ThemeOption = 'system' | 'light' | 'dark';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const [instantSearchEnabled, setInstantSearchEnabledState] = useState(() => getInstantSearchEnabled());
   const [smoothHitScrollingEnabled, setSmoothHitScrollingEnabledState] = useState(() => getHitSmoothScrollEnabled());
   const [capturingAction, setCapturingAction] = useState<ShortcutAction | null>(null);
   const [shortcutErrors, setShortcutErrors] = useState<Partial<Record<ShortcutAction, string>>>({});
+  const {
+    history: searchHistory,
+    removeEntry: removeSearchHistoryEntry,
+    clear: clearSearchHistory,
+  } = useSearchHistory();
   const { theme, setTheme } = useTheme();
   const {
     bindings,
@@ -130,6 +139,10 @@ export default function Settings() {
     resetAllShortcutBindings();
   }, [resetAllShortcutBindings]);
 
+  const handleUseSearchHistory = useCallback((query: string) => {
+    navigate(buildSearchHrefFromQuery(query));
+  }, [navigate]);
+
   return (
     <SubpageLayout title="settings" description="Customize your table search experience.">
       <div className="space-y-7">
@@ -201,6 +214,66 @@ export default function Settings() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </section>
+
+        <section>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">Search history</h2>
+            <button
+              type="button"
+              onClick={clearSearchHistory}
+              className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={searchHistory.length === 0}
+              aria-label="Clear all search history"
+            >
+              clear all
+            </button>
+          </div>
+          <div className="mt-3 surface-card p-4">
+            {searchHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No local search history yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-2 py-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">Query</th>
+                      <th className="px-2 py-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {searchHistory.map((query) => (
+                      <tr key={query} className="border-b border-border-subtle align-top">
+                        <td className="px-2 py-3 font-mono text-sm text-foreground">{query}</td>
+                        <td className="px-2 py-3">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleUseSearchHistory(query)}
+                              className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
+                              aria-label={`Use search history query ${query}`}
+                            >
+                              use
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeSearchHistoryEntry(query)}
+                              className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
+                              aria-label={`Remove search history query ${query}`}
+                            >
+                              remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </section>
 

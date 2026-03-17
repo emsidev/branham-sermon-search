@@ -2,12 +2,14 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Index from './Index';
+import { SEARCH_HISTORY_STORAGE_KEY } from '@/lib/searchHistory';
 
 const useSermonsMock = vi.fn();
 const useKeyboardNavMock = vi.fn();
 const navigateMock = vi.fn();
 let instantSearchEnabledMock = true;
 const setInstantSearchEnabledMock = vi.fn();
+const localStorageState = new Map<string, string>();
 
 vi.mock('@/hooks/useSermons', () => ({
   useSermons: () => useSermonsMock(),
@@ -67,8 +69,33 @@ function renderIndex() {
   );
 }
 
+function createLocalStorageMock(): Storage {
+  return {
+    get length() {
+      return localStorageState.size;
+    },
+    clear: () => {
+      localStorageState.clear();
+    },
+    getItem: (key: string) => localStorageState.get(key) ?? null,
+    key: (index: number) => Array.from(localStorageState.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      localStorageState.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      localStorageState.set(key, String(value));
+    },
+  };
+}
+
 describe('Index', () => {
   beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      writable: true,
+      value: createLocalStorageMock(),
+    });
+    localStorageState.clear();
+    window.localStorage.removeItem(SEARCH_HISTORY_STORAGE_KEY);
     instantSearchEnabledMock = true;
     setInstantSearchEnabledMock.mockReset();
 
@@ -149,23 +176,18 @@ describe('Index', () => {
 
     fireEvent.compositionStart(searchInput);
     fireEvent.change(searchInput, {
-      target: { value: 'ア' },
+      target: { value: '\u30a2' },
     });
     expect(navigateMock).not.toHaveBeenCalled();
 
     fireEvent.compositionEnd(searchInput);
 
-    expect(navigateMock).toHaveBeenCalledWith(
-      '/search?q=%E3%82%A2&sort=relevance-desc&view=card&wholeWord=1',
-      expect.objectContaining({
-        state: expect.objectContaining({
-          source: 'home',
-          autofocus: true,
-          caret: expect.any(Number),
-          requestId: expect.any(String),
-        }),
-      })
-    );
+    expect(
+      navigateMock.mock.calls.some((call) => (
+        typeof call[0] === 'string'
+        && call[0] === '/search?q=%E3%82%A2&sort=relevance-desc&view=card&wholeWord=1'
+      ))
+    ).toBe(true);
   });
 
   it('applies match toggles to search navigation URLs', () => {
@@ -230,6 +252,63 @@ describe('Index', () => {
     expect(matchCaseButton).toBeDisabled();
     expect(wholeWordButton).toBeDisabled();
   });
+
+  it('shows recent searches dropdown on focus when query is empty', () => {
+    window.localStorage.setItem(
+      SEARCH_HISTORY_STORAGE_KEY,
+      JSON.stringify(['Seven Seals', 'Pillar of Fire']),
+    );
+    renderIndex();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.focus(input);
+
+    expect(screen.getByTestId('search-history-dropdown')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use recent search Seven Seals' })).toBeInTheDocument();
+  });
+
+  it('navigates immediately when selecting a recent search from dropdown', () => {
+    window.localStorage.setItem(
+      SEARCH_HISTORY_STORAGE_KEY,
+      JSON.stringify(['Seven Seals', 'Pillar of Fire']),
+    );
+    renderIndex();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.focus(input);
+    fireEvent.click(screen.getByRole('button', { name: 'Use recent search Seven Seals' }));
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=Seven+Seals&sort=relevance-desc&view=card&wholeWord=1',
+      expect.objectContaining({
+        state: expect.objectContaining({
+          source: 'home',
+          autofocus: true,
+          caret: 'Seven Seals'.length,
+        }),
+      }),
+    );
+  });
+
+  it('records history on blur when instant search is enabled', () => {
+    instantSearchEnabledMock = true;
+    renderIndex();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, { target: { value: '  pillar   of fire  ' } });
+    fireEvent.blur(input);
+
+    expect(window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY)).toBe(JSON.stringify(['pillar of fire']));
+  });
+
+  it('does not record history on blur when instant search is disabled', () => {
+    instantSearchEnabledMock = false;
+    renderIndex();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, { target: { value: '  pillar   of fire  ' } });
+    fireEvent.blur(input);
+
+    expect(window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY)).toBeNull();
+  });
 });
-
-

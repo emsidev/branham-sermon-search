@@ -3,11 +3,13 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SharedSearchExperience from './SharedSearchExperience';
 import type { SearchHit } from '@/hooks/useSermons';
+import { SEARCH_HISTORY_STORAGE_KEY } from '@/lib/searchHistory';
 
 const useSermonsMock = vi.fn();
 const setFiltersMock = vi.fn();
 const setFilterMock = vi.fn();
 const clearFiltersMock = vi.fn();
+const localStorageState = new Map<string, string>();
 
 vi.mock('@/hooks/useSermons', () => ({
   useSermons: () => useSermonsMock(),
@@ -51,6 +53,25 @@ vi.mock('@/components/SearchHitsCards', () => ({
 vi.mock('@/components/SearchHitsTable', () => ({
   default: () => <div data-testid="table-view" />,
 }));
+
+function createLocalStorageMock(): Storage {
+  return {
+    get length() {
+      return localStorageState.size;
+    },
+    clear: () => {
+      localStorageState.clear();
+    },
+    getItem: (key: string) => localStorageState.get(key) ?? null,
+    key: (index: number) => Array.from(localStorageState.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      localStorageState.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      localStorageState.set(key, String(value));
+    },
+  };
+}
 
 const defaultHits: SearchHit[] = [
   {
@@ -113,6 +134,12 @@ function renderSharedSearch() {
 
 describe('SharedSearchExperience', () => {
   beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      writable: true,
+      value: createLocalStorageMock(),
+    });
+    localStorageState.clear();
+    window.localStorage.removeItem(SEARCH_HISTORY_STORAGE_KEY);
     setFilterMock.mockReset();
     setFiltersMock.mockReset();
     clearFiltersMock.mockReset();
@@ -394,6 +421,228 @@ describe('SharedSearchExperience', () => {
     );
 
     expect(screen.queryByTestId('filter-count-badge')).not.toBeInTheDocument();
+  });
+
+  it('saves submitted search text to local history', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      filters: {
+        q: '',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: false,
+      },
+    }));
+
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, { target: { value: '  Pillar   of Fire  ' } });
+    fireEvent.submit(input.closest('form')!);
+
+    expect(setFilterMock).toHaveBeenCalledWith('q', 'Pillar   of Fire');
+    expect(window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY)).toBe(JSON.stringify(['Pillar of Fire']));
+  });
+
+  it('records search history on blur when instant search is enabled', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      filters: {
+        q: '',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: false,
+      },
+    }));
+
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, { target: { value: '  steadfast  faith  ' } });
+    fireEvent.blur(input);
+
+    expect(window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY)).toBe(JSON.stringify(['steadfast faith']));
+  });
+
+  it('does not record history on blur when instant search is disabled', () => {
+    window.localStorage.setItem('message-search.instant-search-enabled', 'false');
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      filters: {
+        q: '',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: false,
+      },
+    }));
+
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, { target: { value: '  steadfast  faith  ' } });
+    fireEvent.blur(input);
+
+    expect(window.localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY)).toBeNull();
+  });
+
+  it('shows search history dropdown when input is focused and empty', () => {
+    window.localStorage.setItem(
+      SEARCH_HISTORY_STORAGE_KEY,
+      JSON.stringify(['Seven Seals', 'Leadership']),
+    );
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      filters: {
+        q: '',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: false,
+      },
+    }));
+
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.focus(input);
+
+    expect(screen.getByTestId('search-history-dropdown')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use recent search Seven Seals' })).toBeInTheDocument();
+  });
+
+  it('hides search history dropdown when typing a non-empty query', () => {
+    window.localStorage.setItem(
+      SEARCH_HISTORY_STORAGE_KEY,
+      JSON.stringify(['Seven Seals', 'Leadership']),
+    );
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      filters: {
+        q: '',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: false,
+      },
+    }));
+
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.focus(input);
+    expect(screen.getByTestId('search-history-dropdown')).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: 'sea' } });
+    expect(screen.queryByTestId('search-history-dropdown')).not.toBeInTheDocument();
+  });
+
+  it('reuses a search history entry from dropdown click', () => {
+    window.localStorage.setItem(
+      SEARCH_HISTORY_STORAGE_KEY,
+      JSON.stringify(['Seven Seals', 'Leadership']),
+    );
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      filters: {
+        q: '',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: false,
+      },
+    }));
+
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.focus(input);
+    fireEvent.click(screen.getByRole('button', { name: 'Use recent search Seven Seals' }));
+
+    expect(setFilterMock).toHaveBeenCalledWith('q', 'Seven Seals');
+  });
+
+  it('hides search history dropdown on blur and Escape', () => {
+    window.localStorage.setItem(
+      SEARCH_HISTORY_STORAGE_KEY,
+      JSON.stringify(['Seven Seals', 'Leadership']),
+    );
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      isSearchMode: false,
+      total: 0,
+      filters: {
+        q: '',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: false,
+      },
+    }));
+
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.focus(input);
+    expect(screen.getByTestId('search-history-dropdown')).toBeInTheDocument();
+
+    fireEvent.blur(input);
+    expect(screen.queryByTestId('search-history-dropdown')).not.toBeInTheDocument();
+
+    fireEvent.focus(input);
+    expect(screen.getByTestId('search-history-dropdown')).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByTestId('search-history-dropdown')).not.toBeInTheDocument();
   });
 });
 

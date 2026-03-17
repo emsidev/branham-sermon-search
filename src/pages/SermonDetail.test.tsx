@@ -24,6 +24,7 @@ vi.mock('@/hooks/useAudioPlayer', () => ({
 
 vi.mock('@/lib/preferences', () => ({
   getEffectiveHitScrollBehavior: () => effectiveHitScrollBehaviorMock,
+  getInstantSearchEnabled: () => true,
 }));
 
 vi.mock('@/hooks/useKeyboardShortcuts', () => ({
@@ -185,6 +186,10 @@ describe('SermonDetail', () => {
 
     await waitFor(() => {
       expect(document.querySelectorAll('mark[data-search-match="true"]')).toHaveLength(2);
+    });
+
+    await waitFor(() => {
+      expect(getActiveMatch()).not.toBeNull();
     });
 
     const active = getActiveMatch();

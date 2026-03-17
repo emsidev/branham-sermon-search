@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import UnifiedSearchInput from '@/components/search/UnifiedSearchInput';
 import { useSermons } from '@/hooks/useSermons';
 import { useKeyboardShortcuts, useShortcutSearchInputRegistration } from '@/hooks/useKeyboardShortcuts';
 import { formatShortcutKey } from '@/lib/keyboardShortcuts';
@@ -17,7 +17,6 @@ export default function Index() {
   const [fuzzy, setFuzzy] = useState(false);
   const [instantSearchEnabled, setInstantSearchEnabledState] = useState(() => getInstantSearchEnabled());
   const searchRef = useRef<HTMLInputElement>(null);
-  const isComposingRef = useRef(false);
   const searchRequestIdRef = useRef(0);
   const { bindings } = useKeyboardShortcuts();
 
@@ -69,43 +68,31 @@ export default function Index() {
     return true;
   }, [buildHomeTransitionState, fuzzy, matchCase, navigate, wholeWord]);
 
-  const handleSearchSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const caret = searchRef.current?.selectionStart ?? query.length;
-    if (!navigateToSearch(query, caret)) {
-      searchRef.current?.focus();
-    }
-  }, [navigateToSearch, query]);
-
-  const handleSearchInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.target.value;
+  const handleSearchInputChange = useCallback((nextValue: string, isComposing: boolean) => {
     setQuery(nextValue);
     if (!instantSearchEnabled) {
       return;
     }
 
-    if (isComposingRef.current || event.nativeEvent.isComposing) {
+    if (isComposing) {
       return;
     }
 
-    const caret = event.target.selectionStart ?? nextValue.length;
+    const caret = searchRef.current?.selectionStart ?? nextValue.length;
     navigateToSearch(nextValue, caret);
   }, [instantSearchEnabled, navigateToSearch]);
 
-  const handleCompositionStart = useCallback(() => {
-    isComposingRef.current = true;
-  }, []);
-
-  const handleCompositionEnd = useCallback((event: React.CompositionEvent<HTMLInputElement>) => {
-    isComposingRef.current = false;
-    if (!instantSearchEnabled) {
-      return;
+  const handleSearchExecute = useCallback((rawQuery: string, source: 'submit' | 'recent' = 'submit') => {
+    const caret = source === 'recent'
+      ? rawQuery.length
+      : (searchRef.current?.selectionStart ?? rawQuery.length);
+    if (!navigateToSearch(rawQuery, caret)) {
+      searchRef.current?.focus();
+      return false;
     }
 
-    const nextValue = event.currentTarget.value;
-    const caret = event.currentTarget.selectionStart ?? nextValue.length;
-    navigateToSearch(nextValue, caret);
-  }, [instantSearchEnabled, navigateToSearch]);
+    return true;
+  }, [navigateToSearch]);
 
   const handleInstantSearchToggle = useCallback(() => {
     setInstantSearchEnabledState((currentValue) => {
@@ -179,36 +166,6 @@ export default function Index() {
     });
   }, [fuzzy, instantSearchEnabled, matchCase, navigateToSearch, query, wholeWord]);
 
-  const handleSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!event.altKey || event.ctrlKey || event.metaKey) {
-      return;
-    }
-
-    const loweredKey = event.key.toLowerCase();
-    if (loweredKey === 'c') {
-      if (fuzzy) {
-        return;
-      }
-      event.preventDefault();
-      toggleMatchCase();
-      return;
-    }
-
-    if (loweredKey === 'w') {
-      if (fuzzy) {
-        return;
-      }
-      event.preventDefault();
-      toggleWholeWord();
-      return;
-    }
-
-    if (loweredKey === 'f') {
-      event.preventDefault();
-      toggleFuzzy();
-    }
-  }, [fuzzy, toggleFuzzy, toggleMatchCase, toggleWholeWord]);
-
   return (
     <main className="mx-auto w-full max-w-[860px] px-6 pb-12 pt-20">
       <div className="mx-auto w-full max-w-[640px] text-center">
@@ -219,76 +176,33 @@ export default function Index() {
           a fast, modern browser for the table
         </p>
 
-        <form onSubmit={handleSearchSubmit} className="mt-10">
-          <div
-            className="flex h-14 items-center rounded-lg border border-border bg-bg-muted p-1"
-            style={{ viewTransitionName: 'global-search' }}
-          >
-            <span className="px-4 text-lg font-mono text-muted-foreground">{formatShortcutKey(bindings.focus_search)}</span>
-            <input
-              ref={searchRef}
-              type="text"
-              value={query}
-              onChange={handleSearchInputChange}
-              onCompositionStart={handleCompositionStart}
-              onCompositionEnd={handleCompositionEnd}
-              onKeyDown={handleSearchInputKeyDown}
-              placeholder="search sermons ..."
-              className="h-full flex-1 bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-              aria-label="Search sermons"
-            />
-            <div className="mr-2 flex items-center gap-1">
-              <button
-                type="button"
-                onClick={toggleMatchCase}
-                disabled={fuzzy}
-                className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-                  matchCase
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                } ${fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
-                aria-label="Toggle match case"
-                title={fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Match case (Alt+C)'}
-              >
-                Aa
-              </button>
-              <button
-                type="button"
-                onClick={toggleWholeWord}
-                disabled={fuzzy}
-                className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-                  wholeWord
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                } ${fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
-                aria-label="Toggle whole word"
-                title={fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Whole word (Alt+W)'}
-              >
-                W
-              </button>
-              <button
-                type="button"
-                onClick={toggleFuzzy}
-                className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-                  fuzzy
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                }`}
-                aria-label="Toggle fuzzy search"
-                title="Fuzzy search (Alt+F)"
-              >
-                Fz
-              </button>
-            </div>
-            <button
-              type="submit"
-              className="inline-flex h-full items-center gap-2 rounded-md bg-foreground px-4 font-mono text-sm text-background transition-opacity hover:opacity-90"
-            >
-              <Search className="h-4 w-4" />
-              search
-            </button>
-          </div>
-        </form>
+        <div className="mt-10">
+          <UnifiedSearchInput
+            query={query}
+            shortcutLabel={formatShortcutKey(bindings.focus_search)}
+            instantSearchEnabled={instantSearchEnabled}
+            matchCase={matchCase}
+            wholeWord={wholeWord}
+            fuzzy={fuzzy}
+            onQueryChange={(value, meta) => {
+              handleSearchInputChange(value, meta.isComposing);
+              if (meta.phase === 'composition-end' && instantSearchEnabled) {
+                const caret = searchRef.current?.selectionStart ?? value.length;
+                navigateToSearch(value, caret);
+              }
+            }}
+            onExecuteQuery={(value, meta) => handleSearchExecute(value, meta.source)}
+            onToggleMatchCase={toggleMatchCase}
+            onToggleWholeWord={toggleWholeWord}
+            onToggleFuzzy={toggleFuzzy}
+            inputRef={searchRef}
+            containerClassName="relative flex h-14 items-center rounded-lg border border-border bg-bg-muted p-1"
+            inputClassName="h-full flex-1 bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+            showSubmitButton
+            submitButtonLabel="search"
+            viewTransitionName="global-search"
+          />
+        </div>
 
         <div className="mt-4 flex items-center justify-center gap-1 font-mono text-sm text-muted-foreground">
           <span aria-hidden>*</span>
