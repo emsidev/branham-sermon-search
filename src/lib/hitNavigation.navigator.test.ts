@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHitNavigator } from './hitNavigation';
+import { createHitNavigator, resolveJumpToHitIndex } from './hitNavigation';
 
 describe('createHitNavigator', () => {
   it('returns no active index for empty hit sets', () => {
@@ -32,6 +32,23 @@ describe('createHitNavigator', () => {
 
     expect(navigator.normalizeIndex(-5)).toBe(-1);
     expect(navigator.normalizeIndex(99)).toBe(3);
+  });
+});
+
+describe('resolveJumpToHitIndex', () => {
+  it('converts one-based input to zero-based index', () => {
+    expect(resolveJumpToHitIndex('2', 5)).toBe(1);
+  });
+
+  it('clamps out-of-range values to first and last hits', () => {
+    expect(resolveJumpToHitIndex('-10', 5)).toBe(0);
+    expect(resolveJumpToHitIndex('99', 5)).toBe(4);
+  });
+
+  it('returns null for non-numeric or empty input', () => {
+    expect(resolveJumpToHitIndex('', 5)).toBeNull();
+    expect(resolveJumpToHitIndex('abc', 5)).toBeNull();
+    expect(resolveJumpToHitIndex('2', 0)).toBeNull();
   });
 });
 

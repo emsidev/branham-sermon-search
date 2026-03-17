@@ -41,6 +41,34 @@ export interface CreateHitNavigationKeyHandlerOptions {
   sermonCycleKey?: string;
 }
 
+export function resolveJumpToHitIndex(rawInput: string, totalHits: number): number | null {
+  const safeTotalHits = coerceTotalHits(totalHits);
+  if (safeTotalHits === 0) {
+    return null;
+  }
+
+  const trimmedInput = rawInput.trim();
+  if (!trimmedInput) {
+    return null;
+  }
+
+  const parsedInput = Number(trimmedInput);
+  if (!Number.isFinite(parsedInput)) {
+    return null;
+  }
+
+  const requestedOneBased = Math.floor(parsedInput);
+  if (requestedOneBased <= 1) {
+    return 0;
+  }
+
+  if (requestedOneBased >= safeTotalHits) {
+    return safeTotalHits - 1;
+  }
+
+  return requestedOneBased - 1;
+}
+
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;

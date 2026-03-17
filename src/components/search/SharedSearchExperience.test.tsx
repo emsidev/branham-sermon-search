@@ -6,10 +6,19 @@ import type { SearchHit } from '@/hooks/useSermons';
 import { SEARCH_HISTORY_STORAGE_KEY } from '@/lib/searchHistory';
 
 const useSermonsMock = vi.fn();
+const navigateMock = vi.fn();
 const setFiltersMock = vi.fn();
 const setFilterMock = vi.fn();
 const clearFiltersMock = vi.fn();
 const localStorageState = new Map<string, string>();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
 
 vi.mock('@/hooks/useSermons', () => ({
   useSermons: () => useSermonsMock(),
@@ -43,10 +52,13 @@ vi.mock('@/components/SermonPagination', () => ({
 }));
 
 vi.mock('@/components/SearchHitsCards', () => ({
-  default: ({ onHitNavigate }: { onHitNavigate?: () => void }) => (
-    <button type="button" onClick={() => onHitNavigate?.()}>
-      trigger-hit
-    </button>
+  default: ({ onHitNavigate, selectedIndex }: { onHitNavigate?: () => void; selectedIndex: number }) => (
+    <div>
+      <div data-testid="selected-index">{selectedIndex}</div>
+      <button type="button" onClick={() => onHitNavigate?.()}>
+        trigger-hit
+      </button>
+    </div>
   ),
 }));
 
@@ -124,12 +136,38 @@ function buildUseSermonsMockValue(overrides?: Partial<ReturnType<typeof useSermo
   };
 }
 
-function renderSharedSearch() {
+function buildHits(count: number): SearchHit[] {
+  return Array.from({ length: count }).map((_, index) => ({
+    hit_id: `hit-${index + 1}`,
+    sermon_id: `sermon-${index + 1}`,
+    sermon_code: `65-10${String(index + 10).padStart(2, '0')}`,
+    title: `Title ${index + 1}`,
+    summary: null,
+    date: '1965-10-10',
+    location: 'Jeffersonville, IN',
+    paragraph_number: index + 1,
+    printed_paragraph_number: index + 1,
+    chunk_index: 1,
+    chunk_total: 1,
+    match_source: 'paragraph_text',
+    snippet: `Snippet ${index + 1}`,
+    relevance: 5 - index,
+    is_exact_match: true,
+    tags: [],
+    total_count: count,
+  }));
+}
+
+function renderSharedSearch(initialEntry = '/sermons/sermon-1?q=leadership') {
   return render(
-    <MemoryRouter initialEntries={['/sermons/sermon-1?q=leadership']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <SharedSearchExperience surface="modal" />
     </MemoryRouter>
   );
+}
+
+function openJumpToHitPopover() {
+  fireEvent.click(screen.getByRole('button', { name: 'Open jump to hit' }));
 }
 
 describe('SharedSearchExperience', () => {
@@ -140,6 +178,7 @@ describe('SharedSearchExperience', () => {
     });
     localStorageState.clear();
     window.localStorage.removeItem(SEARCH_HISTORY_STORAGE_KEY);
+    navigateMock.mockReset();
     setFilterMock.mockReset();
     setFiltersMock.mockReset();
     clearFiltersMock.mockReset();
@@ -643,6 +682,80 @@ describe('SharedSearchExperience', () => {
 
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(screen.queryByTestId('search-history-dropdown')).not.toBeInTheDocument();
+  });
+
+  it('renders jump-to-hit popup trigger when there are visible hits', () => {
+    renderSharedSearch();
+    expect(screen.getByRole('button', { name: 'Open jump to hit' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Jump to hit number')).not.toBeInTheDocument();
+  });
+
+  it('submits valid jump-to-hit input and preserves search return state', async () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: buildHits(3),
+      total: 3,
+    }));
+
+    renderSharedSearch('/search?q=leadership');
+    openJumpToHitPopover();
+
+    fireEvent.change(screen.getByLabelText('Jump to hit number'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Jump' }));
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith(
+        expect.stringContaining('/sermons/sermon-2?'),
+        { state: { searchReturnTo: '/search?q=leadership' } },
+      );
+    });
+    expect(screen.getByTestId('selected-index')).toHaveTextContent('1');
+  });
+
+  it('clamps jump-to-hit input below and above bounds', async () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: buildHits(3),
+      total: 3,
+    }));
+
+    renderSharedSearch();
+    openJumpToHitPopover();
+
+    const input = screen.getByLabelText('Jump to hit number');
+    fireEvent.change(input, { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Jump' }));
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('/sermons/sermon-1?'),
+      );
+    });
+
+    openJumpToHitPopover();
+    const reopenedInput = screen.getByLabelText('Jump to hit number');
+
+    fireEvent.change(reopenedInput, { target: { value: '99' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Jump' }));
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('/sermons/sermon-3?'),
+      );
+    });
+  });
+
+  it('does not navigate for non-numeric jump-to-hit input', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: buildHits(3),
+      total: 3,
+    }));
+
+    renderSharedSearch();
+    openJumpToHitPopover();
+
+    fireEvent.change(screen.getByLabelText('Jump to hit number'), { target: { value: 'abc' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Jump' }));
+
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });
 
