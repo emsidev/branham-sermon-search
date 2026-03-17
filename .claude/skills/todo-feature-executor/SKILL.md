@@ -9,6 +9,8 @@ description: Implement backlog features defined in todos.md and auto-update thei
 
 Implement one feature at a time from `todos.md` using that feature's spec block and ownership boundaries. After successful verification, automatically update the feature status in both the backlog table and the spec block.
 
+Completion is mandatory: do not finalize a feature handoff until `todos.md` reflects the completed status.
+
 ## Workflow
 
 1. Generate the feature brief.
@@ -25,10 +27,11 @@ Implement one feature at a time from `todos.md` using that feature's spec block 
 - Run required tests for the feature before status updates.
 - Collect pass/fail evidence for handoff.
 
-4. Mark the feature complete automatically.
+4. Mark the feature complete automatically (required).
 - Run `python .claude/skills/todo-feature-executor/scripts/feature_workflow.py complete <FeatureID> --verify-command "npx vitest run"`.
 - Default completion status is `DONE`.
 - Use `--status DONE-LOCKED` only when you intentionally want a locked completion state.
+- `done` is a supported alias for `complete`.
 
 5. Produce handoff using the required schema.
 - `FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes`
@@ -45,8 +48,12 @@ Implement one feature at a time from `todos.md` using that feature's spec block 
 - Complete with verification gate:
 `python .claude/skills/todo-feature-executor/scripts/feature_workflow.py complete S05 --verify-command "npx vitest run"`
 
+- Same action using alias:
+`python .claude/skills/todo-feature-executor/scripts/feature_workflow.py done S05 --verify-command "npx vitest run"`
+
 ## Failure Handling
 
 - If the `FeatureID` is missing from either backlog table or spec block, stop and fix `todos.md` consistency first.
 - If `--verify-command` fails, do not update status.
 - If requested edits conflict with ownership boundaries, keep forbidden edits out of the builder patch and list them under `Integrator notes`.
+- If status update cannot be applied, explicitly report that the feature remains `TODO` and include the blocking reason.

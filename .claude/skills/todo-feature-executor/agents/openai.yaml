@@ -1,4 +1,4 @@
 interface:
   display_name: "Todo Feature Executor"
   short_description: "Implement features from todos.md and auto-update status."
-  default_prompt: "Implement a feature from todos.md and mark it done after tests pass."
+  default_prompt: "Implement a feature from todos.md, run required tests, then mark it DONE in todos.md (table + spec block) before final handoff."

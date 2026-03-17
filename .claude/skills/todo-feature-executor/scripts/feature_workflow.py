@@ -208,6 +208,7 @@ def _create_parser() -> argparse.ArgumentParser:
 
     complete_parser = subparsers.add_parser(
         "complete",
+        aliases=["done"],
         help="Mark a FeatureID complete in backlog table and spec block.",
     )
     complete_parser.add_argument("feature_id", help="FeatureID (for example: S05, R03, X02).")
@@ -247,7 +248,7 @@ def main() -> int:
             print(_build_brief(lines, feature_id))
             return 0
 
-        if args.command == "complete":
+        if args.command in {"complete", "done"}:
             _complete_feature(
                 todos_path=todos_path,
                 feature_id=feature_id,
