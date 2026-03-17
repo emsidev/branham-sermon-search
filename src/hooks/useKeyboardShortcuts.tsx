@@ -192,7 +192,7 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
   const cloudSyncInFlightRef = useRef(false);
   const mountedRef = useRef(true);
 
-  const searchInputResolverRef = useRef<(() => HTMLInputElement | null) | null>(null);
+  const searchInputResolversRef = useRef<Array<() => HTMLInputElement | null>>([]);
   const resultListControllerRef = useRef<ShortcutResultListController | null>(null);
 
   const applyLocalSnapshot = useCallback((nextBindings: ShortcutBindings, updatedAt: number) => {
@@ -347,16 +347,27 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
   }, [persistBindings]);
 
   const registerSearchInputResolver = useCallback((resolver: () => HTMLInputElement | null) => {
-    searchInputResolverRef.current = resolver;
+    searchInputResolversRef.current = [
+      ...searchInputResolversRef.current,
+      resolver,
+    ];
+
     return () => {
-      if (searchInputResolverRef.current === resolver) {
-        searchInputResolverRef.current = null;
-      }
+      searchInputResolversRef.current = searchInputResolversRef.current.filter(
+        (candidateResolver) => candidateResolver !== resolver
+      );
     };
   }, []);
 
   const getSearchInputElement = useCallback(() => {
-    return searchInputResolverRef.current?.() ?? null;
+    for (let index = searchInputResolversRef.current.length - 1; index >= 0; index -= 1) {
+      const candidate = searchInputResolversRef.current[index]?.();
+      if (candidate && candidate.isConnected) {
+        return candidate;
+      }
+    }
+
+    return null;
   }, []);
 
   const registerResultListController = useCallback((controller: ShortcutResultListController | null) => {
@@ -428,12 +439,19 @@ export function useKeyboardShortcuts(): KeyboardShortcutsContextValue {
   return useContext(KeyboardShortcutsContext);
 }
 
-export function useShortcutSearchInputRegistration(searchInputRef: React.RefObject<HTMLInputElement | null>): void {
+export function useShortcutSearchInputRegistration(
+  searchInputRef: React.RefObject<HTMLInputElement | null>,
+  enabled = true,
+): void {
   const { registerSearchInputResolver } = useKeyboardShortcuts();
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     return registerSearchInputResolver(() => searchInputRef.current);
-  }, [registerSearchInputResolver, searchInputRef]);
+  }, [enabled, registerSearchInputResolver, searchInputRef]);
 }
 
 export function useShortcutResultListRegistration(controller: ShortcutResultListController | null): void {

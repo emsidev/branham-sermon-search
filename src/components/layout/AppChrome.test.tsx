@@ -22,6 +22,7 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
     registerResultListController: () => () => undefined,
     getResultListController: () => null,
   }),
+  useShortcutSearchInputRegistration: vi.fn(),
 }));
 
 function renderAtPath(pathname: string) {
@@ -47,11 +48,11 @@ describe('AppChrome', () => {
     (path) => {
       renderAtPath(path);
 
-      expect(screen.getByRole('link', { name: 'the table search' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Search sermons')).toBeInTheDocument();
       expect(screen.getAllByRole('link', { name: /books/i }).length).toBeGreaterThan(0);
       expect(screen.getAllByRole('link', { name: /settings/i }).length).toBeGreaterThan(0);
       expect(screen.getAllByRole('link', { name: /about/i }).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole('link', { name: /search/i }).length).toBeGreaterThan(0);
+      expect(screen.getByRole('link', { name: 'the table search' })).toBeInTheDocument();
       expect(screen.getByText('a fast, modern browser for the table')).toBeInTheDocument();
     }
   );

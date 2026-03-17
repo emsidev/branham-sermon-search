@@ -20,6 +20,18 @@ const shortcutBindingsMock: ShortcutBindings = {
 const setShortcutBindingMock = vi.fn(() => ({ ok: true }));
 const resetShortcutBindingMock = vi.fn(() => ({ ok: true }));
 const resetAllShortcutBindingsMock = vi.fn();
+const navigateMock = vi.fn();
+const removeSearchHistoryEntryMock = vi.fn();
+const clearSearchHistoryMock = vi.fn();
+let searchHistoryMock: string[] = ['Pillar of Fire', 'Seven Seals'];
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
 
 vi.mock('next-themes', () => ({
   useTheme: () => ({
@@ -56,7 +68,72 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
   }),
 }));
 
+vi.mock('@/hooks/useSearchHistory', () => ({
+  useSearchHistory: () => ({
+    history: searchHistoryMock,
+    addEntry: vi.fn(),
+    removeEntry: removeSearchHistoryEntryMock,
+    clear: clearSearchHistoryMock,
+  }),
+}));
+
 describe('Settings', () => {
+  it('renders search history entries', () => {
+    searchHistoryMock = ['Pillar of Fire', 'Seven Seals'];
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Search history' })).toBeInTheDocument();
+    expect(screen.getByText('Pillar of Fire')).toBeInTheDocument();
+    expect(screen.getByText('Seven Seals')).toBeInTheDocument();
+  });
+
+  it('runs a historical query from settings', () => {
+    navigateMock.mockReset();
+    searchHistoryMock = ['Pillar of Fire'];
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use search history query Pillar of Fire' }));
+    expect(navigateMock).toHaveBeenCalledWith('/search?q=Pillar+of+Fire');
+  });
+
+  it('removes a single search history entry', () => {
+    removeSearchHistoryEntryMock.mockReset();
+    searchHistoryMock = ['Pillar of Fire'];
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove search history query Pillar of Fire' }));
+    expect(removeSearchHistoryEntryMock).toHaveBeenCalledWith('Pillar of Fire');
+  });
+
+  it('clears all search history entries', () => {
+    clearSearchHistoryMock.mockReset();
+    searchHistoryMock = ['Pillar of Fire', 'Seven Seals'];
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all search history' }));
+    expect(clearSearchHistoryMock).toHaveBeenCalledTimes(1);
+  });
+
   it('updates theme via selector', () => {
     themeMock = 'system';
     render(
@@ -139,6 +216,7 @@ describe('Settings', () => {
   });
 
   it('renders section headings outside surface cards', () => {
+    searchHistoryMock = ['Pillar of Fire'];
     render(
       <MemoryRouter>
         <Settings />
@@ -147,10 +225,12 @@ describe('Settings', () => {
 
     const appearanceHeading = screen.getByRole('heading', { name: 'Appearance' });
     const preferencesHeading = screen.getByRole('heading', { name: 'Preferences' });
+    const searchHistoryHeading = screen.getByRole('heading', { name: 'Search history' });
     const keyboardShortcutsHeading = screen.getByRole('heading', { name: 'Keyboard shortcuts' });
 
     expect(appearanceHeading.closest('.surface-card')).toBeNull();
     expect(preferencesHeading.closest('.surface-card')).toBeNull();
+    expect(searchHistoryHeading.closest('.surface-card')).toBeNull();
     expect(keyboardShortcutsHeading.closest('.surface-card')).toBeNull();
   });
 });
