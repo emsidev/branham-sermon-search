@@ -273,6 +273,30 @@ describe('SermonDetail', () => {
     expect(screen.queryByRole('dialog', { name: 'Search popup' })).not.toBeInTheDocument();
   });
 
+  it('renders fixed sermon detail chevrons and disables lateral chevrons when no adjacent sermon exists', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to top' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: 'Previous sermon hit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next sermon hit' })).toBeDisabled();
+  });
+
+  it('scrolls to top when fixed up chevron is clicked', async () => {
+    const scrollSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to top' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to top' }));
+    expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'smooth' });
+    scrollSpy.mockRestore();
+  });
+
   it('closes global search modal after selecting a search hit', async () => {
     renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
 
@@ -343,6 +367,28 @@ describe('SermonDetail', () => {
     expect(screen.getByTestId('location-path')).not.toHaveTextContent('paragraph=');
     expect(screen.getByTestId('location-path')).not.toHaveTextContent('hit=');
     expect(fetchSermonByIdMock).toHaveBeenCalledWith('sermon-2');
+  });
+
+  it('navigates to next adjacent sermon from fixed right chevron and preserves query context', async () => {
+    fetchAdjacentSermonsMock.mockResolvedValue({
+      prev: { id: 'sermon-0', title: 'Prev', date: '1965-10-09' },
+      next: { id: 'sermon-2', title: 'Next', date: '1965-10-11' },
+    });
+
+    renderDetail('/sermons/sermon-1?q=only+believe&source=paragraph_text&paragraph=4&hit=sermon-1:para:4:chunk:2');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Next sermon hit' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next sermon hit' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-2?q=only+believe');
+    });
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('source=');
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('paragraph=');
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('hit=');
   });
 
   it('navigates to previous adjacent sermon with Shift+M and preserves searchReturnTo state', async () => {
