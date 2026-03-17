@@ -37,7 +37,7 @@
 | DONE | S08 | Jump to hit number | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | S09 | Search filters extended by scripture reference | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s09_*.sql | integration-owner |
 | TODO | S10 | AI-assisted semantic search | prompt-engineer | src/{components,hooks,lib}/** (feature-scoped); scripts/s10/** | integration-owner |
-| TODO | S11 | Sermon detail fixed chevrons (prev/next sermon hit + jump to top) | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
+| DONE | S11 | Sermon detail fixed chevrons (prev/next sermon hit + jump to top) | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | R01 | Enter/Exit reading mode (R) | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | R02 | Sticky bottom progress bar for sermon progress | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | DONE-LOCKED | R03 | Resume position per sermon | frontend-developer(reader) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
@@ -478,7 +478,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ### S11 - Sermon detail fixed chevrons (prev/next sermon hit + jump to top)
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(search)
 Goal: Deliver and verify the S11 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:

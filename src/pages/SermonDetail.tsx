@@ -7,6 +7,7 @@ import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
 import SharedSearchExperience from '@/components/search/SharedSearchExperience';
+import SermonDetailFixedChevrons from '@/components/search/SermonDetailFixedChevrons';
 import { useHitNavigation } from '@/hooks/useHitNavigation';
 import { renderActiveHitHighlights } from '@/components/search/activeHitHighlighting';
 import { SearchPopup } from '@/components/search/SearchPopup';
@@ -20,6 +21,12 @@ import {
   type SearchMatchOptions,
 } from '@/lib/search';
 import { buildSearchHrefFromQuery, readSearchReturnTo } from '@/lib/searchNavigation';
+import {
+  buildAdjacentSermonHitTarget,
+  createAdjacentSermonHitNavigationHandlers,
+  scrollSermonDetailToTop,
+  type AdjacentHitNavigationTarget,
+} from '@/lib/sermonDetailHitNavigation';
 import { getEffectiveHitScrollBehavior } from '@/lib/preferences';
 
 interface AdjacentSermon {
@@ -269,39 +276,42 @@ export default function SermonDetail() {
     [highlightMatchOptions, highlightTerms, sermon],
   );
 
+  const sermonHitNavigationContext = useMemo(() => ({
+    searchQuery,
+    fuzzy,
+    matchCase,
+    wholeWord,
+    searchReturnTo,
+  }), [fuzzy, matchCase, searchQuery, searchReturnTo, wholeWord]);
+
+  const navigateToAdjacentTarget = useCallback((target: AdjacentHitNavigationTarget) => {
+    if (target.state) {
+      navigate(target.href, { state: target.state });
+      return;
+    }
+
+    navigate(target.href);
+  }, [navigate]);
+
   const navigateToAdjacentSermon = useCallback((targetSermon: AdjacentSermon | null) => {
-    if (!targetSermon) {
+    const target = buildAdjacentSermonHitTarget(targetSermon, sermonHitNavigationContext);
+    if (!target) {
       return;
     }
 
-    const params = new URLSearchParams();
-    if (searchQuery) {
-      params.set('q', searchQuery);
-    }
-    if (fuzzy) {
-      params.set('fuzzy', '1');
-    } else {
-      if (matchCase) {
-        params.set('matchCase', '1');
-      }
-      params.set('wholeWord', wholeWord ? '1' : '0');
-    }
+    navigateToAdjacentTarget(target);
+  }, [navigateToAdjacentTarget, sermonHitNavigationContext]);
 
-    const href = params.toString()
-      ? `/sermons/${targetSermon.id}?${params.toString()}`
-      : `/sermons/${targetSermon.id}`;
+  const fixedChevronNavigation = useMemo(() => createAdjacentSermonHitNavigationHandlers({
+    prev: adjacent.prev,
+    next: adjacent.next,
+    context: sermonHitNavigationContext,
+    navigate: navigateToAdjacentTarget,
+  }), [adjacent.next, adjacent.prev, navigateToAdjacentTarget, sermonHitNavigationContext]);
 
-    if (searchReturnTo) {
-      navigate(href, {
-        state: {
-          searchReturnTo,
-        },
-      });
-      return;
-    }
-
-    navigate(href);
-  }, [fuzzy, matchCase, navigate, searchQuery, searchReturnTo, wholeWord]);
+  const handleJumpToTop = useCallback(() => {
+    scrollSermonDetailToTop();
+  }, []);
 
   const initialMatchIndex = useMemo(() => {
     if (findModel.totalMatches === 0) {
@@ -459,6 +469,13 @@ export default function SermonDetail() {
           onHitNavigate={closeSearchPopup}
         />
       </SearchPopup>
+      <SermonDetailFixedChevrons
+        canNavigatePrev={fixedChevronNavigation.canNavigatePrev}
+        canNavigateNext={fixedChevronNavigation.canNavigateNext}
+        onNavigatePrev={fixedChevronNavigation.navigatePrev}
+        onNavigateNext={fixedChevronNavigation.navigateNext}
+        onJumpToTop={handleJumpToTop}
+      />
 
       <div ref={contentRef} className="mx-auto max-w-[900px] space-y-8 px-6 py-8 lg:px-0">
         <SermonBreadcrumb year={sermon.year} title={sermon.title} rootHref={breadcrumbRootHref} />
