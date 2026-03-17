@@ -175,7 +175,7 @@ export default function Settings() {
                         className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
                         aria-label={`${instantSearchEnabled ? 'Turn off' : 'Turn on'} instant search`}
                       >
-                        {instantSearchEnabled ? 'on - turn off' : 'off - turn on'}
+                        {instantSearchEnabled ? 'on' : 'off'}
                       </button>
                     </td>
                     <td className="px-2 py-3 text-sm text-muted-foreground">
@@ -191,7 +191,7 @@ export default function Settings() {
                         className="text-xs font-mono text-link underline underline-offset-2 hover:text-foreground"
                         aria-label={`${smoothHitScrollingEnabled ? 'Turn off' : 'Turn on'} smooth hit scrolling`}
                       >
-                        {smoothHitScrollingEnabled ? 'on - turn off' : 'off - turn on'}
+                        {smoothHitScrollingEnabled ? 'on' : 'off'}
                       </button>
                     </td>
                     <td className="px-2 py-3 text-sm text-muted-foreground">

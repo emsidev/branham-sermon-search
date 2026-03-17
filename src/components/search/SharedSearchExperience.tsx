@@ -117,6 +117,7 @@ export default function SharedSearchExperience({
     total,
     loading,
     filters,
+    setFilters,
     setFilter,
     clearFilters,
     years,
@@ -131,12 +132,15 @@ export default function SharedSearchExperience({
   const handledFocusTransitionsRef = useRef<Set<string>>(new Set());
   const { bindings } = useKeyboardShortcuts();
   const isPageSurface = surface === 'page';
+  const effectiveMatchCase = !filters.fuzzy && filters.matchCase;
+  const effectiveWholeWord = !filters.fuzzy && filters.wholeWord;
   const transitionState = isPageSurface && isSearchAutofocusTransitionState(location.state) ? location.state : null;
   const shouldAnimateSearchFallback = isPageSurface && Boolean(transitionState) && !supportsNativeViewTransition();
   const matchOptions = useMemo<SearchMatchOptions>(() => ({
-    matchCase: filters.matchCase,
-    wholeWord: filters.wholeWord,
-  }), [filters.matchCase, filters.wholeWord]);
+    matchCase: effectiveMatchCase,
+    wholeWord: effectiveWholeWord,
+    fuzzy: filters.fuzzy,
+  }), [effectiveMatchCase, effectiveWholeWord, filters.fuzzy]);
   const searchReturnState = useMemo(
     () => createSearchReturnState(`${location.pathname}${location.search}`),
     [location.pathname, location.search],
@@ -227,15 +231,15 @@ export default function SharedSearchExperience({
   }, [filters.q, filters.sort, matchOptions, searchHits]);
 
   const exactTitleMatches = useMemo(() => {
-    const normalizedQuery = normalizeExactTitleQuery(filters.q, filters.matchCase);
+    const normalizedQuery = normalizeExactTitleQuery(filters.q, effectiveMatchCase);
     if (!normalizedQuery) {
       return [];
     }
 
     return rankedSearchHits.filter(
-      (hit) => normalizeExactCandidateText(hit.title, filters.matchCase) === normalizedQuery
+      (hit) => normalizeExactCandidateText(hit.title, effectiveMatchCase) === normalizedQuery
     );
-  }, [filters.matchCase, filters.q, rankedSearchHits]);
+  }, [effectiveMatchCase, filters.q, rankedSearchHits]);
 
   const exactTitleHit = useMemo(() => {
     if (!exactTitleMatches.length) {
@@ -277,10 +281,11 @@ export default function SharedSearchExperience({
       matchSource: exactTitleHit.match_source,
       paragraphNumber: exactTitleHit.paragraph_number,
       hitId: exactTitleHit.hit_id,
-      matchCase: filters.matchCase,
-      wholeWord: filters.wholeWord,
+      matchCase: effectiveMatchCase,
+      wholeWord: effectiveWholeWord,
+      fuzzy: filters.fuzzy,
     });
-  }, [exactTitleHit, filters.matchCase, filters.q, filters.wholeWord]);
+  }, [effectiveMatchCase, effectiveWholeWord, exactTitleHit, filters.fuzzy, filters.q]);
 
   const itemHrefs = useMemo(() => {
     if (!isSearchMode) {
@@ -293,10 +298,11 @@ export default function SharedSearchExperience({
       matchSource: hit.match_source,
       paragraphNumber: hit.paragraph_number,
       hitId: hit.hit_id,
-      matchCase: filters.matchCase,
-      wholeWord: filters.wholeWord,
+      matchCase: effectiveMatchCase,
+      wholeWord: effectiveWholeWord,
+      fuzzy: filters.fuzzy,
     }));
-  }, [filters.matchCase, filters.q, filters.wholeWord, isSearchMode, visibleSearchHits]);
+  }, [effectiveMatchCase, effectiveWholeWord, filters.fuzzy, filters.q, isSearchMode, visibleSearchHits]);
 
   const shortcutResultListController = useMemo<ShortcutResultListController | null>(() => {
     if (!isSearchMode || itemHrefs.length === 0) {
@@ -369,14 +375,25 @@ export default function SharedSearchExperience({
   }, [clearFilters]);
 
   const toggleMatchCase = useCallback(() => {
-    setFilter('matchCase', !filters.matchCase);
+    if (filters.fuzzy) {
+      return;
+    }
+    setFilters({ matchCase: !effectiveMatchCase });
     setSelectedIndex(-1);
-  }, [filters.matchCase, setFilter]);
+  }, [effectiveMatchCase, filters.fuzzy, setFilters]);
 
   const toggleWholeWord = useCallback(() => {
-    setFilter('wholeWord', !filters.wholeWord);
+    if (filters.fuzzy) {
+      return;
+    }
+    setFilters({ wholeWord: !effectiveWholeWord });
     setSelectedIndex(-1);
-  }, [filters.wholeWord, setFilter]);
+  }, [effectiveWholeWord, filters.fuzzy, setFilters]);
+
+  const toggleFuzzy = useCallback(() => {
+    setFilters({ fuzzy: !filters.fuzzy });
+    setSelectedIndex(-1);
+  }, [filters.fuzzy, setFilters]);
 
   const handleSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!event.altKey || event.ctrlKey || event.metaKey) {
@@ -385,15 +402,26 @@ export default function SharedSearchExperience({
 
     const loweredKey = event.key.toLowerCase();
     if (loweredKey === 'c') {
+      if (filters.fuzzy) {
+        return;
+      }
       event.preventDefault();
       toggleMatchCase();
       return;
     }
     if (loweredKey === 'w') {
+      if (filters.fuzzy) {
+        return;
+      }
       event.preventDefault();
       toggleWholeWord();
+      return;
     }
-  }, [toggleMatchCase, toggleWholeWord]);
+    if (loweredKey === 'f') {
+      event.preventDefault();
+      toggleFuzzy();
+    }
+  }, [filters.fuzzy, toggleFuzzy, toggleMatchCase, toggleWholeWord]);
 
   const inputForm = (
     <form
@@ -419,28 +447,43 @@ export default function SharedSearchExperience({
           <button
             type="button"
             onClick={toggleMatchCase}
+            disabled={filters.fuzzy}
             className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-              filters.matchCase
+              effectiveMatchCase
                 ? 'border-foreground bg-foreground text-background'
                 : 'border-border bg-background text-muted-foreground hover:text-foreground'
-            }`}
+            } ${filters.fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
             aria-label="Toggle match case"
-            title="Match case (Alt+C)"
+            title={filters.fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Match case (Alt+C)'}
           >
             Aa
           </button>
           <button
             type="button"
             onClick={toggleWholeWord}
+            disabled={filters.fuzzy}
             className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
-              filters.wholeWord
+              effectiveWholeWord
+                ? 'border-foreground bg-foreground text-background'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground'
+            } ${filters.fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
+            aria-label="Toggle whole word"
+            title={filters.fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Whole word (Alt+W)'}
+          >
+            W
+          </button>
+          <button
+            type="button"
+            onClick={toggleFuzzy}
+            className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
+              filters.fuzzy
                 ? 'border-foreground bg-foreground text-background'
                 : 'border-border bg-background text-muted-foreground hover:text-foreground'
             }`}
-            aria-label="Toggle whole word"
-            title="Whole word (Alt+W)"
+            aria-label="Toggle fuzzy search"
+            title="Fuzzy search (Alt+F)"
           >
-            W
+            Fz
           </button>
         </div>
       </div>

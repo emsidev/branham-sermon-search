@@ -276,6 +276,7 @@ export type Database = {
     Functions: {
       search_sermon_chunks: {
         Args: {
+          p_enable_fuzzy?: boolean
           p_limit?: number
           p_location?: string | null
           p_match_case?: boolean

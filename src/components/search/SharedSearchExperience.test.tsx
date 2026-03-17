@@ -5,6 +5,7 @@ import SharedSearchExperience from './SharedSearchExperience';
 import type { SearchHit } from '@/hooks/useSermons';
 
 const useSermonsMock = vi.fn();
+const setFiltersMock = vi.fn();
 const setFilterMock = vi.fn();
 const clearFiltersMock = vi.fn();
 
@@ -89,8 +90,10 @@ function buildUseSermonsMockValue(overrides?: Partial<ReturnType<typeof useSermo
       view: 'card',
       matchCase: false,
       wholeWord: false,
+      fuzzy: false,
     },
     setFilter: setFilterMock,
+    setFilters: setFiltersMock,
     clearFilters: clearFiltersMock,
     years: [1965, 1964],
     titles: ['Leadership', 'Only Believe'],
@@ -111,6 +114,7 @@ function renderSharedSearch() {
 describe('SharedSearchExperience', () => {
   beforeEach(() => {
     setFilterMock.mockReset();
+    setFiltersMock.mockReset();
     clearFiltersMock.mockReset();
     useSermonsMock.mockReset();
     useSermonsMock.mockReturnValue(buildUseSermonsMockValue());
@@ -163,8 +167,38 @@ describe('SharedSearchExperience', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle match case' }));
     fireEvent.click(screen.getByRole('button', { name: 'Toggle whole word' }));
 
-    expect(setFilterMock).toHaveBeenCalledWith('matchCase', true);
-    expect(setFilterMock).toHaveBeenCalledWith('wholeWord', true);
+    expect(setFiltersMock).toHaveBeenCalledWith({ matchCase: true });
+    expect(setFiltersMock).toHaveBeenCalledWith({ wholeWord: true });
+  });
+
+  it('toggles fuzzy mode from search bar controls', () => {
+    renderSharedSearch();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle fuzzy search' }));
+    expect(setFiltersMock).toHaveBeenCalledWith({ fuzzy: true });
+  });
+
+  it('turning fuzzy on uses a single atomic mode patch', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      filters: {
+        q: 'leadership',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: true,
+        wholeWord: true,
+        fuzzy: false,
+      },
+    }));
+    renderSharedSearch();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle fuzzy search' }));
+
+    expect(setFiltersMock).toHaveBeenCalledTimes(1);
+    expect(setFiltersMock).toHaveBeenCalledWith({ fuzzy: true });
   });
 
   it('supports Alt+C and Alt+W on focused search input', () => {
@@ -175,9 +209,49 @@ describe('SharedSearchExperience', () => {
     fireEvent.keyDown(input, { key: 'w', altKey: true });
     fireEvent.keyDown(input, { key: 'c', altKey: true, ctrlKey: true });
 
-    expect(setFilterMock).toHaveBeenCalledWith('matchCase', true);
-    expect(setFilterMock).toHaveBeenCalledWith('wholeWord', true);
-    expect(setFilterMock).toHaveBeenCalledTimes(2);
+    expect(setFiltersMock).toHaveBeenCalledWith({ matchCase: true });
+    expect(setFiltersMock).toHaveBeenCalledWith({ wholeWord: true });
+    expect(setFiltersMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('supports Alt+F on focused search input and avoids modifier conflicts', () => {
+    renderSharedSearch();
+    const input = screen.getByLabelText('Search sermons');
+
+    fireEvent.keyDown(input, { key: 'f', altKey: true });
+    fireEvent.keyDown(input, { key: 'f', altKey: true, ctrlKey: true });
+
+    expect(setFiltersMock).toHaveBeenCalledWith({ fuzzy: true });
+    expect(setFiltersMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables strict match toggles while fuzzy mode is enabled', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      filters: {
+        q: 'leadership',
+        year: '',
+        title: '',
+        location: '',
+        page: 1,
+        sort: 'relevance-desc',
+        view: 'card',
+        matchCase: false,
+        wholeWord: false,
+        fuzzy: true,
+      },
+    }));
+    renderSharedSearch();
+
+    const input = screen.getByLabelText('Search sermons');
+    const matchCaseButton = screen.getByRole('button', { name: 'Toggle match case' });
+    const wholeWordButton = screen.getByRole('button', { name: 'Toggle whole word' });
+
+    expect(matchCaseButton).toBeDisabled();
+    expect(wholeWordButton).toBeDisabled();
+
+    fireEvent.keyDown(input, { key: 'c', altKey: true });
+    fireEvent.keyDown(input, { key: 'w', altKey: true });
+    expect(setFiltersMock).not.toHaveBeenCalled();
   });
 
   it('renders filter trigger beside sort and hides badge at zero active filters', () => {
@@ -240,6 +314,7 @@ describe('SharedSearchExperience', () => {
         view: 'card',
         matchCase: false,
         wholeWord: false,
+        fuzzy: false,
       },
     }));
     const { rerender } = renderSharedSearch();
@@ -256,6 +331,7 @@ describe('SharedSearchExperience', () => {
         view: 'card',
         matchCase: false,
         wholeWord: false,
+        fuzzy: false,
       },
     }));
     rerender(
@@ -276,6 +352,7 @@ describe('SharedSearchExperience', () => {
         view: 'card',
         matchCase: false,
         wholeWord: false,
+        fuzzy: false,
       },
     }));
     rerender(
@@ -298,6 +375,7 @@ describe('SharedSearchExperience', () => {
         view: 'card',
         matchCase: false,
         wholeWord: false,
+        fuzzy: false,
       },
     }));
 

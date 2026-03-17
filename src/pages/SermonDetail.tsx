@@ -221,9 +221,12 @@ export default function SermonDetail() {
   const matchSource = searchParams.get('source');
   const paragraphParam = searchParams.get('paragraph');
   const hitId = searchParams.get('hit');
+  const fuzzy = searchParams.get('fuzzy') === '1';
   const matchCase = searchParams.get('matchCase') === '1';
   const wholeWordParam = searchParams.get('wholeWord');
   const wholeWord = wholeWordParam == null ? true : wholeWordParam === '1';
+  const effectiveMatchCase = fuzzy ? false : matchCase;
+  const effectiveWholeWord = fuzzy ? false : wholeWord;
   const searchShortcutKey = 'f';
 
   const {
@@ -244,9 +247,10 @@ export default function SermonDetail() {
     return Number.isFinite(parsedParagraph ?? NaN) ? parsedParagraph : null;
   }, [paragraphParam]);
   const highlightMatchOptions = useMemo<SearchMatchOptions>(() => ({
-    matchCase,
-    wholeWord,
-  }), [matchCase, wholeWord]);
+    matchCase: effectiveMatchCase,
+    wholeWord: effectiveWholeWord,
+    fuzzy,
+  }), [effectiveMatchCase, effectiveWholeWord, fuzzy]);
   const isRouteSearchContext = searchQuery.length > 0;
   const searchReturnTo = useMemo(() => readSearchReturnTo(location.state), [location.state]);
   const breadcrumbRootHref = useMemo(() => {
@@ -274,10 +278,14 @@ export default function SermonDetail() {
     if (searchQuery) {
       params.set('q', searchQuery);
     }
-    if (matchCase) {
-      params.set('matchCase', '1');
+    if (fuzzy) {
+      params.set('fuzzy', '1');
+    } else {
+      if (matchCase) {
+        params.set('matchCase', '1');
+      }
+      params.set('wholeWord', wholeWord ? '1' : '0');
     }
-    params.set('wholeWord', wholeWord ? '1' : '0');
 
     const href = params.toString()
       ? `/sermons/${targetSermon.id}?${params.toString()}`
@@ -293,7 +301,7 @@ export default function SermonDetail() {
     }
 
     navigate(href);
-  }, [matchCase, navigate, searchQuery, searchReturnTo, wholeWord]);
+  }, [fuzzy, matchCase, navigate, searchQuery, searchReturnTo, wholeWord]);
 
   const initialMatchIndex = useMemo(() => {
     if (findModel.totalMatches === 0) {

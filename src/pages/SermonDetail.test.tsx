@@ -8,6 +8,7 @@ const fetchAdjacentSermonsMock = vi.fn();
 const fetchBoundarySermonsMock = vi.fn();
 const useSermonsMock = vi.fn();
 const setFilterMock = vi.fn();
+const setFiltersMock = vi.fn();
 let effectiveHitScrollBehaviorMock: ScrollBehavior = 'smooth';
 
 vi.mock('@/hooks/useSermons', () => ({
@@ -123,6 +124,7 @@ describe('SermonDetail', () => {
     fetchBoundarySermonsMock.mockReset();
     useSermonsMock.mockReset();
     setFilterMock.mockReset();
+    setFiltersMock.mockReset();
     fetchSermonByIdMock.mockResolvedValue(sermonDetailFixture);
     fetchAdjacentSermonsMock.mockResolvedValue({ prev: null, next: null });
     fetchBoundarySermonsMock.mockResolvedValue({
@@ -165,6 +167,7 @@ describe('SermonDetail', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -190,6 +193,25 @@ describe('SermonDetail', () => {
     expect(active).toHaveAttribute('data-search-match-origin', 'paragraph');
     expect(active).toHaveAttribute('data-search-match-paragraph', '4');
     expect(active).toHaveAttribute('data-search-match-local-index', '1');
+  });
+
+  it('activates and scrolls fuzzy paragraph hits from route context without needing exact whole-word matches', async () => {
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+
+    renderDetail('/sermons/sermon-1?q=i%20am%20lookng%20forward&source=paragraph_text&paragraph=4&hit=sermon-1:para:4:chunk:2&fuzzy=1');
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('mark[data-search-match="true"]').length).toBeGreaterThanOrEqual(2);
+      expect(scrollSpy).toHaveBeenCalled();
+    });
+
+    const active = getActiveMatch();
+    expect(active).not.toBeNull();
+    expect(active).toHaveTextContent('forward');
+    expect(active).toHaveAttribute('data-search-match-origin', 'paragraph');
+    expect(active).toHaveAttribute('data-search-match-paragraph', '4');
+    expect(active).toHaveAttribute('data-search-match-local-index', '1');
+    scrollSpy.mockRestore();
   });
 
   it('activates first title match when source is title', async () => {
@@ -427,6 +449,19 @@ describe('SermonDetail', () => {
     expect(screen.getByTestId('breadcrumb-root')).toHaveAttribute(
       'href',
       '/search?q=Only+Believe&matchCase=1&wholeWord=1',
+    );
+  });
+
+  it('includes fuzzy mode in breadcrumb fallback when present in route query', async () => {
+    renderDetail('/sermons/sermon-1?q=Only+Believ&fuzzy=1');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('breadcrumb-root')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('breadcrumb-root')).toHaveAttribute(
+      'href',
+      '/search?q=Only+Believ&fuzzy=1',
     );
   });
 

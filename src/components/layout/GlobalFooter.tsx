@@ -40,7 +40,7 @@ export default function GlobalFooter() {
           </p>
         </div>
 
-        <nav className="grid grid-cols-2 gap-x-8 gap-y-3 md:grid-cols-1 md:gap-y-2">
+        <nav className="grid grid-cols-2 gap-x-8 gap-y-3 md:grid-cols-4 md:gap-y-2">
           <NavLink to="/about" className={footerLinkClassName}>
             about
           </NavLink>

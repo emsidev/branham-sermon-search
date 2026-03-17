@@ -188,6 +188,7 @@ describe('useSermons', () => {
       p_sort: 'relevance-desc',
       p_match_case: false,
       p_match_whole_word: true,
+      p_enable_fuzzy: false,
     });
   });
 
@@ -216,6 +217,35 @@ describe('useSermons', () => {
       p_sort: 'relevance-desc',
       p_match_case: true,
       p_match_whole_word: true,
+      p_enable_fuzzy: false,
+    });
+  });
+
+  it('parses fuzzy mode and forces strict flags off in search RPC payload', async () => {
+    currentParams = new URLSearchParams('q=Only+Believ&fuzzy=1&matchCase=1&wholeWord=1');
+    rpcMock.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.filters.fuzzy).toBe(true);
+    expect(rpcMock).toHaveBeenCalledWith('search_sermon_chunks', {
+      p_query: 'Only Believ',
+      p_year: null,
+      p_title: null,
+      p_location: null,
+      p_limit: 25,
+      p_offset: 0,
+      p_sort: 'relevance-desc',
+      p_match_case: false,
+      p_match_whole_word: false,
+      p_enable_fuzzy: true,
     });
   });
 
@@ -239,6 +269,47 @@ describe('useSermons', () => {
     result.current.setFilter('location', 'Phoenix, AZ');
     nextParams = getLatestSearchParamsUpdater()(new URLSearchParams('q=faith&page=5'));
     expect(nextParams.get('location')).toBe('Phoenix, AZ');
+    expect(nextParams.get('page')).toBeNull();
+
+    result.current.setFilter('fuzzy', true);
+    nextParams = getLatestSearchParamsUpdater()(new URLSearchParams('q=faith&page=6'));
+    expect(nextParams.get('fuzzy')).toBe('1');
+    expect(nextParams.get('page')).toBeNull();
+  });
+
+  it('applies atomic fuzzy-on patch that clears strict params in one URL update', async () => {
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    result.current.setFilters({ fuzzy: true });
+    const nextParams = getLatestSearchParamsUpdater()(
+      new URLSearchParams('q=faith&matchCase=1&wholeWord=1&page=4')
+    );
+
+    expect(nextParams.get('fuzzy')).toBe('1');
+    expect(nextParams.get('matchCase')).toBeNull();
+    expect(nextParams.get('wholeWord')).toBe('0');
+    expect(nextParams.get('page')).toBeNull();
+  });
+
+  it('restores whole-word default when fuzzy is turned off with no strict mode active', async () => {
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    result.current.setFilters({ fuzzy: false });
+    const nextParams = getLatestSearchParamsUpdater()(
+      new URLSearchParams('q=faith&fuzzy=1&wholeWord=0&page=2')
+    );
+
+    expect(nextParams.get('fuzzy')).toBeNull();
+    expect(nextParams.get('matchCase')).toBeNull();
+    expect(nextParams.get('wholeWord')).toBe('1');
     expect(nextParams.get('page')).toBeNull();
   });
 
@@ -265,6 +336,7 @@ describe('useSermons', () => {
       p_sort: 'relevance-desc',
       p_match_case: false,
       p_match_whole_word: true,
+      p_enable_fuzzy: false,
     });
   });
 
@@ -312,7 +384,7 @@ describe('useSermons', () => {
 
     result.current.clearFilters();
     const nextParams = getLatestSearchParamsUpdater()(
-      new URLSearchParams('q=faith&year=1963&title=God+Hiding+Himself&location=Phoenix%2C+AZ&page=3&sort=date-desc&view=table&matchCase=1&wholeWord=0')
+      new URLSearchParams('q=faith&year=1963&title=God+Hiding+Himself&location=Phoenix%2C+AZ&page=3&sort=date-desc&view=table&matchCase=1&wholeWord=0&fuzzy=1')
     );
 
     expect(nextParams.get('q')).toBe('faith');
@@ -320,6 +392,7 @@ describe('useSermons', () => {
     expect(nextParams.get('view')).toBe('table');
     expect(nextParams.get('matchCase')).toBe('1');
     expect(nextParams.get('wholeWord')).toBe('0');
+    expect(nextParams.get('fuzzy')).toBe('1');
 
     expect(nextParams.get('year')).toBeNull();
     expect(nextParams.get('title')).toBeNull();

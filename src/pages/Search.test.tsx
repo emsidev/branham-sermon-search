@@ -8,6 +8,7 @@ import type { HomeSearchTransitionState } from '@/lib/searchNavigation';
 const useSermonsMock = vi.fn();
 const useKeyboardNavMock = vi.fn();
 const setFilterMock = vi.fn();
+const setFiltersMock = vi.fn();
 let instantSearchEnabledMock = true;
 const setInstantSearchEnabledMock = vi.fn();
 
@@ -156,6 +157,7 @@ describe('SearchPage', () => {
     instantSearchEnabledMock = true;
     setInstantSearchEnabledMock.mockReset();
     setFilterMock.mockReset();
+    setFiltersMock.mockReset();
     useKeyboardNavMock.mockReset();
     useSermonsMock.mockReset();
     useSermonsMock.mockReturnValue({
@@ -174,6 +176,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
   });
@@ -218,6 +221,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -244,6 +248,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -279,6 +284,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -319,6 +325,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -345,6 +352,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -387,6 +395,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -439,6 +448,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -466,6 +476,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -501,6 +512,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -535,6 +547,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -569,6 +582,7 @@ describe('SearchPage', () => {
         wholeWord: false,
       },
       setFilter: setFilterMock,
+      setFilters: setFiltersMock,
       pageSize: 25,
     });
 
@@ -669,14 +683,14 @@ describe('SearchPage', () => {
 
   it('toggles match options from search input shortcuts and controls', () => {
     renderSearchPage();
-    setFilterMock.mockClear();
+    setFiltersMock.mockClear();
 
     const input = screen.getByLabelText('Search sermons');
     fireEvent.keyDown(input, { key: 'c', altKey: true });
     fireEvent.click(screen.getByRole('button', { name: 'Toggle whole word' }));
 
-    expect(setFilterMock).toHaveBeenCalledWith('matchCase', true);
-    expect(setFilterMock).toHaveBeenCalledWith('wholeWord', true);
+    expect(setFiltersMock).toHaveBeenCalledWith({ matchCase: true });
+    expect(setFiltersMock).toHaveBeenCalledWith({ wholeWord: true });
   });
 });
 

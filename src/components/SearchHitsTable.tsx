@@ -93,6 +93,7 @@ export default function SearchHitsTable({
                   hitId: hit.hit_id,
                   matchCase: matchOptions?.matchCase,
                   wholeWord: matchOptions?.wholeWord,
+                  fuzzy: matchOptions?.fuzzy,
                 });
 
                 return (

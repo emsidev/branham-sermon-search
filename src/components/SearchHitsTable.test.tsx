@@ -108,6 +108,36 @@ describe('SearchHitsTable', () => {
     expect(titleLink).toHaveAttribute('href', expect.stringContaining('wholeWord=1'));
   });
 
+  it('includes fuzzy mode in hit links and omits strict flags', () => {
+    const hits: SearchHit[] = [
+      {
+        hit_id: 'sermon-fuzzy:para:2:chunk:1',
+        sermon_id: 'sermon-fuzzy',
+        sermon_code: '54-0815',
+        title: 'Questions And Answers',
+        summary: null,
+        date: '1954-08-15',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 2,
+        printed_paragraph_number: 2,
+        chunk_index: 1,
+        chunk_total: 1,
+        match_source: 'paragraph_text',
+        snippet: 'Only Believ',
+        relevance: 2.4,
+        is_exact_match: false,
+        tags: [],
+        total_count: 1,
+      },
+    ];
+
+    renderTable(hits, 'Only Believ', undefined, { fuzzy: true, matchCase: true, wholeWord: true });
+
+    const titleLink = screen.getByRole('link', { name: 'Questions And Answers' });
+    expect(titleLink).toHaveAttribute('href', expect.stringContaining('fuzzy=1'));
+    expect(titleLink.getAttribute('href')).not.toContain('matchCase=1');
+  });
+
   it('highlights fallback-style incomplete term like "unle"', () => {
     const hits: SearchHit[] = [
       {

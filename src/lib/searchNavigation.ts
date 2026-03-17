@@ -20,6 +20,7 @@ export interface SearchReturnState {
 export interface SearchUrlOptions {
   matchCase?: boolean;
   wholeWord?: boolean;
+  fuzzy?: boolean;
 }
 
 const SEARCH_RETURN_PATH_RE = /^\/search(?:[?#].*)?$/;
@@ -99,8 +100,9 @@ export function buildSearchHrefFromQuery(query: string, options?: SearchUrlOptio
   const trimmedQuery = query.trim();
   const matchCase = options?.matchCase;
   const wholeWord = options?.wholeWord;
+  const fuzzy = options?.fuzzy;
 
-  if (!trimmedQuery && matchCase === undefined && wholeWord === undefined) {
+  if (!trimmedQuery && matchCase === undefined && wholeWord === undefined && fuzzy !== true) {
     return '/search';
   }
 
@@ -108,13 +110,17 @@ export function buildSearchHrefFromQuery(query: string, options?: SearchUrlOptio
   if (trimmedQuery) {
     params.set('q', trimmedQuery);
   }
-  if (matchCase === true) {
-    params.set('matchCase', '1');
-  }
-  if (wholeWord === true) {
-    params.set('wholeWord', '1');
-  } else if (wholeWord === false) {
-    params.set('wholeWord', '0');
+  if (fuzzy === true) {
+    params.set('fuzzy', '1');
+  } else {
+    if (matchCase === true) {
+      params.set('matchCase', '1');
+    }
+    if (wholeWord === true) {
+      params.set('wholeWord', '1');
+    } else if (wholeWord === false) {
+      params.set('wholeWord', '0');
+    }
   }
 
   return `/search?${params.toString()}`;

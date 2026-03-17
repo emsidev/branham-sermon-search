@@ -6,6 +6,7 @@ export interface SermonHitLinkInput {
   hitId?: string;
   matchCase?: boolean;
   wholeWord?: boolean;
+  fuzzy?: boolean;
 }
 
 export interface HighlightSegment {
@@ -16,6 +17,7 @@ export interface HighlightSegment {
 export interface SearchMatchOptions {
   matchCase?: boolean;
   wholeWord?: boolean;
+  fuzzy?: boolean;
 }
 
 const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
@@ -38,6 +40,7 @@ function resolveSearchMatchOptions(options?: SearchMatchOptions): Required<Searc
   return {
     matchCase: options?.matchCase ?? false,
     wholeWord: options?.wholeWord ?? false,
+    fuzzy: options?.fuzzy ?? false,
   };
 }
 
@@ -160,6 +163,7 @@ export function buildSermonHitHref({
   hitId,
   matchCase,
   wholeWord,
+  fuzzy,
 }: SermonHitLinkInput): string {
   const params = new URLSearchParams();
   const trimmedQuery = query?.trim() ?? '';
@@ -176,13 +180,17 @@ export function buildSermonHitHref({
   if (hitId) {
     params.set('hit', hitId);
   }
-  if (matchCase) {
-    params.set('matchCase', '1');
-  }
-  if (wholeWord === true) {
-    params.set('wholeWord', '1');
-  } else if (wholeWord === false) {
-    params.set('wholeWord', '0');
+  if (fuzzy) {
+    params.set('fuzzy', '1');
+  } else {
+    if (matchCase) {
+      params.set('matchCase', '1');
+    }
+    if (wholeWord === true) {
+      params.set('wholeWord', '1');
+    } else if (wholeWord === false) {
+      params.set('wholeWord', '0');
+    }
   }
 
   const queryString = params.toString();

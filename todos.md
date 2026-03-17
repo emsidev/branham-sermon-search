@@ -32,7 +32,7 @@
 | DONE-LOCKED | S03 | Only active hit highlighted; all others dimmed | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | DONE-LOCKED | S04 | Search pop-up with result count ("3 of 47") via toolbar button or custom shortcut | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | S05 | Search filters by year, sermon title, location | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s05_*.sql | integration-owner |
-| TODO | S06 | Fuzzy search (typo-tolerant) | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s06_*.sql | integration-owner |
+| DONE | S06 | Fuzzy search (typo-tolerant) | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s06_*.sql | integration-owner |
 | TODO | S07 | Search history saved locally | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | S08 | Jump to hit number | frontend-developer(search) | src/{components,hooks,lib}/** (feature-scoped) | integration-owner |
 | TODO | S09 | Search filters extended by scripture reference | backend-architect | src/{components,hooks,lib}/** (feature-scoped); supabase/migrations/*_s09_*.sql | integration-owner |
@@ -304,7 +304,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes
 
 ### S06 - Fuzzy search (typo-tolerant)
-Status: TODO
+Status: DONE
 Primary agent: backend-architect
 Goal: Deliver and verify the S06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:

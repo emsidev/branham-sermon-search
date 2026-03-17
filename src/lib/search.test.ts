@@ -39,6 +39,20 @@ describe('search utilities', () => {
     expect(href).toContain('wholeWord=1');
   });
 
+  it('serializes explicit fuzzy mode in canonical hit URLs', () => {
+    const href = buildSermonHitHref({
+      sermonId: 'sermon-123',
+      query: 'only believ',
+      fuzzy: true,
+      matchCase: true,
+      wholeWord: true,
+    });
+
+    expect(href).toContain('fuzzy=1');
+    expect(href).not.toContain('matchCase=1');
+    expect(href).not.toContain('wholeWord=');
+  });
+
   it('uses phrase-first highlighting terms for multi-word queries', () => {
     const terms = extractQueryTerms('i am looking forward');
     const segments = splitTextByTerms('I am looking forward to this week.', terms);

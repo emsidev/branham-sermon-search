@@ -85,6 +85,7 @@ describe('Index', () => {
 
     expect(screen.getByText('the table search')).toBeInTheDocument();
     expect(screen.getByText('a fast, modern browser for the table')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Toggle fuzzy search' })).toBeInTheDocument();
     expect(screen.getByText('1958')).toBeInTheDocument();
     expect(screen.getByText('1972')).toBeInTheDocument();
   });
@@ -97,7 +98,7 @@ describe('Index', () => {
     fireEvent.change(searchInput, {
       target: { value: '  only believe  ' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^search$/i }));
 
     expect(navigateMock).toHaveBeenCalledWith(
       '/search?q=only+believe&sort=relevance-desc&view=card&wholeWord=1',
@@ -115,7 +116,7 @@ describe('Index', () => {
   it('does not navigate when query is empty', () => {
     renderIndex();
 
-    fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^search$/i }));
 
     expect(navigateMock).not.toHaveBeenCalled();
   });
@@ -189,6 +190,45 @@ describe('Index', () => {
       '/search?q=amen&sort=relevance-desc&view=card&matchCase=1&wholeWord=0',
       expect.any(Object),
     );
+  });
+
+  it('applies fuzzy toggle to search navigation URL with one click', () => {
+    instantSearchEnabledMock = true;
+    renderIndex();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, {
+      target: { value: 'amen' },
+    });
+    navigateMock.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle fuzzy search' }));
+
+    expect(navigateMock).toHaveBeenCalledTimes(1);
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=amen&sort=relevance-desc&view=card&fuzzy=1',
+      expect.any(Object),
+    );
+  });
+
+  it('supports Alt+F fuzzy shortcut and disables Aa/W while fuzzy is active', () => {
+    instantSearchEnabledMock = true;
+    renderIndex();
+
+    const input = screen.getByLabelText('Search sermons');
+    fireEvent.change(input, { target: { value: 'amen' } });
+    navigateMock.mockClear();
+
+    fireEvent.keyDown(input, { key: 'f', altKey: true });
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/search?q=amen&sort=relevance-desc&view=card&fuzzy=1',
+      expect.any(Object),
+    );
+
+    const matchCaseButton = screen.getByRole('button', { name: 'Toggle match case' });
+    const wholeWordButton = screen.getByRole('button', { name: 'Toggle whole word' });
+    expect(matchCaseButton).toBeDisabled();
+    expect(wholeWordButton).toBeDisabled();
   });
 });
 

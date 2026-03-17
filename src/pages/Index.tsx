@@ -14,6 +14,7 @@ export default function Index() {
   const [query, setQuery] = useState('');
   const [matchCase, setMatchCase] = useState(false);
   const [wholeWord, setWholeWord] = useState(true);
+  const [fuzzy, setFuzzy] = useState(false);
   const [instantSearchEnabled, setInstantSearchEnabledState] = useState(() => getInstantSearchEnabled());
   const searchRef = useRef<HTMLInputElement>(null);
   const isComposingRef = useRef(false);
@@ -36,7 +37,7 @@ export default function Index() {
   const navigateToSearch = useCallback((
     rawQuery: string,
     caret?: number,
-    modeOptions?: { matchCase?: boolean; wholeWord?: boolean },
+    modeOptions?: { matchCase?: boolean; wholeWord?: boolean; fuzzy?: boolean },
   ): boolean => {
     const trimmedQuery = rawQuery.trim();
     if (!trimmedQuery) {
@@ -45,15 +46,20 @@ export default function Index() {
 
     const effectiveMatchCase = modeOptions?.matchCase ?? matchCase;
     const effectiveWholeWord = modeOptions?.wholeWord ?? wholeWord;
+    const effectiveFuzzy = modeOptions?.fuzzy ?? fuzzy;
     const params = new URLSearchParams({
       q: trimmedQuery,
       sort: 'relevance-desc',
       view: 'card',
     });
-    if (effectiveMatchCase) {
-      params.set('matchCase', '1');
+    if (effectiveFuzzy) {
+      params.set('fuzzy', '1');
+    } else {
+      if (effectiveMatchCase) {
+        params.set('matchCase', '1');
+      }
+      params.set('wholeWord', effectiveWholeWord ? '1' : '0');
     }
-    params.set('wholeWord', effectiveWholeWord ? '1' : '0');
 
     runWithViewTransition(() => {
       navigate(`/search?${params.toString()}`, {
@@ -61,7 +67,7 @@ export default function Index() {
       });
     });
     return true;
-  }, [buildHomeTransitionState, matchCase, navigate, wholeWord]);
+  }, [buildHomeTransitionState, fuzzy, matchCase, navigate, wholeWord]);
 
   const handleSearchSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -110,6 +116,9 @@ export default function Index() {
   }, []);
 
   const toggleMatchCase = useCallback(() => {
+    if (fuzzy) {
+      return;
+    }
     const nextMatchCase = !matchCase;
     setMatchCase(nextMatchCase);
     if (!instantSearchEnabled) {
@@ -120,10 +129,14 @@ export default function Index() {
     navigateToSearch(query, caret, {
       matchCase: nextMatchCase,
       wholeWord,
+      fuzzy,
     });
-  }, [instantSearchEnabled, matchCase, navigateToSearch, query, wholeWord]);
+  }, [fuzzy, instantSearchEnabled, matchCase, navigateToSearch, query, wholeWord]);
 
   const toggleWholeWord = useCallback(() => {
+    if (fuzzy) {
+      return;
+    }
     const nextWholeWord = !wholeWord;
     setWholeWord(nextWholeWord);
     if (!instantSearchEnabled) {
@@ -134,8 +147,37 @@ export default function Index() {
     navigateToSearch(query, caret, {
       matchCase,
       wholeWord: nextWholeWord,
+      fuzzy,
     });
-  }, [instantSearchEnabled, matchCase, navigateToSearch, query, wholeWord]);
+  }, [fuzzy, instantSearchEnabled, matchCase, navigateToSearch, query, wholeWord]);
+
+  const toggleFuzzy = useCallback(() => {
+    const nextFuzzy = !fuzzy;
+    let nextMatchCase = matchCase;
+    let nextWholeWord = wholeWord;
+
+    if (nextFuzzy) {
+      nextMatchCase = false;
+      nextWholeWord = false;
+    } else if (!nextMatchCase && !nextWholeWord) {
+      nextWholeWord = true;
+    }
+
+    setFuzzy(nextFuzzy);
+    setMatchCase(nextMatchCase);
+    setWholeWord(nextWholeWord);
+
+    if (!instantSearchEnabled) {
+      return;
+    }
+
+    const caret = searchRef.current?.selectionStart ?? query.length;
+    navigateToSearch(query, caret, {
+      matchCase: nextMatchCase,
+      wholeWord: nextWholeWord,
+      fuzzy: nextFuzzy,
+    });
+  }, [fuzzy, instantSearchEnabled, matchCase, navigateToSearch, query, wholeWord]);
 
   const handleSearchInputKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!event.altKey || event.ctrlKey || event.metaKey) {
@@ -144,16 +186,28 @@ export default function Index() {
 
     const loweredKey = event.key.toLowerCase();
     if (loweredKey === 'c') {
+      if (fuzzy) {
+        return;
+      }
       event.preventDefault();
       toggleMatchCase();
       return;
     }
 
     if (loweredKey === 'w') {
+      if (fuzzy) {
+        return;
+      }
       event.preventDefault();
       toggleWholeWord();
+      return;
     }
-  }, [toggleMatchCase, toggleWholeWord]);
+
+    if (loweredKey === 'f') {
+      event.preventDefault();
+      toggleFuzzy();
+    }
+  }, [fuzzy, toggleFuzzy, toggleMatchCase, toggleWholeWord]);
 
   return (
     <main className="mx-auto w-full max-w-[860px] px-6 pb-12 pt-20">
@@ -187,28 +241,43 @@ export default function Index() {
               <button
                 type="button"
                 onClick={toggleMatchCase}
+                disabled={fuzzy}
                 className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
                   matchCase
                     ? 'border-foreground bg-foreground text-background'
                     : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                }`}
+                } ${fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
                 aria-label="Toggle match case"
-                title="Match case (Alt+C)"
+                title={fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Match case (Alt+C)'}
               >
                 Aa
               </button>
               <button
                 type="button"
                 onClick={toggleWholeWord}
+                disabled={fuzzy}
                 className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
                   wholeWord
                     ? 'border-foreground bg-foreground text-background'
                     : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                }`}
+                } ${fuzzy ? 'cursor-not-allowed opacity-40' : ''}`}
                 aria-label="Toggle whole word"
-                title="Whole word (Alt+W)"
+                title={fuzzy ? 'Disabled while fuzzy mode is enabled' : 'Whole word (Alt+W)'}
               >
                 W
+              </button>
+              <button
+                type="button"
+                onClick={toggleFuzzy}
+                className={`rounded border px-2 py-1 text-[11px] font-mono transition-colors ${
+                  fuzzy
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                }`}
+                aria-label="Toggle fuzzy search"
+                title="Fuzzy search (Alt+F)"
+              >
+                Fz
               </button>
             </div>
             <button
