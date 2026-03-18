@@ -33,17 +33,25 @@ import {
 import { shouldTriggerReadingModeShortcut } from '@/lib/readingModeShortcuts';
 import { buildReadingModeSearch, isReadingModeEnabledFromSearchParams } from '@/lib/readingModeUrlState';
 import { getEffectiveHitScrollBehavior } from '@/lib/preferences';
+import { formatShortcutKey } from '@/lib/keyboardShortcuts';
 import {
   buildReaderWordRegionMap,
-  createReaderWordSelectionRange,
-  extendReaderWordSelection,
+  buildReaderSelectionUnitMap,
+  createReaderWordSelectionRangeFromUnitMap,
+  extendReaderWordSelectionByUnit,
   getReaderWordSelectionBounds,
   isReaderWordSelected,
   resolveReaderWordNavigationCommand,
-  shrinkReaderWordSelection,
+  shrinkReaderWordSelectionByUnit,
   tokenizeReaderText,
+  type ReaderHighlightMode,
+  type ReaderWordRegion,
   type ReaderWordSelectionRange,
 } from '@/lib/readerWordNavigation';
+import {
+  buildReaderHighlightModeSearch,
+  getReaderHighlightModeFromSearchParams,
+} from '@/lib/readerHighlightModeUrlState';
 
 interface AdjacentSermon {
   id: string;
@@ -82,6 +90,36 @@ const CONTENT_REGION_KEY = 'content';
 const SNIPPET_BEFORE_CHARS = 44;
 const SNIPPET_AFTER_CHARS = 70;
 const SELECTED_READER_SEGMENT_CLASS = 'bg-emerald-200/60 text-foreground';
+const READER_HIGHLIGHT_MODE_HUD_TIMEOUT_MS = 1500;
+const READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX = 12;
+const READER_HIGHLIGHT_MODE_HUD_ANCHOR_GAP_PX = 10;
+const READER_HIGHLIGHT_MODE_HUD_DEFAULT_TOP_OFFSET_PX = 16;
+const READER_HIGHLIGHT_MODE_HUD_FALLBACK_WIDTH_PX = 176;
+const READER_HIGHLIGHT_MODE_HUD_FALLBACK_HEIGHT_PX = 44;
+const READER_HIGHLIGHT_MODE_OPTIONS: Array<{ mode: ReaderHighlightMode; label: string; shortLabel: string }> = [
+  { mode: 'word', label: 'Word', shortLabel: 'W' },
+  { mode: 'sentence', label: 'Sentence', shortLabel: 'S' },
+  { mode: 'paragraph', label: 'Paragraph', shortLabel: 'P' },
+];
+
+interface ReaderHighlightModeHudPosition {
+  top: number;
+  left: number;
+  side: 'left' | 'inside-left';
+  anchorWordIndex: number | null;
+}
+
+function getNextReaderHighlightMode(mode: ReaderHighlightMode): ReaderHighlightMode {
+  if (mode === 'word') {
+    return 'sentence';
+  }
+
+  if (mode === 'sentence') {
+    return 'paragraph';
+  }
+
+  return 'word';
+}
 
 function getParagraphRegionKey(paragraphNumber: number): string {
   return `paragraph-${paragraphNumber}`;
@@ -376,8 +414,12 @@ export default function SermonDetail() {
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
   const [selectedWordRange, setSelectedWordRange] = useState<ReaderWordSelectionRange | null>(null);
+  const [isReaderHighlightModeHudVisible, setIsReaderHighlightModeHudVisible] = useState(false);
+  const [readerHighlightModeHudPosition, setReaderHighlightModeHudPosition] = useState<ReaderHighlightModeHudPosition | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const readerHighlightModeHudRef = useRef<HTMLDivElement | null>(null);
   const selectedWordRangeRef = useRef<ReaderWordSelectionRange | null>(null);
+  const readerHighlightModeHudTimeoutRef = useRef<number | null>(null);
   const { play, url: activeAudioUrl } = useAudioPlayer();
   const { bindings } = useKeyboardShortcuts();
 
@@ -391,6 +433,10 @@ export default function SermonDetail() {
   const wholeWord = wholeWordParam == null ? true : wholeWordParam === '1';
   const isReadingModeEnabled = useMemo(
     () => isReadingModeEnabledFromSearchParams(searchParams),
+    [searchParams],
+  );
+  const readerHighlightMode = useMemo(
+    () => getReaderHighlightModeFromSearchParams(searchParams),
     [searchParams],
   );
   const effectiveMatchCase = fuzzy ? false : matchCase;
@@ -436,30 +482,30 @@ export default function SermonDetail() {
     () => buildSermonFindModel(sermon, highlightTerms, highlightMatchOptions),
     [highlightMatchOptions, highlightTerms, sermon],
   );
-  const bodyWordRegionMap = useMemo(() => {
+  const bodyWordRegions = useMemo<ReaderWordRegion[]>(() => {
     if (!sermon) {
-      return {
-        totalWords: 0,
-        offsetsByRegion: {},
-      };
+      return [];
     }
 
     if (sermon.paragraphs.length > 0) {
-      return buildReaderWordRegionMap(
-        sermon.paragraphs.map((paragraph) => ({
-          key: getParagraphRegionKey(paragraph.paragraph_number),
-          text: paragraph.paragraph_text,
-        })),
-      );
+      return sermon.paragraphs.map((paragraph) => ({
+        key: getParagraphRegionKey(paragraph.paragraph_number),
+        text: paragraph.paragraph_text,
+      }));
     }
 
-    return buildReaderWordRegionMap([
-      {
-        key: CONTENT_REGION_KEY,
-        text: sermon.text_content,
-      },
-    ]);
+    return [{
+      key: CONTENT_REGION_KEY,
+      text: sermon.text_content,
+    }];
   }, [sermon]);
+  const bodyWordRegionMap = useMemo(() => {
+    return buildReaderWordRegionMap(bodyWordRegions);
+  }, [bodyWordRegions]);
+  const readerSelectionUnitMap = useMemo(
+    () => buildReaderSelectionUnitMap(bodyWordRegions, readerHighlightMode),
+    [bodyWordRegions, readerHighlightMode],
+  );
 
   const sermonHitNavigationContext = useMemo(() => ({
     searchQuery,
@@ -511,6 +557,98 @@ export default function SermonDetail() {
     );
   }, [location.hash, location.pathname, location.search, location.state, navigate]);
 
+  const setReaderHighlightMode = useCallback((mode: ReaderHighlightMode) => {
+    if (mode === readerHighlightMode) {
+      return;
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: buildReaderHighlightModeSearch(location.search, mode),
+        hash: location.hash,
+      },
+      {
+        state: location.state,
+      },
+    );
+  }, [location.hash, location.pathname, location.search, location.state, navigate, readerHighlightMode]);
+
+  const updateReaderHighlightModeHudPosition = useCallback(
+    (range: ReaderWordSelectionRange | null = selectedWordRangeRef.current) => {
+      const bounds = getReaderWordSelectionBounds(range);
+      const anchorElement = bounds
+        ? document.querySelector<HTMLElement>(
+          `[data-reader-word="true"][data-reader-word-index="${bounds.endIndex}"]`,
+        )
+        : null;
+      const anchorRect = anchorElement?.getBoundingClientRect() ?? null;
+      const contentRect = contentRef.current?.getBoundingClientRect() ?? null;
+      const hudWidth = readerHighlightModeHudRef.current?.offsetWidth ?? READER_HIGHLIGHT_MODE_HUD_FALLBACK_WIDTH_PX;
+      const hudHeight = readerHighlightModeHudRef.current?.offsetHeight ?? READER_HIGHLIGHT_MODE_HUD_FALLBACK_HEIGHT_PX;
+      const maxLeft = window.innerWidth - hudWidth - READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX;
+      let side: ReaderHighlightModeHudPosition['side'] = 'left';
+      let left = READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX;
+
+      if (contentRect) {
+        const gutterLeftCandidate = contentRect.left - hudWidth - READER_HIGHLIGHT_MODE_HUD_ANCHOR_GAP_PX;
+        if (gutterLeftCandidate >= READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX) {
+          left = gutterLeftCandidate;
+        } else {
+          side = 'inside-left';
+          left = contentRect.left + READER_HIGHLIGHT_MODE_HUD_ANCHOR_GAP_PX;
+        }
+      }
+
+      left = Math.max(READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX, Math.min(left, maxLeft));
+      const centerY = anchorRect
+        ? anchorRect.top + (anchorRect.height / 2)
+        : (contentRect ? contentRect.top + READER_HIGHLIGHT_MODE_HUD_DEFAULT_TOP_OFFSET_PX : READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX);
+      const maxTop = window.innerHeight - hudHeight - READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX;
+      const top = Math.max(
+        READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX,
+        Math.min(centerY - (hudHeight / 2), maxTop),
+      );
+
+      setReaderHighlightModeHudPosition({
+        top,
+        left,
+        side,
+        anchorWordIndex: bounds?.endIndex ?? null,
+      });
+    },
+    [],
+  );
+  const showReaderHighlightModeHud = useCallback(() => {
+    updateReaderHighlightModeHudPosition();
+    setIsReaderHighlightModeHudVisible(true);
+
+    if (readerHighlightModeHudTimeoutRef.current != null) {
+      window.clearTimeout(readerHighlightModeHudTimeoutRef.current);
+    }
+
+    readerHighlightModeHudTimeoutRef.current = window.setTimeout(() => {
+      setIsReaderHighlightModeHudVisible(false);
+      readerHighlightModeHudTimeoutRef.current = null;
+    }, READER_HIGHLIGHT_MODE_HUD_TIMEOUT_MS);
+  }, [updateReaderHighlightModeHudPosition]);
+
+  const handleReaderHighlightModeSelect = useCallback((mode: ReaderHighlightMode) => {
+    if (mode !== readerHighlightMode) {
+      setReaderHighlightMode(mode);
+    }
+    showReaderHighlightModeHud();
+  }, [readerHighlightMode, setReaderHighlightMode, showReaderHighlightModeHud]);
+
+  const cycleReaderHighlightMode = useCallback(() => {
+    const nextMode = getNextReaderHighlightMode(readerHighlightMode);
+    setReaderHighlightMode(nextMode);
+    showReaderHighlightModeHud();
+  }, [readerHighlightMode, setReaderHighlightMode, showReaderHighlightModeHud]);
+  const readerHighlightModeLabel = useMemo(() => (
+    READER_HIGHLIGHT_MODE_OPTIONS.find((option) => option.mode === readerHighlightMode)?.label ?? 'Word'
+  ), [readerHighlightMode]);
+
   const toggleReadingMode = useCallback(() => {
     setReadingModeEnabled(!isReadingModeEnabled);
   }, [isReadingModeEnabled, setReadingModeEnabled]);
@@ -550,17 +688,37 @@ export default function SermonDetail() {
   useEffect(() => {
     setSelectedWordRange(null);
     selectedWordRangeRef.current = null;
-  }, [bodyWordRegionMap.totalWords, id]);
+    setReaderHighlightModeHudPosition(null);
+  }, [bodyWordRegionMap.totalWords, id, readerHighlightMode]);
 
   useEffect(() => {
     selectedWordRangeRef.current = selectedWordRange;
   }, [selectedWordRange]);
 
+  useEffect(() => {
+    if (!isReaderHighlightModeHudVisible) {
+      return;
+    }
+
+    const refreshPosition = () => {
+      updateReaderHighlightModeHudPosition();
+    };
+
+    refreshPosition();
+    window.addEventListener('resize', refreshPosition);
+    window.addEventListener('scroll', refreshPosition, true);
+    return () => {
+      window.removeEventListener('resize', refreshPosition);
+      window.removeEventListener('scroll', refreshPosition, true);
+    };
+  }, [isReaderHighlightModeHudVisible, selectedWordRange, updateReaderHighlightModeHudPosition]);
+
   const handleReaderWordSelect = useCallback((wordIndex: number) => {
-    const nextRange = createReaderWordSelectionRange(wordIndex, bodyWordRegionMap.totalWords);
+    const nextRange = createReaderWordSelectionRangeFromUnitMap(wordIndex, readerSelectionUnitMap);
     selectedWordRangeRef.current = nextRange;
     setSelectedWordRange(nextRange);
-  }, [bodyWordRegionMap.totalWords]);
+    showReaderHighlightModeHud();
+  }, [readerSelectionUnitMap, showReaderHighlightModeHud]);
 
   const {
     activeIndex: activeMatchIndex,
@@ -629,16 +787,19 @@ export default function SermonDetail() {
     }
 
     const handleReaderWordNavigationKeyDown = (event: KeyboardEvent) => {
-      const command = resolveReaderWordNavigationCommand(event);
+      const command = resolveReaderWordNavigationCommand(event, {
+        extendShortcutKey: bindings.reader_extend_selection,
+        shrinkShortcutKey: bindings.reader_shrink_selection,
+      });
       if (!command) {
         return;
       }
 
+      showReaderHighlightModeHud();
       const currentRange = selectedWordRangeRef.current;
       const nextRange = command === 'extend'
-        ? extendReaderWordSelection(currentRange, bodyWordRegionMap.totalWords)
-        : shrinkReaderWordSelection(currentRange, bodyWordRegionMap.totalWords);
-
+        ? extendReaderWordSelectionByUnit(currentRange, readerSelectionUnitMap)
+        : shrinkReaderWordSelectionByUnit(currentRange, readerSelectionUnitMap);
       if (nextRange === currentRange) {
         if (currentRange) {
           event.preventDefault();
@@ -653,7 +814,30 @@ export default function SermonDetail() {
 
     window.addEventListener('keydown', handleReaderWordNavigationKeyDown);
     return () => window.removeEventListener('keydown', handleReaderWordNavigationKeyDown);
-  }, [bodyWordRegionMap.totalWords]);
+  }, [bindings.reader_extend_selection, bindings.reader_shrink_selection, bodyWordRegionMap.totalWords, readerSelectionUnitMap, showReaderHighlightModeHud]);
+
+  useEffect(() => {
+    const handleCycleHighlightModeShortcutKeyDown = (event: KeyboardEvent) => {
+      if (!shouldTriggerReadingModeShortcut(event, bindings.cycle_highlight_mode)) {
+        return;
+      }
+
+      event.preventDefault();
+      cycleReaderHighlightMode();
+    };
+
+    window.addEventListener('keydown', handleCycleHighlightModeShortcutKeyDown);
+    return () => window.removeEventListener('keydown', handleCycleHighlightModeShortcutKeyDown);
+  }, [bindings.cycle_highlight_mode, cycleReaderHighlightMode]);
+
+  useEffect(() => {
+    return () => {
+      if (readerHighlightModeHudTimeoutRef.current != null) {
+        window.clearTimeout(readerHighlightModeHudTimeoutRef.current);
+        readerHighlightModeHudTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const handleReadingModeShortcutKeyDown = (event: KeyboardEvent) => {
@@ -744,6 +928,28 @@ export default function SermonDetail() {
           onHitNavigate={closeSearchPopup}
         />
       </SearchPopup>
+      <div
+        aria-live="polite"
+        className={`pointer-events-none fixed z-50 rounded-lg border border-border bg-background/95 px-3 py-2 font-mono text-xs shadow-md transition-opacity duration-200 ${
+          isReaderHighlightModeHudVisible ? 'opacity-100' : 'opacity-0'
+        }`}
+        data-anchor-word-index={readerHighlightModeHudPosition?.anchorWordIndex}
+        data-placement={readerHighlightModeHudPosition?.side ?? 'left'}
+        ref={readerHighlightModeHudRef}
+        style={{
+          left: `${readerHighlightModeHudPosition?.left ?? READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX}px`,
+          top: `${readerHighlightModeHudPosition?.top ?? 96}px`,
+        }}
+        data-testid="reader-highlight-mode-hud"
+      >
+        <p className="text-foreground">Highlight: {readerHighlightModeLabel}</p>
+        <p className="mt-1 text-muted-foreground">
+          Cycle{' '}
+          <kbd className="rounded border border-border bg-muted px-1 text-[11px]">
+            {formatShortcutKey(bindings.cycle_highlight_mode)}
+          </kbd>
+        </p>
+      </div>
       {!isReadingModeEnabled && (
         <SermonDetailFixedChevrons
           canNavigatePrev={fixedChevronNavigation.canNavigatePrev}
@@ -757,6 +963,7 @@ export default function SermonDetail() {
 
       <div
         ref={contentRef}
+        data-testid="sermon-detail-content"
         className={`mx-auto max-w-[900px] px-6 lg:px-0 ${isReadingModeEnabled ? 'space-y-6 py-5' : 'space-y-8 py-8'}`}
       >
         {!isReadingModeEnabled && (
@@ -825,6 +1032,32 @@ export default function SermonDetail() {
                   onToggle={toggleReadingMode}
                   className="inline-flex items-center gap-1.5 border-l border-border px-3 py-2 text-foreground hover:bg-hover-row"
                 />
+                <div
+                  aria-label="Reader highlight mode"
+                  className="inline-flex items-center gap-1 border-l border-border px-3 py-2"
+                  data-testid="reader-highlight-mode-toggle"
+                >
+                  {READER_HIGHLIGHT_MODE_OPTIONS.map((option) => {
+                    const isActive = option.mode === readerHighlightMode;
+                    return (
+                      <button
+                        key={option.mode}
+                        type="button"
+                        aria-label={`Highlight mode ${option.label}`}
+                        aria-pressed={isActive}
+                        title={`Highlight by ${option.label.toLowerCase()}`}
+                        onClick={() => handleReaderHighlightModeSelect(option.mode)}
+                        className={`rounded border px-1.5 py-1 text-[10px] font-mono transition-colors ${
+                          isActive
+                            ? 'border-foreground bg-foreground text-background'
+                            : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {option.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
                 <button
                   onClick={handleShare}
                   className="inline-flex items-center gap-1.5 border-l border-border px-3 py-2 text-foreground hover:bg-hover-row"

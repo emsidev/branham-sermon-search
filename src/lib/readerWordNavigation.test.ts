@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildReaderSelectionUnitMap,
   buildReaderWordRegionMap,
   countReaderWords,
   createReaderWordSelectionRange,
+  createReaderWordSelectionRangeFromUnitMap,
   defaultReaderWordNavigationShortcutCaptureTargetGuard,
   defaultReaderWordNavigationTypingTargetGuard,
   extendReaderWordSelection,
+  extendReaderWordSelectionByUnit,
   getReaderWordSelectionBounds,
   isReaderWordSelected,
   resolveReaderWordNavigationCommand,
+  shrinkReaderWordSelectionByUnit,
   shrinkReaderWordSelection,
   tokenizeReaderText,
   type ReaderWordNavigationKeyboardEventLike,
@@ -90,6 +94,58 @@ describe('readerWordNavigation keyboard command resolver', () => {
     expect(resolveReaderWordNavigationCommand(createKeyboardEventLike({ metaKey: true }))).toBeNull();
     expect(resolveReaderWordNavigationCommand(createKeyboardEventLike({ key: 'ArrowRight', shiftKey: true }))).toBeNull();
   });
+
+  it('supports configured primary extend and shrink shortcut keys', () => {
+    expect(resolveReaderWordNavigationCommand(
+      createKeyboardEventLike({ key: 'x' }),
+      {
+        extendShortcutKey: 'x',
+        shrinkShortcutKey: 'z',
+      },
+    )).toBe('extend');
+
+    expect(resolveReaderWordNavigationCommand(
+      createKeyboardEventLike({ key: 'z' }),
+      {
+        extendShortcutKey: 'x',
+        shrinkShortcutKey: 'z',
+      },
+    )).toBe('shrink');
+  });
+
+  it('keeps legacy aliases active when custom keys are configured', () => {
+    expect(resolveReaderWordNavigationCommand(
+      createKeyboardEventLike({ key: 'ArrowRight' }),
+      {
+        extendShortcutKey: 'x',
+        shrinkShortcutKey: 'z',
+      },
+    )).toBe('extend');
+
+    expect(resolveReaderWordNavigationCommand(
+      createKeyboardEventLike({ key: 'ArrowLeft' }),
+      {
+        extendShortcutKey: 'x',
+        shrinkShortcutKey: 'z',
+      },
+    )).toBe('shrink');
+
+    expect(resolveReaderWordNavigationCommand(
+      createKeyboardEventLike({ key: ' ' }),
+      {
+        extendShortcutKey: 'x',
+        shrinkShortcutKey: 'z',
+      },
+    )).toBe('extend');
+
+    expect(resolveReaderWordNavigationCommand(
+      createKeyboardEventLike({ key: ' ', shiftKey: true }),
+      {
+        extendShortcutKey: 'x',
+        shrinkShortcutKey: 'z',
+      },
+    )).toBe('shrink');
+  });
 });
 
 describe('readerWordNavigation selection helpers', () => {
@@ -129,5 +185,76 @@ describe('readerWordNavigation selection helpers', () => {
     expect(isReaderWordSelected(4, range)).toBe(true);
     expect(isReaderWordSelected(5, range)).toBe(false);
     expect(isReaderWordSelected(4, null)).toBe(false);
+  });
+});
+
+describe('readerWordNavigation selection unit maps', () => {
+  it('builds word, sentence, and paragraph unit maps from reader regions', () => {
+    const regions = [
+      { key: 'p-1', text: 'First sentence. Second sentence!' },
+      { key: 'p-2', text: 'Third sentence?' },
+    ];
+
+    const wordMap = buildReaderSelectionUnitMap(regions, 'word');
+    expect(wordMap.totalWords).toBe(6);
+    expect(wordMap.units).toHaveLength(6);
+    expect(wordMap.units[0]).toEqual({ startIndex: 0, endIndex: 0 });
+    expect(wordMap.units[5]).toEqual({ startIndex: 5, endIndex: 5 });
+
+    const sentenceMap = buildReaderSelectionUnitMap(regions, 'sentence');
+    expect(sentenceMap.totalWords).toBe(6);
+    expect(sentenceMap.units).toEqual([
+      { startIndex: 0, endIndex: 1 },
+      { startIndex: 2, endIndex: 3 },
+      { startIndex: 4, endIndex: 5 },
+    ]);
+
+    const paragraphMap = buildReaderSelectionUnitMap(regions, 'paragraph');
+    expect(paragraphMap.totalWords).toBe(6);
+    expect(paragraphMap.units).toEqual([
+      { startIndex: 0, endIndex: 3 },
+      { startIndex: 4, endIndex: 5 },
+    ]);
+  });
+
+  it('falls back to one sentence unit when punctuation is absent', () => {
+    const sentenceMap = buildReaderSelectionUnitMap(
+      [{ key: 'p-1', text: 'No punctuation in this sentence block' }],
+      'sentence',
+    );
+
+    expect(sentenceMap.totalWords).toBe(6);
+    expect(sentenceMap.units).toEqual([{ startIndex: 0, endIndex: 5 }]);
+  });
+
+  it('creates and expands selections by sentence or paragraph units', () => {
+    const sentenceMap = buildReaderSelectionUnitMap([
+      { key: 'p-1', text: 'First sentence. Second sentence!' },
+      { key: 'p-2', text: 'Third sentence?' },
+    ], 'sentence');
+
+    const sentenceRange = createReaderWordSelectionRangeFromUnitMap(2, sentenceMap);
+    expect(sentenceRange).toEqual({ anchorIndex: 2, cursorIndex: 3 });
+
+    const extendedSentence = extendReaderWordSelectionByUnit(sentenceRange, sentenceMap);
+    expect(extendedSentence).toEqual({ anchorIndex: 2, cursorIndex: 5 });
+
+    const shrunkSentence = shrinkReaderWordSelectionByUnit(extendedSentence, sentenceMap);
+    expect(shrunkSentence).toEqual({ anchorIndex: 2, cursorIndex: 3 });
+
+    expect(shrinkReaderWordSelectionByUnit(shrunkSentence, sentenceMap)).toBeNull();
+
+    const paragraphMap = buildReaderSelectionUnitMap([
+      { key: 'p-1', text: 'First sentence. Second sentence!' },
+      { key: 'p-2', text: 'Third sentence?' },
+    ], 'paragraph');
+
+    const paragraphRange = createReaderWordSelectionRangeFromUnitMap(0, paragraphMap);
+    expect(paragraphRange).toEqual({ anchorIndex: 0, cursorIndex: 3 });
+
+    expect(extendReaderWordSelectionByUnit(paragraphRange, paragraphMap)).toEqual({
+      anchorIndex: 0,
+      cursorIndex: 5,
+    });
   });
 });

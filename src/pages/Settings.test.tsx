@@ -17,6 +17,9 @@ const shortcutBindingsMock: ShortcutBindings = {
   result_next: 'n',
   result_prev: 'm',
   toggle_reading_mode: 'r',
+  cycle_highlight_mode: 'h',
+  reader_extend_selection: 'ArrowRight',
+  reader_shrink_selection: 'ArrowLeft',
 };
 const setShortcutBindingMock = vi.fn(() => ({ ok: true }));
 const resetShortcutBindingMock = vi.fn(() => ({ ok: true }));
@@ -203,6 +206,33 @@ describe('Settings', () => {
     expect(screen.getByText('Smooth hit scrolling')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Shortcut for Next/previous hit' })).toHaveTextContent('n');
     expect(screen.getByRole('button', { name: 'Shortcut for Next/previous sermon hit' })).toHaveTextContent('m');
+  });
+
+  it('renders editable reader shortcuts for R04 and R05 additions', () => {
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('button', { name: 'Shortcut for Cycle highlight mode' })).toHaveTextContent('h');
+    expect(screen.getByRole('button', { name: 'Shortcut for Reader extend selection' })).toHaveTextContent('Right');
+    expect(screen.getByRole('button', { name: 'Shortcut for Reader shrink selection' })).toHaveTextContent('Left');
+  });
+
+  it('captures named-key shortcut updates for reader selection actions', () => {
+    setShortcutBindingMock.mockClear();
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const extendShortcutButton = screen.getByRole('button', { name: 'Shortcut for Reader extend selection' });
+    fireEvent.click(extendShortcutButton);
+    fireEvent.keyDown(extendShortcutButton, { key: 'ArrowRight' });
+
+    expect(setShortcutBindingMock).toHaveBeenCalledWith('reader_extend_selection', 'ArrowRight');
   });
 
   it('uses back button layout and removes return-to-home link', () => {

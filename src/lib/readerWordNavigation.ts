@@ -18,12 +18,28 @@ export interface ReaderWordRegionMap {
   offsetsByRegion: Record<string, number>;
 }
 
+export type ReaderHighlightMode = 'word' | 'sentence' | 'paragraph';
+
+export interface ReaderSelectionUnitRange {
+  startIndex: number;
+  endIndex: number;
+}
+
+export interface ReaderSelectionUnitMap {
+  mode: ReaderHighlightMode;
+  totalWords: number;
+  units: ReaderSelectionUnitRange[];
+  unitIndexByWordIndex: number[];
+}
+
 export type ReaderWordNavigationTypingTargetGuard = (target: EventTarget | null) => boolean;
 export type ReaderWordNavigationShortcutCaptureTargetGuard = (target: EventTarget | null) => boolean;
 
 export interface ResolveReaderWordNavigationCommandOptions {
   isTypingTarget?: ReaderWordNavigationTypingTargetGuard;
   isShortcutCaptureTarget?: ReaderWordNavigationShortcutCaptureTargetGuard;
+  extendShortcutKey?: string;
+  shrinkShortcutKey?: string;
 }
 
 export type ReaderWordNavigationKeyboardEventLike = Pick<
@@ -34,6 +50,40 @@ export type ReaderWordNavigationKeyboardEventLike = Pick<
 export type ReaderWordNavigationCommand = 'extend' | 'shrink' | null;
 
 const WORD_PATTERN = /[\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)*/gu;
+const SENTENCE_TERMINATOR_PATTERN = /[.!?]/;
+
+function normalizeReaderNavigationKey(rawKey: string): string | null {
+  if (rawKey === ' ') {
+    return 'space';
+  }
+
+  const key = rawKey.trim();
+  if (!key) {
+    return null;
+  }
+
+  if (key === ' ' || key === 'Spacebar' || key === 'Space') {
+    return 'space';
+  }
+
+  if (key === 'ArrowRight' || key === 'Right') {
+    return 'arrowright';
+  }
+
+  if (key === 'ArrowLeft' || key === 'Left') {
+    return 'arrowleft';
+  }
+
+  if (key.length === 1) {
+    if (/\s/.test(key)) {
+      return null;
+    }
+
+    return key.toLowerCase();
+  }
+
+  return key.toLowerCase();
+}
 
 function createWordPattern(): RegExp {
   return new RegExp(WORD_PATTERN.source, WORD_PATTERN.flags);
@@ -114,6 +164,194 @@ export function buildReaderWordRegionMap(regions: ReaderWordRegion[]): ReaderWor
   };
 }
 
+function buildWordSelectionUnitsForRegion(
+  startIndex: number,
+  wordCount: number,
+): ReaderSelectionUnitRange[] {
+  const units: ReaderSelectionUnitRange[] = [];
+  for (let index = 0; index < wordCount; index += 1) {
+    const wordIndex = startIndex + index;
+    units.push({
+      startIndex: wordIndex,
+      endIndex: wordIndex,
+    });
+  }
+  return units;
+}
+
+function buildSentenceSelectionUnitsForRegion(
+  text: string,
+  startIndex: number,
+): ReaderSelectionUnitRange[] {
+  const tokens = tokenizeReaderText(text);
+  const units: ReaderSelectionUnitRange[] = [];
+  let sentenceStartIndex: number | null = null;
+  let sentenceEndIndex: number | null = null;
+  let wordOffset = 0;
+
+  const commitSentence = () => {
+    if (sentenceStartIndex == null || sentenceEndIndex == null) {
+      return;
+    }
+
+    units.push({
+      startIndex: sentenceStartIndex,
+      endIndex: sentenceEndIndex,
+    });
+    sentenceStartIndex = null;
+    sentenceEndIndex = null;
+  };
+
+  for (const token of tokens) {
+    if (token.isWord) {
+      const wordIndex = startIndex + wordOffset;
+      if (sentenceStartIndex == null) {
+        sentenceStartIndex = wordIndex;
+      }
+      sentenceEndIndex = wordIndex;
+      wordOffset += 1;
+      continue;
+    }
+
+    if (SENTENCE_TERMINATOR_PATTERN.test(token.text)) {
+      commitSentence();
+    }
+  }
+
+  commitSentence();
+  return units;
+}
+
+function buildParagraphSelectionUnitsForRegion(
+  startIndex: number,
+  wordCount: number,
+): ReaderSelectionUnitRange[] {
+  if (wordCount <= 0) {
+    return [];
+  }
+
+  return [{
+    startIndex,
+    endIndex: startIndex + wordCount - 1,
+  }];
+}
+
+function buildSelectionUnitsForRegion(
+  mode: ReaderHighlightMode,
+  text: string,
+  startIndex: number,
+  wordCount: number,
+): ReaderSelectionUnitRange[] {
+  if (wordCount <= 0) {
+    return [];
+  }
+
+  if (mode === 'sentence') {
+    return buildSentenceSelectionUnitsForRegion(text, startIndex);
+  }
+
+  if (mode === 'paragraph') {
+    return buildParagraphSelectionUnitsForRegion(startIndex, wordCount);
+  }
+
+  return buildWordSelectionUnitsForRegion(startIndex, wordCount);
+}
+
+function getUnitIndexForWordIndex(
+  wordIndex: number,
+  map: ReaderSelectionUnitMap,
+): number | null {
+  if (map.totalWords <= 0 || map.units.length === 0) {
+    return null;
+  }
+
+  const safeWordIndex = clampReaderWordIndex(wordIndex, map.totalWords);
+  const mappedIndex = map.unitIndexByWordIndex[safeWordIndex];
+  if (Number.isInteger(mappedIndex) && mappedIndex >= 0 && mappedIndex < map.units.length) {
+    return mappedIndex;
+  }
+
+  return map.units.findIndex(
+    (unit) => safeWordIndex >= unit.startIndex && safeWordIndex <= unit.endIndex,
+  );
+}
+
+function normalizeSelectionUnitRange(
+  unit: ReaderSelectionUnitRange,
+  totalWords: number,
+): ReaderSelectionUnitRange {
+  const startIndex = clampReaderWordIndex(unit.startIndex, totalWords);
+  const endIndex = Math.max(startIndex, clampReaderWordIndex(unit.endIndex, totalWords));
+  return {
+    startIndex,
+    endIndex,
+  };
+}
+
+function normalizeSelectionUnitMap(map: ReaderSelectionUnitMap): ReaderSelectionUnitMap {
+  if (map.totalWords <= 0 || map.units.length === 0) {
+    return {
+      ...map,
+      unitIndexByWordIndex: [],
+      units: [],
+      totalWords: 0,
+    };
+  }
+
+  const totalWords = coerceTotalWords(map.totalWords);
+  const units = map.units
+    .map((unit) => normalizeSelectionUnitRange(unit, totalWords))
+    .filter((unit) => unit.endIndex >= unit.startIndex);
+
+  const unitIndexByWordIndex = Array.from<number>({ length: totalWords }).fill(-1);
+  units.forEach((unit, unitIndex) => {
+    for (let wordIndex = unit.startIndex; wordIndex <= unit.endIndex; wordIndex += 1) {
+      unitIndexByWordIndex[wordIndex] = unitIndex;
+    }
+  });
+
+  let lastKnownUnitIndex = 0;
+  for (let wordIndex = 0; wordIndex < unitIndexByWordIndex.length; wordIndex += 1) {
+    if (unitIndexByWordIndex[wordIndex] === -1) {
+      unitIndexByWordIndex[wordIndex] = lastKnownUnitIndex;
+    } else {
+      lastKnownUnitIndex = unitIndexByWordIndex[wordIndex];
+    }
+  }
+
+  return {
+    mode: map.mode,
+    totalWords,
+    units,
+    unitIndexByWordIndex,
+  };
+}
+
+export function buildReaderSelectionUnitMap(
+  regions: ReaderWordRegion[],
+  mode: ReaderHighlightMode,
+): ReaderSelectionUnitMap {
+  const regionMap = buildReaderWordRegionMap(regions);
+  const units: ReaderSelectionUnitRange[] = [];
+
+  for (const region of regions) {
+    const startIndex = regionMap.offsetsByRegion[region.key] ?? 0;
+    const wordCount = countReaderWords(region.text);
+    units.push(...buildSelectionUnitsForRegion(mode, region.text, startIndex, wordCount));
+  }
+
+  if (units.length === 0 && regionMap.totalWords > 0) {
+    units.push(...buildWordSelectionUnitsForRegion(0, regionMap.totalWords));
+  }
+
+  return normalizeSelectionUnitMap({
+    mode,
+    totalWords: regionMap.totalWords,
+    units,
+    unitIndexByWordIndex: [],
+  });
+}
+
 export function defaultReaderWordNavigationTypingTargetGuard(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -159,16 +397,34 @@ export function resolveReaderWordNavigationCommand(
     return null;
   }
 
-  const isSpaceKey = event.key === ' ' || event.key === 'Spacebar' || event.key === 'Space';
-  if ((event.key === 'ArrowRight' || event.key === 'Right' || isSpaceKey) && !event.shiftKey) {
+  const normalizedEventKey = normalizeReaderNavigationKey(event.key);
+  if (!normalizedEventKey) {
+    return null;
+  }
+
+  const normalizedExtendShortcutKey = options.extendShortcutKey
+    ? normalizeReaderNavigationKey(options.extendShortcutKey)
+    : null;
+  if (!event.shiftKey && normalizedExtendShortcutKey && normalizedEventKey === normalizedExtendShortcutKey) {
     return 'extend';
   }
 
-  if ((event.key === 'ArrowLeft' || event.key === 'Left') && !event.shiftKey) {
+  const normalizedShrinkShortcutKey = options.shrinkShortcutKey
+    ? normalizeReaderNavigationKey(options.shrinkShortcutKey)
+    : null;
+  if (!event.shiftKey && normalizedShrinkShortcutKey && normalizedEventKey === normalizedShrinkShortcutKey) {
     return 'shrink';
   }
 
-  if (isSpaceKey && event.shiftKey) {
+  if (!event.shiftKey && (normalizedEventKey === 'arrowright' || normalizedEventKey === 'space')) {
+    return 'extend';
+  }
+
+  if (!event.shiftKey && normalizedEventKey === 'arrowleft') {
+    return 'shrink';
+  }
+
+  if (normalizedEventKey === 'space' && event.shiftKey) {
     return 'shrink';
   }
 
@@ -227,6 +483,23 @@ export function createReaderWordSelectionRange(
   return {
     anchorIndex: safeIndex,
     cursorIndex: safeIndex,
+  };
+}
+
+export function createReaderWordSelectionRangeFromUnitMap(
+  wordIndex: number,
+  unitMap: ReaderSelectionUnitMap,
+): ReaderWordSelectionRange | null {
+  const safeMap = normalizeSelectionUnitMap(unitMap);
+  const unitIndex = getUnitIndexForWordIndex(wordIndex, safeMap);
+  if (unitIndex == null || unitIndex < 0 || unitIndex >= safeMap.units.length) {
+    return null;
+  }
+
+  const unit = safeMap.units[unitIndex];
+  return {
+    anchorIndex: unit.startIndex,
+    cursorIndex: unit.endIndex,
   };
 }
 
@@ -302,5 +575,68 @@ export function shrinkReaderWordSelection(
   return {
     anchorIndex: normalizedRange.anchorIndex,
     cursorIndex: nextCursorIndex,
+  };
+}
+
+export function extendReaderWordSelectionByUnit(
+  range: ReaderWordSelectionRange | null,
+  unitMap: ReaderSelectionUnitMap,
+): ReaderWordSelectionRange | null {
+  const safeMap = normalizeSelectionUnitMap(unitMap);
+  const normalizedRange = normalizeReaderWordSelectionRange(range, safeMap.totalWords);
+  if (!normalizedRange || safeMap.units.length === 0) {
+    return null;
+  }
+
+  const bounds = getReaderWordSelectionBounds(normalizedRange);
+  if (!bounds) {
+    return null;
+  }
+
+  const startUnitIndex = getUnitIndexForWordIndex(bounds.startIndex, safeMap);
+  const endUnitIndex = getUnitIndexForWordIndex(bounds.endIndex, safeMap);
+  if (startUnitIndex == null || endUnitIndex == null || startUnitIndex < 0 || endUnitIndex < 0) {
+    return normalizedRange;
+  }
+
+  const nextEndUnitIndex = Math.min(endUnitIndex + 1, safeMap.units.length - 1);
+  if (nextEndUnitIndex === endUnitIndex) {
+    return normalizedRange;
+  }
+
+  return {
+    anchorIndex: safeMap.units[startUnitIndex].startIndex,
+    cursorIndex: safeMap.units[nextEndUnitIndex].endIndex,
+  };
+}
+
+export function shrinkReaderWordSelectionByUnit(
+  range: ReaderWordSelectionRange | null,
+  unitMap: ReaderSelectionUnitMap,
+): ReaderWordSelectionRange | null {
+  const safeMap = normalizeSelectionUnitMap(unitMap);
+  const normalizedRange = normalizeReaderWordSelectionRange(range, safeMap.totalWords);
+  if (!normalizedRange || safeMap.units.length === 0) {
+    return null;
+  }
+
+  const bounds = getReaderWordSelectionBounds(normalizedRange);
+  if (!bounds) {
+    return null;
+  }
+
+  const startUnitIndex = getUnitIndexForWordIndex(bounds.startIndex, safeMap);
+  const endUnitIndex = getUnitIndexForWordIndex(bounds.endIndex, safeMap);
+  if (startUnitIndex == null || endUnitIndex == null || startUnitIndex < 0 || endUnitIndex < 0) {
+    return normalizedRange;
+  }
+
+  if (endUnitIndex <= startUnitIndex) {
+    return null;
+  }
+
+  return {
+    anchorIndex: safeMap.units[startUnitIndex].startIndex,
+    cursorIndex: safeMap.units[endUnitIndex - 1].endIndex,
   };
 }

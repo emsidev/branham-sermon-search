@@ -19,6 +19,9 @@ let shortcutBindingsMock: ShortcutBindings = {
   result_next: 'n',
   result_prev: 'm',
   toggle_reading_mode: 'r',
+  cycle_highlight_mode: 'h',
+  reader_extend_selection: 'ArrowRight',
+  reader_shrink_selection: 'ArrowLeft',
 };
 
 vi.mock('@/hooks/useSermons', () => ({
@@ -90,6 +93,23 @@ const sermonDetailFixture = {
   ],
 };
 
+const multiParagraphSermonDetailFixture = {
+  ...sermonDetailFixture,
+  text_content: 'First I am looking forward to this week.\n\nLater i am looking forward to that.',
+  paragraphs: [
+    {
+      paragraph_number: 4,
+      printed_paragraph_number: 4,
+      paragraph_text: 'First I am looking forward to this week.',
+    },
+    {
+      paragraph_number: 5,
+      printed_paragraph_number: 5,
+      paragraph_text: 'Later i am looking forward to that.',
+    },
+  ],
+};
+
 function renderDetail(entry: string | { pathname: string; search?: string; state?: unknown }) {
   return render(
     <MemoryRouter initialEntries={[entry]}>
@@ -139,6 +159,32 @@ function getSelectedReaderWordIndexes(): number[] {
   return getSelectedReaderWords()
     .map((element) => Number.parseInt(element.getAttribute('data-reader-word-index') ?? '', 10))
     .filter((value) => Number.isFinite(value));
+}
+
+function getHighlightModeButton(modeLabel: 'Word' | 'Sentence' | 'Paragraph'): HTMLElement {
+  return screen.getByRole('button', { name: `Highlight mode ${modeLabel}` });
+}
+
+function getReaderHighlightHud(): HTMLElement {
+  return screen.getByTestId('reader-highlight-mode-hud');
+}
+
+function getSermonDetailContent(): HTMLElement {
+  return screen.getByTestId('sermon-detail-content');
+}
+
+function createMockDomRect(left: number, top: number, width: number, height: number): DOMRect {
+  return {
+    x: left,
+    y: top,
+    width,
+    height,
+    top,
+    right: left + width,
+    bottom: top + height,
+    left,
+    toJSON: () => ({}),
+  } as DOMRect;
 }
 
 describe('SermonDetail', () => {
@@ -204,6 +250,9 @@ describe('SermonDetail', () => {
       result_next: 'n',
       result_prev: 'm',
       toggle_reading_mode: 'r',
+      cycle_highlight_mode: 'h',
+      reader_extend_selection: 'ArrowRight',
+      reader_shrink_selection: 'ArrowLeft',
     };
 
     if (!HTMLElement.prototype.scrollIntoView) {
@@ -350,6 +399,298 @@ describe('SermonDetail', () => {
 
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+  });
+
+  it('defaults highlight mode to word and falls back to word for invalid query values', async () => {
+    const { unmount } = renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    unmount();
+    renderDetail('/sermons/sermon-1?highlightMode=invalid');
+
+    await waitFor(() => {
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'false');
+      expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'false');
+    });
+  });
+
+  it('updates URL and active state when highlight mode is toggled from toolbar controls', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.click(getHighlightModeButton('Sentence'));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
+    });
+    expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(getHighlightModeButton('Paragraph'));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=paragraph');
+    });
+    expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(getHighlightModeButton('Word'));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=word');
+    });
+    expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('cycles highlight mode from configurable keyboard shortcut and updates URL state', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.keyDown(window, { key: 'h' });
+    await waitFor(() => {
+      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
+    });
+
+    fireEvent.keyDown(window, { key: 'h' });
+    await waitFor(() => {
+      expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=paragraph');
+    });
+  });
+
+  it('shows reader highlight HUD on mode and navigation interactions, then auto-hides', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    const hud = getReaderHighlightHud();
+    expect(hud).toHaveTextContent('Highlight: Word');
+    expect(hud).toHaveTextContent('Cycle');
+
+    fireEvent.click(getHighlightModeButton('Sentence'));
+    await waitFor(() => {
+      expect(getReaderHighlightHud()).toHaveTextContent('Highlight: Sentence');
+    });
+    expect(getReaderHighlightHud().className).toContain('opacity-100');
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getReaderHighlightHud().className).toContain('opacity-100');
+
+    await waitFor(() => {
+      expect(getReaderHighlightHud().className).toContain('opacity-0');
+    }, { timeout: 2200 });
+  });
+
+  it('anchors reader highlight HUD in the left gutter beside the latest highlighted word', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(2);
+    });
+
+    const content = getSermonDetailContent();
+    const firstWord = getReaderWordByIndex(0);
+    const secondWord = getReaderWordByIndex(1);
+    expect(firstWord).not.toBeNull();
+    expect(secondWord).not.toBeNull();
+
+    const hud = getReaderHighlightHud();
+    Object.defineProperty(hud, 'offsetWidth', {
+      configurable: true,
+      get: () => 160,
+    });
+    Object.defineProperty(hud, 'offsetHeight', {
+      configurable: true,
+      get: () => 44,
+    });
+    const contentRectSpy = vi
+      .spyOn(content, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(300, 120, 900, 640));
+
+    const firstRectSpy = vi
+      .spyOn(firstWord!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(300, 200, 34, 20));
+    const secondRectSpy = vi
+      .spyOn(secondWord!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(420, 240, 46, 20));
+
+    fireEvent.click(firstWord!);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+
+    await waitFor(() => {
+      const anchoredHud = getReaderHighlightHud();
+      expect(anchoredHud).toHaveAttribute('data-anchor-word-index', '1');
+      expect(anchoredHud).toHaveAttribute('data-placement', 'left');
+      expect(anchoredHud.style.left).toBe('130px');
+      expect(anchoredHud.style.top).toBe('228px');
+    });
+
+    contentRectSpy.mockRestore();
+    firstRectSpy.mockRestore();
+    secondRectSpy.mockRestore();
+  });
+
+  it('falls back to inside-left placement when no left gutter space is available', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    const content = getSermonDetailContent();
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+
+    const hud = getReaderHighlightHud();
+    Object.defineProperty(hud, 'offsetWidth', {
+      configurable: true,
+      get: () => 160,
+    });
+    Object.defineProperty(hud, 'offsetHeight', {
+      configurable: true,
+      get: () => 44,
+    });
+    const contentRectSpy = vi
+      .spyOn(content, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(120, 100, 760, 640));
+    const wordRectSpy = vi
+      .spyOn(firstWord!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(220, 240, 32, 20));
+
+    fireEvent.click(firstWord!);
+
+    await waitFor(() => {
+      const anchoredHud = getReaderHighlightHud();
+      expect(anchoredHud).toHaveAttribute('data-placement', 'inside-left');
+      expect(anchoredHud.style.left).toBe('130px');
+      expect(anchoredHud.style.top).toBe('228px');
+    });
+
+    contentRectSpy.mockRestore();
+    wordRectSpy.mockRestore();
+  });
+
+  it('places reader highlight HUD on the left side even before any text selection exists', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    const content = getSermonDetailContent();
+    const hud = getReaderHighlightHud();
+    Object.defineProperty(hud, 'offsetWidth', {
+      configurable: true,
+      get: () => 160,
+    });
+    Object.defineProperty(hud, 'offsetHeight', {
+      configurable: true,
+      get: () => 44,
+    });
+    const contentRectSpy = vi
+      .spyOn(content, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(300, 140, 900, 640));
+
+    fireEvent.click(getHighlightModeButton('Sentence'));
+
+    await waitFor(() => {
+      const anchoredHud = getReaderHighlightHud();
+      expect(anchoredHud).toHaveAttribute('data-placement', 'left');
+      expect(anchoredHud).not.toHaveAttribute('data-anchor-word-index');
+      expect(anchoredHud.style.left).toBe('130px');
+      expect(anchoredHud.style.top).toBe('134px');
+    });
+
+    contentRectSpy.mockRestore();
+  });
+
+  it('uses configured reader primary keys while preserving legacy aliases', async () => {
+    shortcutBindingsMock = {
+      ...shortcutBindingsMock,
+      reader_extend_selection: 'x',
+      reader_shrink_selection: 'z',
+    };
+
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.keyDown(window, { key: 'x' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+
+    fireEvent.keyDown(window, { key: 'z' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.keyDown(window, { key: ' ' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+
+    fireEvent.keyDown(window, { key: ' ', shiftKey: true });
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+  });
+
+  it('applies sentence-mode click and keyboard navigation by sentence units', async () => {
+    renderDetail('/sermons/sermon-1?highlightMode=sentence');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWords()).toHaveLength(getReaderWords().length);
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('applies paragraph-mode click and keyboard navigation by paragraph units', async () => {
+    fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?highlightMode=paragraph');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+      expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    const totalWords = getReaderWords().length;
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWords()).toHaveLength(totalWords);
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
   });
 
   it('combines word-by-word highlighting with existing search-match highlighting', async () => {
@@ -503,6 +844,27 @@ describe('SermonDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
     await waitFor(() => {
       expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe');
+    });
+  });
+
+  it('preserves highlight mode query state while toggling reading mode', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe&highlightMode=sentence');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
+      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
+      expect(screen.getByTestId('location-path')).toHaveTextContent('reading=1');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('reading=1');
     });
   });
 
