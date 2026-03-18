@@ -10,6 +10,7 @@ const fetchBoundarySermonsMock = vi.fn();
 const useSermonsMock = vi.fn();
 const setFilterMock = vi.fn();
 const setFiltersMock = vi.fn();
+let audioUrlMock: string | null = null;
 let effectiveHitScrollBehaviorMock: ScrollBehavior = 'smooth';
 let shortcutBindingsMock: ShortcutBindings = {
   focus_search: '/',
@@ -28,7 +29,7 @@ vi.mock('@/hooks/useSermons', () => ({
 }));
 
 vi.mock('@/hooks/useAudioPlayer', () => ({
-  useAudioPlayer: () => ({ play: vi.fn() }),
+  useAudioPlayer: () => ({ play: vi.fn(), url: audioUrlMock }),
 }));
 
 vi.mock('@/lib/preferences', () => ({
@@ -176,6 +177,7 @@ describe('SermonDetail', () => {
       pageSize: 25,
     });
 
+    audioUrlMock = null;
     effectiveHitScrollBehaviorMock = 'smooth';
     shortcutBindingsMock = {
       focus_search: '/',
@@ -303,11 +305,42 @@ describe('SermonDetail', () => {
     expect(screen.queryByRole('button', { name: 'Jump to top' })).not.toBeInTheDocument();
     expect(screen.queryByText('Prev Sermon')).not.toBeInTheDocument();
     expect(screen.queryByText('Next Sermon')).not.toBeInTheDocument();
-    expect(screen.getByTestId('sermon-title')).toHaveClass('text-xl');
+    expect(screen.getByTestId('sermon-title')).toHaveClass('text-lg');
     expect(screen.getByTestId('sermon-title')).toHaveClass('leading-snug');
     expect(screen.getByTestId('sermon-summary')).toHaveClass('text-xs');
-    expect(screen.getAllByTestId('sermon-paragraph-text')[0]).toHaveClass('text-[1.2rem]');
+    expect(screen.getAllByTestId('sermon-paragraph-text')[0]).toHaveClass('text-[1.5rem]');
     expect(screen.getAllByTestId('sermon-paragraph-text')[0]).toHaveClass('leading-10');
+    expect(screen.getByRole('progressbar', { name: 'Sermon reading progress' })).toBeInTheDocument();
+    expect(screen.getByTestId('sermon-progress-bar')).toBeInTheDocument();
+  });
+
+  it('keeps sticky sermon progress bar visible in normal and reading mode', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('progressbar', { name: 'Sermon reading progress' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe&reading=1');
+    });
+
+    expect(screen.getByRole('progressbar', { name: 'Sermon reading progress' })).toBeInTheDocument();
+  });
+
+  it('hides sticky sermon progress bar while audio player is active', async () => {
+    audioUrlMock = 'https://example.com/audio.mp3';
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('progressbar', { name: 'Sermon reading progress' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sermon-progress-bar')).not.toBeInTheDocument();
   });
 
   it('toggles reading mode from header button and preserves existing route state', async () => {

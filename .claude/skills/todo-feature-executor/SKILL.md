@@ -21,7 +21,7 @@ Completion is mandatory: do not finalize a feature handoff until `todos.md` refl
 - Follow `Allowed files` and `Forbidden files` from the selected feature block.
 - Maintain TypeScript strict mode.
 - Do not add dependencies without explicit approval.
-- Keep shared-shell edits for integration-owner only.
+- Keep edits scoped to the feature's acceptance criteria and ownership boundaries.
 
 3. Verify behavior.
 - Run required tests for the feature before status updates.
@@ -34,7 +34,7 @@ Completion is mandatory: do not finalize a feature handoff until `todos.md` refl
 - `done` is a supported alias for `complete`.
 
 5. Produce handoff using the required schema.
-- `FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Integrator notes`
+- `FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Cross-cutting notes`
 - Use [handoff-template.md](references/handoff-template.md).
 
 ## Commands
@@ -55,5 +55,5 @@ Completion is mandatory: do not finalize a feature handoff until `todos.md` refl
 
 - If the `FeatureID` is missing from either backlog table or spec block, stop and fix `todos.md` consistency first.
 - If `--verify-command` fails, do not update status.
-- If requested edits conflict with ownership boundaries, keep forbidden edits out of the builder patch and list them under `Integrator notes`.
+- If requested edits conflict with ownership boundaries, keep forbidden edits out of the patch and list them under `Cross-cutting notes`.
 - If status update cannot be applied, explicitly report that the feature remains `TODO` and include the blocking reason.

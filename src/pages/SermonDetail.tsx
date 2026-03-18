@@ -5,7 +5,9 @@ import { format, parseISO } from 'date-fns';
 import { fetchSermonById, fetchAdjacentSermons, fetchBoundarySermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useSermonScrollProgress } from '@/hooks/useSermonScrollProgress';
 import ReadingModeToggleButton from '@/components/reader/ReadingModeToggleButton';
+import SermonProgressBar from '@/components/reader/SermonProgressBar';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
 import SharedSearchExperience from '@/components/search/SharedSearchExperience';
 import SermonDetailFixedChevrons from '@/components/search/SermonDetailFixedChevrons';
@@ -224,7 +226,7 @@ export default function SermonDetail() {
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const { play } = useAudioPlayer();
+  const { play, url: activeAudioUrl } = useAudioPlayer();
   const { bindings } = useKeyboardShortcuts();
 
   const searchQuery = searchParams.get('q')?.trim() ?? '';
@@ -388,6 +390,13 @@ export default function SermonDetail() {
       : undefined,
   });
 
+  const { progressPercent } = useSermonScrollProgress({
+    targetRef: contentRef,
+    enabled: !loading && Boolean(sermon),
+  });
+
+  const shouldHideProgressBar = Boolean(activeAudioUrl);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -495,7 +504,7 @@ export default function SermonDetail() {
   }
 
   return (
-    <div className={`min-h-screen bg-background ${isReadingModeEnabled ? 'pb-10' : 'pb-24'}`}>
+    <div className={`min-h-screen bg-background ${isReadingModeEnabled ? (shouldHideProgressBar ? 'pb-10' : 'pb-20') : 'pb-24'}`}>
       <SearchPopup
         isOpen={isSearchPopupOpen}
         onClose={closeSearchPopup}
@@ -516,6 +525,7 @@ export default function SermonDetail() {
           onJumpToTop={handleJumpToTop}
         />
       )}
+      <SermonProgressBar progressPercent={progressPercent} hidden={shouldHideProgressBar} />
 
       <div
         ref={contentRef}
