@@ -37,7 +37,7 @@
 | DONE | R01 | Enter/Exit reading mode (R) | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | DONE | R02 | Sticky bottom progress bar for sermon progress | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | DONE-LOCKED | R03 | Resume position per sermon | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
-| TODO | R04 | Word-by-word highlighting with Space or Right, and Left to go back | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
+| DONE | R04 | Word-by-word highlighting with Space or Right, and Left to go back | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | TODO | R05 | Highlight mode toggle: word, sentence, paragraph | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | TODO | R06 | Auto-scroll with adjustable speed | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | TODO | R07 | Read-aloud sync: word/sentence highlight follows sermon audio playback | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
@@ -574,7 +574,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Cross-cutting notes
 
 ### R04 - Word-by-word highlighting with Space or Right, and Left to go back
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R04 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:

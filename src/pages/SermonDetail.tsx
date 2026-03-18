@@ -33,6 +33,17 @@ import {
 import { shouldTriggerReadingModeShortcut } from '@/lib/readingModeShortcuts';
 import { buildReadingModeSearch, isReadingModeEnabledFromSearchParams } from '@/lib/readingModeUrlState';
 import { getEffectiveHitScrollBehavior } from '@/lib/preferences';
+import {
+  buildReaderWordRegionMap,
+  createReaderWordSelectionRange,
+  extendReaderWordSelection,
+  getReaderWordSelectionBounds,
+  isReaderWordSelected,
+  resolveReaderWordNavigationCommand,
+  shrinkReaderWordSelection,
+  tokenizeReaderText,
+  type ReaderWordSelectionRange,
+} from '@/lib/readerWordNavigation';
 
 interface AdjacentSermon {
   id: string;
@@ -70,6 +81,7 @@ const TITLE_REGION_KEY = 'title';
 const CONTENT_REGION_KEY = 'content';
 const SNIPPET_BEFORE_CHARS = 44;
 const SNIPPET_AFTER_CHARS = 70;
+const SELECTED_READER_SEGMENT_CLASS = 'bg-emerald-200/60 text-foreground';
 
 function getParagraphRegionKey(paragraphNumber: number): string {
   return `paragraph-${paragraphNumber}`;
@@ -212,6 +224,144 @@ function resolveRouteTargetMatchIndex(
   return results[0].absoluteIndex;
 }
 
+interface ReaderWordNodeRenderResult {
+  content: React.ReactNode;
+  nextWordIndex: number;
+}
+
+function renderReaderWordsFromText(
+  text: string,
+  startWordIndex: number,
+  selectedWordRange: ReaderWordSelectionRange | null,
+  onWordSelect: (wordIndex: number) => void,
+): ReaderWordNodeRenderResult {
+  const tokens = tokenizeReaderText(text);
+  if (tokens.length === 0) {
+    return {
+      content: text,
+      nextWordIndex: startWordIndex,
+    };
+  }
+
+  let nextWordIndex = startWordIndex;
+  const selectedBounds = getReaderWordSelectionBounds(selectedWordRange);
+  const content = tokens.map((token, tokenIndex) => {
+    if (!token.isWord) {
+      const previousWordIndex = nextWordIndex - 1;
+      const nextWordCandidateIndex = nextWordIndex;
+      const isSelectedSeparator = Boolean(
+        selectedBounds
+        && previousWordIndex >= selectedBounds.startIndex
+        && nextWordCandidateIndex <= selectedBounds.endIndex
+      );
+
+      if (!isSelectedSeparator) {
+        return token.text;
+      }
+
+      return (
+        <span
+          key={`separator:${startWordIndex}:${tokenIndex}`}
+          data-reader-word-separator-selected="true"
+          className={SELECTED_READER_SEGMENT_CLASS}
+        >
+          {token.text}
+        </span>
+      );
+    }
+
+    const wordIndex = nextWordIndex;
+    const isSelectedWord = isReaderWordSelected(wordIndex, selectedWordRange);
+    nextWordIndex += 1;
+
+    return (
+      <span
+        key={`${wordIndex}:${tokenIndex}`}
+        data-reader-word="true"
+        data-reader-word-index={String(wordIndex)}
+        data-reader-word-selected={isSelectedWord ? 'true' : 'false'}
+        className={isSelectedWord ? SELECTED_READER_SEGMENT_CLASS : undefined}
+        onClick={() => onWordSelect(wordIndex)}
+      >
+        {token.text}
+      </span>
+    );
+  });
+
+  return {
+    content,
+    nextWordIndex,
+  };
+}
+
+function renderReaderWordsFromNode(
+  node: React.ReactNode,
+  startWordIndex: number,
+  selectedWordRange: ReaderWordSelectionRange | null,
+  onWordSelect: (wordIndex: number) => void,
+): ReaderWordNodeRenderResult {
+  if (node == null || typeof node === 'boolean') {
+    return {
+      content: node,
+      nextWordIndex: startWordIndex,
+    };
+  }
+
+  if (typeof node === 'string' || typeof node === 'number') {
+    return renderReaderWordsFromText(String(node), startWordIndex, selectedWordRange, onWordSelect);
+  }
+
+  if (Array.isArray(node)) {
+    let nextWordIndex = startWordIndex;
+    const content = node.map((child, childIndex) => {
+      const childResult = renderReaderWordsFromNode(child, nextWordIndex, selectedWordRange, onWordSelect);
+      nextWordIndex = childResult.nextWordIndex;
+      return <React.Fragment key={childIndex}>{childResult.content}</React.Fragment>;
+    });
+
+    return {
+      content,
+      nextWordIndex,
+    };
+  }
+
+  if (React.isValidElement(node)) {
+    const element = node as React.ReactElement<{ children?: React.ReactNode }>;
+    if (element.props.children == null) {
+      return {
+        content: element,
+        nextWordIndex: startWordIndex,
+      };
+    }
+
+    const childResult = renderReaderWordsFromNode(
+      element.props.children,
+      startWordIndex,
+      selectedWordRange,
+      onWordSelect,
+    );
+
+    return {
+      content: React.cloneElement(element, undefined, childResult.content),
+      nextWordIndex: childResult.nextWordIndex,
+    };
+  }
+
+  return {
+    content: node,
+    nextWordIndex: startWordIndex,
+  };
+}
+
+function renderReaderWordHighlights(
+  node: React.ReactNode,
+  startWordIndex: number,
+  selectedWordRange: ReaderWordSelectionRange | null,
+  onWordSelect: (wordIndex: number) => void,
+): React.ReactNode {
+  return renderReaderWordsFromNode(node, startWordIndex, selectedWordRange, onWordSelect).content;
+}
+
 export default function SermonDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -225,7 +375,9 @@ export default function SermonDetail() {
   });
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
+  const [selectedWordRange, setSelectedWordRange] = useState<ReaderWordSelectionRange | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const selectedWordRangeRef = useRef<ReaderWordSelectionRange | null>(null);
   const { play, url: activeAudioUrl } = useAudioPlayer();
   const { bindings } = useKeyboardShortcuts();
 
@@ -284,6 +436,30 @@ export default function SermonDetail() {
     () => buildSermonFindModel(sermon, highlightTerms, highlightMatchOptions),
     [highlightMatchOptions, highlightTerms, sermon],
   );
+  const bodyWordRegionMap = useMemo(() => {
+    if (!sermon) {
+      return {
+        totalWords: 0,
+        offsetsByRegion: {},
+      };
+    }
+
+    if (sermon.paragraphs.length > 0) {
+      return buildReaderWordRegionMap(
+        sermon.paragraphs.map((paragraph) => ({
+          key: getParagraphRegionKey(paragraph.paragraph_number),
+          text: paragraph.paragraph_text,
+        })),
+      );
+    }
+
+    return buildReaderWordRegionMap([
+      {
+        key: CONTENT_REGION_KEY,
+        text: sermon.text_content,
+      },
+    ]);
+  }, [sermon]);
 
   const sermonHitNavigationContext = useMemo(() => ({
     searchQuery,
@@ -371,6 +547,21 @@ export default function SermonDetail() {
     return formatMatchSourceLabel(matchSource, targetParagraphNumber);
   }, [matchSource, targetParagraphNumber]);
 
+  useEffect(() => {
+    setSelectedWordRange(null);
+    selectedWordRangeRef.current = null;
+  }, [bodyWordRegionMap.totalWords, id]);
+
+  useEffect(() => {
+    selectedWordRangeRef.current = selectedWordRange;
+  }, [selectedWordRange]);
+
+  const handleReaderWordSelect = useCallback((wordIndex: number) => {
+    const nextRange = createReaderWordSelectionRange(wordIndex, bodyWordRegionMap.totalWords);
+    selectedWordRangeRef.current = nextRange;
+    setSelectedWordRange(nextRange);
+  }, [bodyWordRegionMap.totalWords]);
+
   const {
     activeIndex: activeMatchIndex,
     handleKeyDown: handleHitNavigationKeyDown,
@@ -433,6 +624,38 @@ export default function SermonDetail() {
   }, [handleHitNavigationKeyDown, highlightTerms.length]);
 
   useEffect(() => {
+    if (bodyWordRegionMap.totalWords === 0) {
+      return;
+    }
+
+    const handleReaderWordNavigationKeyDown = (event: KeyboardEvent) => {
+      const command = resolveReaderWordNavigationCommand(event);
+      if (!command) {
+        return;
+      }
+
+      const currentRange = selectedWordRangeRef.current;
+      const nextRange = command === 'extend'
+        ? extendReaderWordSelection(currentRange, bodyWordRegionMap.totalWords)
+        : shrinkReaderWordSelection(currentRange, bodyWordRegionMap.totalWords);
+
+      if (nextRange === currentRange) {
+        if (currentRange) {
+          event.preventDefault();
+        }
+        return;
+      }
+
+      event.preventDefault();
+      selectedWordRangeRef.current = nextRange;
+      setSelectedWordRange(nextRange);
+    };
+
+    window.addEventListener('keydown', handleReaderWordNavigationKeyDown);
+    return () => window.removeEventListener('keydown', handleReaderWordNavigationKeyDown);
+  }, [bodyWordRegionMap.totalWords]);
+
+  useEffect(() => {
     const handleReadingModeShortcutKeyDown = (event: KeyboardEvent) => {
       if (!shouldTriggerReadingModeShortcut(event, bindings.toggle_reading_mode)) {
         return;
@@ -476,6 +699,11 @@ export default function SermonDetail() {
       }),
     }).content;
   }, [activeMatchIndex, findModel.regionMetaByKey, highlightMatchOptions, highlightTerms]);
+  const renderBodyRegionText = useCallback((regionKey: string, text: string): React.ReactNode => {
+    const regionWordOffset = bodyWordRegionMap.offsetsByRegion[regionKey] ?? 0;
+    const highlightedContent = renderRegionHighlightedText(regionKey, text);
+    return renderReaderWordHighlights(highlightedContent, regionWordOffset, selectedWordRange, handleReaderWordSelect);
+  }, [bodyWordRegionMap.offsetsByRegion, handleReaderWordSelect, renderRegionHighlightedText, selectedWordRange]);
 
   if (loading) {
     return (
@@ -673,9 +901,7 @@ export default function SermonDetail() {
                         data-testid="sermon-paragraph-text"
                         className={`whitespace-pre-wrap ${isReadingModeEnabled ? 'text-[1.5rem] leading-10 text-foreground' : 'text-[1.02rem] leading-8 text-foreground/90'}`}
                       >
-                        {highlightTerms.length
-                          ? renderRegionHighlightedText(paragraphRegionKey, paragraph.paragraph_text)
-                          : paragraph.paragraph_text}
+                        {renderBodyRegionText(paragraphRegionKey, paragraph.paragraph_text)}
                       </div>
                     </section>
                   );
@@ -686,9 +912,7 @@ export default function SermonDetail() {
                 data-testid="sermon-content-text"
                 className={`whitespace-pre-wrap ${isReadingModeEnabled ? 'text-[1.2rem] leading-10 text-foreground' : 'text-[1.02rem] leading-8 text-foreground/90'}`}
               >
-                {highlightTerms.length
-                  ? renderRegionHighlightedText(CONTENT_REGION_KEY, sermon.text_content)
-                  : sermon.text_content}
+                {renderBodyRegionText(CONTENT_REGION_KEY, sermon.text_content)}
               </div>
             )}
           </section>

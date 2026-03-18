@@ -123,6 +123,24 @@ function getActiveMatch(): HTMLElement | null {
   return document.querySelector<HTMLElement>('mark[data-search-match="true"][data-search-match-active="true"]');
 }
 
+function getReaderWords(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-reader-word="true"]'));
+}
+
+function getSelectedReaderWords(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-reader-word="true"][data-reader-word-selected="true"]'));
+}
+
+function getReaderWordByIndex(index: number): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`[data-reader-word="true"][data-reader-word-index="${index}"]`);
+}
+
+function getSelectedReaderWordIndexes(): number[] {
+  return getSelectedReaderWords()
+    .map((element) => Number.parseInt(element.getAttribute('data-reader-word-index') ?? '', 10))
+    .filter((value) => Number.isFinite(value));
+}
+
 describe('SermonDetail', () => {
   beforeEach(() => {
     fetchSermonByIdMock.mockReset();
@@ -258,6 +276,126 @@ describe('SermonDetail', () => {
     expect(dimmed).toBeDefined();
     expect(dimmed).toHaveClass('bg-yellow-200/10');
     expect(dimmed).toHaveClass('text-foreground/45');
+  });
+
+  it('requires click to start selection and supports cumulative extend/shrink with clamping', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    expect(getSelectedReaderWords()).toHaveLength(0);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWords()).toHaveLength(0);
+
+    const totalWords = getReaderWords().length;
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.keyDown(window, { key: ' ' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+    const selectedSeparators = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-reader-word-separator-selected="true"]'),
+    );
+    expect(selectedSeparators.length).toBeGreaterThan(0);
+    expect(selectedSeparators.some((element) => /\s/.test(element.textContent ?? ''))).toBe(true);
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2]);
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+
+    fireEvent.keyDown(window, { key: ' ', shiftKey: true });
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.keyDown(window, { key: ' ', shiftKey: true });
+    expect(getSelectedReaderWords()).toHaveLength(0);
+
+    fireEvent.click(firstWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    for (let index = 0; index < totalWords + 5; index += 1) {
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+    }
+
+    expect(getSelectedReaderWords()).toHaveLength(totalWords);
+    expect(getSelectedReaderWordIndexes()[totalWords - 1]).toBe(totalWords - 1);
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWords()).toHaveLength(totalWords);
+
+    const resetTargetWord = getReaderWordByIndex(5);
+    expect(resetTargetWord).not.toBeNull();
+    fireEvent.click(resetTargetWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([5]);
+  });
+
+  it('keeps word-by-word navigation active in reading mode', async () => {
+    renderDetail('/sermons/sermon-1?reading=1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    expect(getSelectedReaderWords()).toHaveLength(0);
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+  });
+
+  it('combines word-by-word highlighting with existing search-match highlighting', async () => {
+    renderDetail('/sermons/sermon-1?q=i%20am%20looking%20forward');
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('mark[data-search-match="true"]')).toHaveLength(2);
+      expect(getActiveMatch()).not.toBeNull();
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    expect(document.querySelector('mark[data-search-match="true"] [data-reader-word="true"]')).not.toBeNull();
+    expect(getSelectedReaderWords()).toHaveLength(0);
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1]);
+
+    expect(document.querySelectorAll('mark[data-search-match="true"]')).toHaveLength(2);
+    expect(getActiveMatch()).not.toBeNull();
+  });
+
+  it('does not move word-by-word cursor when a typing target has focus', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, { key: 'ArrowRight' });
+
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+    input.remove();
   });
 
   it('opens global search modal from toolbar or F key, but ignores Ctrl/Cmd+F', async () => {
