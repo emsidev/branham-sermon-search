@@ -5,6 +5,9 @@ export const SHORTCUT_ACTIONS = [
   'result_next',
   'result_prev',
   'toggle_reading_mode',
+  'cycle_highlight_mode',
+  'reader_extend_selection',
+  'reader_shrink_selection',
 ] as const;
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
@@ -50,6 +53,21 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     label: 'Toggle reading mode',
     description: 'Enters or exits focused reading mode in sermon detail.',
   },
+  {
+    action: 'cycle_highlight_mode',
+    label: 'Cycle highlight mode',
+    description: 'Cycles reader highlight mode between word, sentence, and paragraph.',
+  },
+  {
+    action: 'reader_extend_selection',
+    label: 'Reader extend selection',
+    description: 'Extends reader highlight selection by the active unit. Legacy aliases: Right Arrow and Space.',
+  },
+  {
+    action: 'reader_shrink_selection',
+    label: 'Reader shrink selection',
+    description: 'Shrinks reader highlight selection by the active unit. Legacy aliases: Left Arrow and Shift+Space.',
+  },
 ];
 
 export const SHORTCUT_DEFAULT_BINDINGS: ShortcutBindings = {
@@ -59,10 +77,25 @@ export const SHORTCUT_DEFAULT_BINDINGS: ShortcutBindings = {
   result_next: 'n',
   result_prev: 'm',
   toggle_reading_mode: 'r',
+  cycle_highlight_mode: 'h',
+  reader_extend_selection: 'ArrowRight',
+  reader_shrink_selection: 'ArrowLeft',
 };
 
 const RESERVED_SHORTCUT_KEYS = new Set(['enter', 'escape', 'tab']);
 const REMOVED_SHORTCUT_KEYS = new Set(['j', 'k']);
+const NAMED_SHORTCUT_KEYS: Record<string, 'ArrowRight' | 'ArrowLeft' | 'Space'> = {
+  arrowright: 'ArrowRight',
+  right: 'ArrowRight',
+  arrowleft: 'ArrowLeft',
+  left: 'ArrowLeft',
+  space: 'Space',
+  spacebar: 'Space',
+};
+const ACTIONS_ALLOWING_NAMED_KEYS = new Set<ShortcutAction>([
+  'reader_extend_selection',
+  'reader_shrink_selection',
+]);
 
 export function isShortcutAction(value: string): value is ShortcutAction {
   return (SHORTCUT_ACTIONS as readonly string[]).includes(value);
@@ -77,8 +110,16 @@ export function getShortcutDefinition(action: ShortcutAction): ShortcutDefinitio
 }
 
 export function formatShortcutKey(key: string): string {
-  if (key === ' ') {
+  if (key === ' ' || key === 'Space') {
     return 'Space';
+  }
+
+  if (key === 'ArrowRight') {
+    return 'Right';
+  }
+
+  if (key === 'ArrowLeft') {
+    return 'Left';
   }
 
   if (key.length === 1 && /[a-z]/.test(key)) {
@@ -89,19 +130,35 @@ export function formatShortcutKey(key: string): string {
 }
 
 export function normalizeShortcutKey(rawKey: string): string | null {
+  if (rawKey === ' ') {
+    return 'Space';
+  }
+
   const key = rawKey.trim();
-  if (!key || key.length !== 1) {
+  if (!key) {
     return null;
   }
 
-  if (/\s/.test(key)) {
-    return null;
+  if (key.length === 1) {
+    if (/\s/.test(key)) {
+      return null;
+    }
+
+    return key.toLowerCase();
   }
 
-  return key.toLowerCase();
+  const normalizedNamedKey = NAMED_SHORTCUT_KEYS[key.toLowerCase()];
+  if (normalizedNamedKey) {
+    return normalizedNamedKey;
+  }
+
+  return null;
 }
 
-export function validateShortcutKey(rawKey: string): { key: string | null; error: string | null } {
+export function validateShortcutKey(
+  rawKey: string,
+  action?: ShortcutAction,
+): { key: string | null; error: string | null } {
   const normalized = normalizeShortcutKey(rawKey);
   if (!normalized) {
     return {
@@ -110,17 +167,26 @@ export function validateShortcutKey(rawKey: string): { key: string | null; error
     };
   }
 
-  if (RESERVED_SHORTCUT_KEYS.has(normalized)) {
+  const loweredKey = normalized.toLowerCase();
+  if (RESERVED_SHORTCUT_KEYS.has(loweredKey)) {
     return {
       key: null,
       error: 'This key is reserved.',
     };
   }
 
-  if (REMOVED_SHORTCUT_KEYS.has(normalized)) {
+  if (REMOVED_SHORTCUT_KEYS.has(loweredKey)) {
     return {
       key: null,
-      error: `"${formatShortcutKey(normalized)}" is no longer supported.`,
+      error: `"${formatShortcutKey(loweredKey)}" is no longer supported.`,
+    };
+  }
+
+  const isNamedKey = normalized.length > 1;
+  if (isNamedKey && (!action || !ACTIONS_ALLOWING_NAMED_KEYS.has(action))) {
+    return {
+      key: null,
+      error: 'Use a single printable key.',
     };
   }
 
@@ -149,12 +215,12 @@ export function coerceShortcutBindings(
 
   for (const action of SHORTCUT_ACTIONS) {
     const preferredKey = candidate[action];
-    const normalizedPreferred = preferredKey ? normalizeShortcutKey(preferredKey) : null;
+    const normalizedPreferred = preferredKey
+      ? validateShortcutKey(preferredKey, action).key
+      : null;
 
     if (
       normalizedPreferred
-      && !RESERVED_SHORTCUT_KEYS.has(normalizedPreferred)
-      && !REMOVED_SHORTCUT_KEYS.has(normalizedPreferred)
       && !usedKeys.has(normalizedPreferred)
     ) {
       coerced[action] = normalizedPreferred;

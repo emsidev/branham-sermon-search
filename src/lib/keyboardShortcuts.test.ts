@@ -3,6 +3,7 @@ import {
   SHORTCUT_DEFAULT_BINDINGS,
   coerceShortcutBindings,
   findShortcutConflict,
+  formatShortcutKey,
   normalizeShortcutKey,
   validateShortcutKey,
 } from './keyboardShortcuts';
@@ -12,6 +13,10 @@ describe('keyboardShortcuts', () => {
     expect(normalizeShortcutKey('B')).toBe('b');
     expect(normalizeShortcutKey('/')).toBe('/');
     expect(normalizeShortcutKey(',')).toBe(',');
+    expect(normalizeShortcutKey('ArrowRight')).toBe('ArrowRight');
+    expect(normalizeShortcutKey('ArrowLeft')).toBe('ArrowLeft');
+    expect(normalizeShortcutKey('Space')).toBe('Space');
+    expect(normalizeShortcutKey(' ')).toBe('Space');
   });
 
   it('rejects invalid shortcut keys', () => {
@@ -24,6 +29,25 @@ describe('keyboardShortcuts', () => {
     const result = validateShortcutKey('Enter');
     expect(result.key).toBeNull();
     expect(result.error).toBe('Use a single printable key.');
+  });
+
+  it('allows named keys only for reader selection actions', () => {
+    expect(validateShortcutKey('ArrowRight', 'reader_extend_selection')).toEqual({
+      key: 'ArrowRight',
+      error: null,
+    });
+    expect(validateShortcutKey('ArrowLeft', 'reader_shrink_selection')).toEqual({
+      key: 'ArrowLeft',
+      error: null,
+    });
+    expect(validateShortcutKey('Space', 'reader_extend_selection')).toEqual({
+      key: 'Space',
+      error: null,
+    });
+
+    const invalidForGeneralAction = validateShortcutKey('ArrowRight', 'open_books');
+    expect(invalidForGeneralAction.key).toBeNull();
+    expect(invalidForGeneralAction.error).toBe('Use a single printable key.');
   });
 
   it('rejects removed legacy navigation keys', () => {
@@ -41,12 +65,17 @@ describe('keyboardShortcuts', () => {
       focus_search: 'B',
       open_books: 'b',
       open_settings: ',',
+      reader_extend_selection: 'ArrowRight',
+      reader_shrink_selection: 'ArrowLeft',
     });
 
-    expect(Object.values(coerced)).toHaveLength(6);
-    expect(new Set(Object.values(coerced)).size).toBe(6);
+    expect(Object.values(coerced)).toHaveLength(9);
+    expect(new Set(Object.values(coerced)).size).toBe(9);
     expect(coerced.open_settings).toBe(',');
     expect(coerced.toggle_reading_mode).toBe('r');
+    expect(coerced.cycle_highlight_mode).toBe('h');
+    expect(coerced.reader_extend_selection).toBe('ArrowRight');
+    expect(coerced.reader_shrink_selection).toBe('ArrowLeft');
   });
 
   it('detects key conflicts between actions', () => {
@@ -57,5 +86,11 @@ describe('keyboardShortcuts', () => {
     );
 
     expect(conflict).toBe('focus_search');
+  });
+
+  it('formats named keys for display labels', () => {
+    expect(formatShortcutKey('ArrowRight')).toBe('Right');
+    expect(formatShortcutKey('ArrowLeft')).toBe('Left');
+    expect(formatShortcutKey('Space')).toBe('Space');
   });
 });

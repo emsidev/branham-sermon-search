@@ -11,6 +11,9 @@ let bindingsMock: ShortcutBindings = {
   result_next: 'n',
   result_prev: 'm',
   toggle_reading_mode: 'r',
+  cycle_highlight_mode: 'h',
+  reader_extend_selection: 'ArrowRight',
+  reader_shrink_selection: 'ArrowLeft',
 };
 let searchInputMock: HTMLInputElement | null = null;
 const getResultListControllerMock = vi.fn();
@@ -60,6 +63,9 @@ describe('GlobalKeyboardShortcuts', () => {
       result_next: 'n',
       result_prev: 'm',
       toggle_reading_mode: 'r',
+      cycle_highlight_mode: 'h',
+      reader_extend_selection: 'ArrowRight',
+      reader_shrink_selection: 'ArrowLeft',
     };
     searchInputMock = null;
     getResultListControllerMock.mockReset();

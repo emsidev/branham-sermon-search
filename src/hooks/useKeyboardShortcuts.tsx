@@ -291,7 +291,7 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
   }, [applyLocalSnapshot, markFallback, markSynced, syncCloudAndLocal]);
 
   const setShortcutBinding = useCallback((action: ShortcutAction, rawKey: string): ShortcutMutationResult => {
-    const { key: normalizedKey, error } = validateShortcutKey(rawKey);
+    const { key: normalizedKey, error } = validateShortcutKey(rawKey, action);
     if (error || !normalizedKey) {
       return { ok: false, error: error ?? 'Invalid shortcut key.' };
     }
