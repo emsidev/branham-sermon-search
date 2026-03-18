@@ -11,6 +11,7 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
       open_settings: ',',
       result_next: 'n',
       result_prev: 'm',
+      toggle_reading_mode: 'r',
     },
     syncStatus: 'synced',
     syncWarning: null,
@@ -56,4 +57,16 @@ describe('AppChrome', () => {
       expect(screen.getByText('a fast, modern browser for the table')).toBeInTheDocument();
     }
   );
+
+  it('hides global navbar and footer on sermon reading mode route', () => {
+    renderAtPath('/sermons/42?reading=1');
+
+    expect(screen.queryByLabelText('Search sermons')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /books/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /settings/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /about/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'the table search' })).not.toBeInTheDocument();
+    expect(screen.queryByText('a fast, modern browser for the table')).not.toBeInTheDocument();
+    expect(screen.getByText('sermon route')).toBeInTheDocument();
+  });
 });

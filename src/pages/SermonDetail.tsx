@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns';
 import { fetchSermonById, fetchAdjacentSermons, fetchBoundarySermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import ReadingModeToggleButton from '@/components/reader/ReadingModeToggleButton';
 import SermonBreadcrumb from '@/components/SermonBreadcrumb';
 import SharedSearchExperience from '@/components/search/SharedSearchExperience';
 import SermonDetailFixedChevrons from '@/components/search/SermonDetailFixedChevrons';
@@ -27,6 +28,8 @@ import {
   scrollSermonDetailToTop,
   type AdjacentHitNavigationTarget,
 } from '@/lib/sermonDetailHitNavigation';
+import { shouldTriggerReadingModeShortcut } from '@/lib/readingModeShortcuts';
+import { buildReadingModeSearch, isReadingModeEnabledFromSearchParams } from '@/lib/readingModeUrlState';
 import { getEffectiveHitScrollBehavior } from '@/lib/preferences';
 
 interface AdjacentSermon {
@@ -232,6 +235,10 @@ export default function SermonDetail() {
   const matchCase = searchParams.get('matchCase') === '1';
   const wholeWordParam = searchParams.get('wholeWord');
   const wholeWord = wholeWordParam == null ? true : wholeWordParam === '1';
+  const isReadingModeEnabled = useMemo(
+    () => isReadingModeEnabledFromSearchParams(searchParams),
+    [searchParams],
+  );
   const effectiveMatchCase = fuzzy ? false : matchCase;
   const effectiveWholeWord = fuzzy ? false : wholeWord;
   const searchShortcutKey = 'f';
@@ -312,6 +319,23 @@ export default function SermonDetail() {
   const handleJumpToTop = useCallback(() => {
     scrollSermonDetailToTop();
   }, []);
+
+  const setReadingModeEnabled = useCallback((enabled: boolean) => {
+    navigate(
+      {
+        pathname: location.pathname,
+        search: buildReadingModeSearch(location.search, enabled),
+        hash: location.hash,
+      },
+      {
+        state: location.state,
+      },
+    );
+  }, [location.hash, location.pathname, location.search, location.state, navigate]);
+
+  const toggleReadingMode = useCallback(() => {
+    setReadingModeEnabled(!isReadingModeEnabled);
+  }, [isReadingModeEnabled, setReadingModeEnabled]);
 
   const initialMatchIndex = useMemo(() => {
     if (findModel.totalMatches === 0) {
@@ -399,6 +423,20 @@ export default function SermonDetail() {
     return () => window.removeEventListener('keydown', handleHitNavigationKeyDown);
   }, [handleHitNavigationKeyDown, highlightTerms.length]);
 
+  useEffect(() => {
+    const handleReadingModeShortcutKeyDown = (event: KeyboardEvent) => {
+      if (!shouldTriggerReadingModeShortcut(event, bindings.toggle_reading_mode)) {
+        return;
+      }
+
+      event.preventDefault();
+      toggleReadingMode();
+    };
+
+    window.addEventListener('keydown', handleReadingModeShortcutKeyDown);
+    return () => window.removeEventListener('keydown', handleReadingModeShortcutKeyDown);
+  }, [bindings.toggle_reading_mode, toggleReadingMode]);
+
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     setShared(true);
@@ -457,7 +495,7 @@ export default function SermonDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className={`min-h-screen bg-background ${isReadingModeEnabled ? 'pb-10' : 'pb-24'}`}>
       <SearchPopup
         isOpen={isSearchPopupOpen}
         onClose={closeSearchPopup}
@@ -469,32 +507,45 @@ export default function SermonDetail() {
           onHitNavigate={closeSearchPopup}
         />
       </SearchPopup>
-      <SermonDetailFixedChevrons
-        canNavigatePrev={fixedChevronNavigation.canNavigatePrev}
-        canNavigateNext={fixedChevronNavigation.canNavigateNext}
-        onNavigatePrev={fixedChevronNavigation.navigatePrev}
-        onNavigateNext={fixedChevronNavigation.navigateNext}
-        onJumpToTop={handleJumpToTop}
-      />
+      {!isReadingModeEnabled && (
+        <SermonDetailFixedChevrons
+          canNavigatePrev={fixedChevronNavigation.canNavigatePrev}
+          canNavigateNext={fixedChevronNavigation.canNavigateNext}
+          onNavigatePrev={fixedChevronNavigation.navigatePrev}
+          onNavigateNext={fixedChevronNavigation.navigateNext}
+          onJumpToTop={handleJumpToTop}
+        />
+      )}
 
-      <div ref={contentRef} className="mx-auto max-w-[900px] space-y-8 px-6 py-8 lg:px-0">
-        <SermonBreadcrumb year={sermon.year} title={sermon.title} rootHref={breadcrumbRootHref} />
+      <div
+        ref={contentRef}
+        className={`mx-auto max-w-[900px] px-6 lg:px-0 ${isReadingModeEnabled ? 'space-y-6 py-5' : 'space-y-8 py-8'}`}
+      >
+        {!isReadingModeEnabled && (
+          <SermonBreadcrumb year={sermon.year} title={sermon.title} rootHref={breadcrumbRootHref} />
+        )}
 
-        <section className="space-y-4 border-b border-border-subtle pb-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 flex-1 space-y-3">
+        <section className={`border-b border-border-subtle ${isReadingModeEnabled ? 'space-y-3 pb-4' : 'space-y-4 pb-6'}`}>
+          <div className={`flex flex-wrap items-start justify-between ${isReadingModeEnabled ? 'gap-3' : 'gap-4'}`}>
+            <div className={`min-w-0 flex-1 ${isReadingModeEnabled ? 'space-y-2' : 'space-y-3'}`}>
               <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
                 <span className="rounded-md border border-border bg-bg-muted px-2 py-1 text-foreground">
                   {sermon.sermon_code}
                 </span>
               </div>
-              <h1 className="text-2xl font-bold font-mono leading-tight text-foreground">
+              <h1
+                data-testid="sermon-title"
+                className={`font-bold font-mono text-foreground ${isReadingModeEnabled ? 'text-lg leading-snug' : 'text-2xl leading-tight'}`}
+              >
                 {highlightTerms.length
                   ? renderRegionHighlightedText(TITLE_REGION_KEY, sermon.title)
                   : sermon.title}
               </h1>
               {sermon.summary ? (
-                <p data-testid="sermon-summary" className="max-w-[72ch] text-sm leading-relaxed text-foreground/85">
+                <p
+                  data-testid="sermon-summary"
+                  className={`${isReadingModeEnabled ? 'max-w-[78ch] text-xs leading-relaxed text-foreground/80' : 'max-w-[72ch] text-sm leading-relaxed text-foreground/85'}`}
+                >
                   {sermon.summary}
                 </p>
               ) : null}
@@ -530,6 +581,12 @@ export default function SermonDetail() {
                   Find
                   <kbd className="rounded border border-border bg-muted px-1 text-[11px]">{searchShortcutKey}</kbd>
                 </button>
+                <ReadingModeToggleButton
+                  enabled={isReadingModeEnabled}
+                  shortcutKey={bindings.toggle_reading_mode}
+                  onToggle={toggleReadingMode}
+                  className="inline-flex items-center gap-1.5 border-l border-border px-3 py-2 text-foreground hover:bg-hover-row"
+                />
                 <button
                   onClick={handleShare}
                   className="inline-flex items-center gap-1.5 border-l border-border px-3 py-2 text-foreground hover:bg-hover-row"
@@ -547,32 +604,34 @@ export default function SermonDetail() {
             </p>
           )}
 
-          <div
-            data-testid="sermon-meta-strip"
-            className="flex flex-wrap items-start gap-x-8 gap-y-3 rounded-lg border border-border bg-card/40 px-4 py-3"
-          >
-            <MetaField label="Date" value={formatLongDate(sermon.date)} />
-            {sermon.location ? <MetaField label="Location" value={sermon.location} /> : null}
-            {sermon.scripture ? <MetaField label="Scripture" value={sermon.scripture} /> : null}
-            {formatDuration(sermon.duration_seconds) ? (
-              <MetaField label="Duration" value={formatDuration(sermon.duration_seconds)!} />
-            ) : null}
-            {sermon.tags && sermon.tags.length > 0 ? (
-              <div className="min-w-[120px]">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tags</p>
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {sermon.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-md border border-border bg-bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground"
-                    >
-                      {tag}
-                    </span>
-                  ))}
+          {!isReadingModeEnabled && (
+            <div
+              data-testid="sermon-meta-strip"
+              className="flex flex-wrap items-start gap-x-8 gap-y-3 rounded-lg border border-border bg-card/40 px-4 py-3"
+            >
+              <MetaField label="Date" value={formatLongDate(sermon.date)} />
+              {sermon.location ? <MetaField label="Location" value={sermon.location} /> : null}
+              {sermon.scripture ? <MetaField label="Scripture" value={sermon.scripture} /> : null}
+              {formatDuration(sermon.duration_seconds) ? (
+                <MetaField label="Duration" value={formatDuration(sermon.duration_seconds)!} />
+              ) : null}
+              {sermon.tags && sermon.tags.length > 0 ? (
+                <div className="min-w-[120px]">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tags</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    {sermon.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-md border border-border bg-bg-muted px-1.5 py-0.5 text-xs font-mono text-foreground"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          )}
         </section>
 
         {(sermon.paragraphs.length > 0 || sermon.text_content) && (
@@ -600,7 +659,10 @@ export default function SermonDetail() {
                           </span>
                         ) : null}
                       </p>
-                      <div className="whitespace-pre-wrap text-[1.02rem] leading-8 text-foreground/90">
+                      <div
+                        data-testid="sermon-paragraph-text"
+                        className={`whitespace-pre-wrap ${isReadingModeEnabled ? 'text-[1.5rem] leading-10 text-foreground' : 'text-[1.02rem] leading-8 text-foreground/90'}`}
+                      >
                         {highlightTerms.length
                           ? renderRegionHighlightedText(paragraphRegionKey, paragraph.paragraph_text)
                           : paragraph.paragraph_text}
@@ -610,7 +672,10 @@ export default function SermonDetail() {
                 })}
               </div>
             ) : (
-              <div className="whitespace-pre-wrap text-[1.02rem] leading-8 text-foreground/90">
+              <div
+                data-testid="sermon-content-text"
+                className={`whitespace-pre-wrap ${isReadingModeEnabled ? 'text-[1.2rem] leading-10 text-foreground' : 'text-[1.02rem] leading-8 text-foreground/90'}`}
+              >
                 {highlightTerms.length
                   ? renderRegionHighlightedText(CONTENT_REGION_KEY, sermon.text_content)
                   : sermon.text_content}
@@ -619,26 +684,28 @@ export default function SermonDetail() {
           </section>
         )}
 
-        <div className="flex items-center justify-between border-t border-border pt-6">
-          {adjacent.prev ? (
-            <Link
-              to={`/sermons/${adjacent.prev.id}`}
-              className="flex items-center gap-1 text-xs font-mono text-link hover:underline"
-            >
-              <ChevronLeft className="h-3 w-3" />
-              <span className="max-w-[200px] truncate">{adjacent.prev.title}</span>
-            </Link>
-          ) : <div />}
-          {adjacent.next ? (
-            <Link
-              to={`/sermons/${adjacent.next.id}`}
-              className="flex items-center gap-1 text-xs font-mono text-link hover:underline"
-            >
-              <span className="max-w-[200px] truncate">{adjacent.next.title}</span>
-              <ChevronRight className="h-3 w-3" />
-            </Link>
-          ) : <div />}
-        </div>
+        {!isReadingModeEnabled && (
+          <div className="flex items-center justify-between border-t border-border pt-6">
+            {adjacent.prev ? (
+              <Link
+                to={`/sermons/${adjacent.prev.id}`}
+                className="flex items-center gap-1 text-xs font-mono text-link hover:underline"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                <span className="max-w-[200px] truncate">{adjacent.prev.title}</span>
+              </Link>
+            ) : <div />}
+            {adjacent.next ? (
+              <Link
+                to={`/sermons/${adjacent.next.id}`}
+                className="flex items-center gap-1 text-xs font-mono text-link hover:underline"
+              >
+                <span className="max-w-[200px] truncate">{adjacent.next.title}</span>
+                <ChevronRight className="h-3 w-3" />
+              </Link>
+            ) : <div />}
+          </div>
+        )}
       </div>
     </div>
   );

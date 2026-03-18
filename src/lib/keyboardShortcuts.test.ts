@@ -43,9 +43,10 @@ describe('keyboardShortcuts', () => {
       open_settings: ',',
     });
 
-    expect(Object.values(coerced)).toHaveLength(5);
-    expect(new Set(Object.values(coerced)).size).toBe(5);
+    expect(Object.values(coerced)).toHaveLength(6);
+    expect(new Set(Object.values(coerced)).size).toBe(6);
     expect(coerced.open_settings).toBe(',');
+    expect(coerced.toggle_reading_mode).toBe('r');
   });
 
   it('detects key conflicts between actions', () => {

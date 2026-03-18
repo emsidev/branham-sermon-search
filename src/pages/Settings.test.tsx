@@ -16,6 +16,7 @@ const shortcutBindingsMock: ShortcutBindings = {
   open_settings: ',',
   result_next: 'n',
   result_prev: 'm',
+  toggle_reading_mode: 'r',
 };
 const setShortcutBindingMock = vi.fn(() => ({ ok: true }));
 const resetShortcutBindingMock = vi.fn(() => ({ ok: true }));

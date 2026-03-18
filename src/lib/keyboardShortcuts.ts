@@ -4,6 +4,7 @@ export const SHORTCUT_ACTIONS = [
   'open_settings',
   'result_next',
   'result_prev',
+  'toggle_reading_mode',
 ] as const;
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
@@ -44,6 +45,11 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     label: 'Next/previous sermon hit',
     description: 'Jumps to the first hit in adjacent sermons (hold Shift for previous sermon).',
   },
+  {
+    action: 'toggle_reading_mode',
+    label: 'Toggle reading mode',
+    description: 'Enters or exits focused reading mode in sermon detail.',
+  },
 ];
 
 export const SHORTCUT_DEFAULT_BINDINGS: ShortcutBindings = {
@@ -52,6 +58,7 @@ export const SHORTCUT_DEFAULT_BINDINGS: ShortcutBindings = {
   open_settings: ',',
   result_next: 'n',
   result_prev: 'm',
+  toggle_reading_mode: 'r',
 };
 
 const RESERVED_SHORTCUT_KEYS = new Set(['enter', 'escape', 'tab']);

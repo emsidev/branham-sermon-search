@@ -10,6 +10,7 @@ let bindingsMock: ShortcutBindings = {
   open_settings: ',',
   result_next: 'n',
   result_prev: 'm',
+  toggle_reading_mode: 'r',
 };
 let searchInputMock: HTMLInputElement | null = null;
 const getResultListControllerMock = vi.fn();
@@ -58,6 +59,7 @@ describe('GlobalKeyboardShortcuts', () => {
       open_settings: ',',
       result_next: 'n',
       result_prev: 'm',
+      toggle_reading_mode: 'r',
     };
     searchInputMock = null;
     getResultListControllerMock.mockReset();

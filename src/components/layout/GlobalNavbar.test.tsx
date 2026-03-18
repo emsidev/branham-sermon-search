@@ -13,6 +13,7 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
       open_settings: ',',
       result_next: 'n',
       result_prev: 'm',
+      toggle_reading_mode: 'r',
     },
     syncStatus: 'synced',
     syncWarning: null,
