@@ -96,6 +96,9 @@ const READER_HIGHLIGHT_MODE_HUD_ANCHOR_GAP_PX = 10;
 const READER_HIGHLIGHT_MODE_HUD_DEFAULT_TOP_OFFSET_PX = 16;
 const READER_HIGHLIGHT_MODE_HUD_FALLBACK_WIDTH_PX = 176;
 const READER_HIGHLIGHT_MODE_HUD_FALLBACK_HEIGHT_PX = 44;
+const READER_SELECTION_VISIBILITY_TOP_MARGIN_PX = 96;
+const READER_SELECTION_VISIBILITY_BOTTOM_MARGIN_PX = 112;
+const READER_SELECTION_VISIBILITY_MIN_DISTANCE_PX = 0.5;
 const READER_HIGHLIGHT_MODE_OPTIONS: Array<{ mode: ReaderHighlightMode; label: string; shortLabel: string }> = [
   { mode: 'word', label: 'Word', shortLabel: 'W' },
   { mode: 'sentence', label: 'Sentence', shortLabel: 'S' },
@@ -107,6 +110,12 @@ interface ReaderHighlightModeHudPosition {
   left: number;
   side: 'left' | 'inside-left';
   anchorWordIndex: number | null;
+}
+
+interface ReadingModeToggleAnchorSnapshot {
+  targetReadingMode: boolean;
+  selectedWordIndex: number | null;
+  paragraphNumber: number | null;
 }
 
 function getNextReaderHighlightMode(mode: ReaderHighlightMode): ReaderHighlightMode {
@@ -123,6 +132,31 @@ function getNextReaderHighlightMode(mode: ReaderHighlightMode): ReaderHighlightM
 
 function getParagraphRegionKey(paragraphNumber: number): string {
   return `paragraph-${paragraphNumber}`;
+}
+
+function calculateReaderSelectionVisibilityDistance(targetRect: DOMRect, viewportHeight: number): number {
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
+    return 0;
+  }
+
+  const topBoundary = Math.min(
+    READER_SELECTION_VISIBILITY_TOP_MARGIN_PX,
+    Math.max(0, viewportHeight - 1),
+  );
+  const bottomBoundary = Math.max(
+    topBoundary + 1,
+    viewportHeight - READER_SELECTION_VISIBILITY_BOTTOM_MARGIN_PX,
+  );
+
+  if (targetRect.top < topBoundary) {
+    return targetRect.top - topBoundary;
+  }
+
+  if (targetRect.bottom > bottomBoundary) {
+    return targetRect.bottom - bottomBoundary;
+  }
+
+  return 0;
 }
 
 function buildMatchPreview(text: string, start: number, end: number): string {
@@ -420,6 +454,7 @@ export default function SermonDetail() {
   const readerHighlightModeHudRef = useRef<HTMLDivElement | null>(null);
   const selectedWordRangeRef = useRef<ReaderWordSelectionRange | null>(null);
   const readerHighlightModeHudTimeoutRef = useRef<number | null>(null);
+  const readingModeToggleAnchorRef = useRef<ReadingModeToggleAnchorSnapshot | null>(null);
   const { play, url: activeAudioUrl } = useAudioPlayer();
   const { bindings } = useKeyboardShortcuts();
 
@@ -574,6 +609,104 @@ export default function SermonDetail() {
     );
   }, [location.hash, location.pathname, location.search, location.state, navigate, readerHighlightMode]);
 
+  const scrollReaderBy = useCallback((deltaY: number) => {
+    if (!Number.isFinite(deltaY) || Math.abs(deltaY) < READER_SELECTION_VISIBILITY_MIN_DISTANCE_PX) {
+      return;
+    }
+
+    if (typeof window.scrollBy === 'function') {
+      try {
+        window.scrollBy({ top: deltaY, left: 0, behavior: 'auto' });
+        return;
+      } catch {
+        try {
+          window.scrollBy(0, deltaY);
+          return;
+        } catch {
+          // Fall through to scrollTo fallback.
+        }
+      }
+    }
+
+    if (typeof window.scrollTo === 'function') {
+      const nextTop = (window.scrollY ?? window.pageYOffset ?? 0) + deltaY;
+      try {
+        window.scrollTo({ top: nextTop, left: 0, behavior: 'auto' });
+        return;
+      } catch {
+        try {
+          window.scrollTo(0, nextTop);
+        } catch {
+          // Ignore unsupported browser APIs.
+        }
+      }
+    }
+  }, []);
+
+  const getReaderWordElementByIndex = useCallback((wordIndex: number) => {
+    return document.querySelector<HTMLElement>(
+      `[data-reader-word="true"][data-reader-word-index="${wordIndex}"]`,
+    );
+  }, []);
+
+  const scrollElementIntoView = useCallback((element: HTMLElement) => {
+    try {
+      element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+      return;
+    } catch {
+      try {
+        element.scrollIntoView();
+      } catch {
+        // Ignore unsupported browser APIs.
+      }
+    }
+  }, []);
+
+  const findNearestVisibleParagraphNumber = useCallback(() => {
+    const paragraphElements = Array.from(document.querySelectorAll<HTMLElement>('[data-paragraph-number]'));
+    if (paragraphElements.length === 0) {
+      return null;
+    }
+
+    const viewportHeight = window.innerHeight ?? 0;
+    const viewportCenterY = viewportHeight > 0 ? viewportHeight / 2 : 0;
+    let nearestVisible: { paragraphNumber: number; distance: number } | null = null;
+    let nearestOverall: { paragraphNumber: number; distance: number } | null = null;
+
+    for (const paragraphElement of paragraphElements) {
+      const paragraphNumberRaw = paragraphElement.getAttribute('data-paragraph-number');
+      const paragraphNumber = paragraphNumberRaw == null ? Number.NaN : Number.parseInt(paragraphNumberRaw, 10);
+      if (!Number.isFinite(paragraphNumber)) {
+        continue;
+      }
+
+      const rect = paragraphElement.getBoundingClientRect();
+      const centerY = rect.top + (rect.height / 2);
+      const distance = Math.abs(centerY - viewportCenterY);
+
+      if (!nearestOverall || distance < nearestOverall.distance) {
+        nearestOverall = {
+          paragraphNumber,
+          distance,
+        };
+      }
+
+      const isVisible = rect.bottom > 0 && rect.top < viewportHeight;
+      if (!isVisible) {
+        continue;
+      }
+
+      if (!nearestVisible || distance < nearestVisible.distance) {
+        nearestVisible = {
+          paragraphNumber,
+          distance,
+        };
+      }
+    }
+
+    return nearestVisible?.paragraphNumber ?? nearestOverall?.paragraphNumber ?? null;
+  }, []);
+
   const updateReaderHighlightModeHudPosition = useCallback(
     (range: ReaderWordSelectionRange | null = selectedWordRangeRef.current) => {
       const bounds = getReaderWordSelectionBounds(range);
@@ -650,8 +783,14 @@ export default function SermonDetail() {
   ), [readerHighlightMode]);
 
   const toggleReadingMode = useCallback(() => {
+    const currentBounds = getReaderWordSelectionBounds(selectedWordRangeRef.current);
+    readingModeToggleAnchorRef.current = {
+      targetReadingMode: !isReadingModeEnabled,
+      selectedWordIndex: currentBounds?.endIndex ?? null,
+      paragraphNumber: currentBounds ? null : findNearestVisibleParagraphNumber(),
+    };
     setReadingModeEnabled(!isReadingModeEnabled);
-  }, [isReadingModeEnabled, setReadingModeEnabled]);
+  }, [findNearestVisibleParagraphNumber, isReadingModeEnabled, setReadingModeEnabled]);
 
   const initialMatchIndex = useMemo(() => {
     if (findModel.totalMatches === 0) {
@@ -689,11 +828,117 @@ export default function SermonDetail() {
     setSelectedWordRange(null);
     selectedWordRangeRef.current = null;
     setReaderHighlightModeHudPosition(null);
-  }, [bodyWordRegionMap.totalWords, id, readerHighlightMode]);
+  }, [bodyWordRegionMap.totalWords, id]);
+
+  useEffect(() => {
+    const currentRange = selectedWordRangeRef.current;
+    if (!currentRange) {
+      return;
+    }
+
+    const bounds = getReaderWordSelectionBounds(currentRange);
+    if (!bounds) {
+      return;
+    }
+
+    const remappedRange = createReaderWordSelectionRangeFromUnitMap(
+      bounds.endIndex,
+      readerSelectionUnitMap,
+    );
+    if (!remappedRange) {
+      return;
+    }
+
+    if (
+      remappedRange.anchorIndex === currentRange.anchorIndex
+      && remappedRange.cursorIndex === currentRange.cursorIndex
+    ) {
+      return;
+    }
+
+    selectedWordRangeRef.current = remappedRange;
+    setSelectedWordRange(remappedRange);
+  }, [readerHighlightMode, readerSelectionUnitMap]);
 
   useEffect(() => {
     selectedWordRangeRef.current = selectedWordRange;
   }, [selectedWordRange]);
+
+  useEffect(() => {
+    if (!isReadingModeEnabled) {
+      return;
+    }
+
+    const bounds = getReaderWordSelectionBounds(selectedWordRange);
+    if (!bounds) {
+      return;
+    }
+
+    const targetWord = getReaderWordElementByIndex(bounds.endIndex);
+    if (!targetWord) {
+      return;
+    }
+
+    const targetRect = targetWord.getBoundingClientRect();
+    if (targetRect.width <= 0 && targetRect.height <= 0) {
+      return;
+    }
+
+    const visibilityDistance = calculateReaderSelectionVisibilityDistance(
+      targetRect,
+      window.innerHeight ?? 0,
+    );
+    if (Math.abs(visibilityDistance) < READER_SELECTION_VISIBILITY_MIN_DISTANCE_PX) {
+      return;
+    }
+
+    scrollReaderBy(visibilityDistance);
+  }, [getReaderWordElementByIndex, isReadingModeEnabled, scrollReaderBy, selectedWordRange]);
+
+  useEffect(() => {
+    const anchor = readingModeToggleAnchorRef.current;
+    if (!anchor || anchor.targetReadingMode !== isReadingModeEnabled) {
+      return;
+    }
+
+    if (loading || !sermon) {
+      return;
+    }
+
+    let firstFrameId: number | null = null;
+    let secondFrameId: number | null = null;
+    firstFrameId = window.requestAnimationFrame(() => {
+      secondFrameId = window.requestAnimationFrame(() => {
+        const selectedWordElement = anchor.selectedWordIndex == null
+          ? null
+          : getReaderWordElementByIndex(anchor.selectedWordIndex);
+
+        if (selectedWordElement) {
+          scrollElementIntoView(selectedWordElement);
+          readingModeToggleAnchorRef.current = null;
+          return;
+        }
+
+        const paragraphElement = anchor.paragraphNumber == null
+          ? null
+          : document.querySelector<HTMLElement>(`[data-paragraph-number="${anchor.paragraphNumber}"]`);
+        if (paragraphElement) {
+          scrollElementIntoView(paragraphElement);
+        }
+
+        readingModeToggleAnchorRef.current = null;
+      });
+    });
+
+    return () => {
+      if (firstFrameId != null) {
+        window.cancelAnimationFrame(firstFrameId);
+      }
+      if (secondFrameId != null) {
+        window.cancelAnimationFrame(secondFrameId);
+      }
+    };
+  }, [getReaderWordElementByIndex, isReadingModeEnabled, loading, scrollElementIntoView, sermon]);
 
   useEffect(() => {
     if (!isReaderHighlightModeHudVisible) {

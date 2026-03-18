@@ -670,6 +670,37 @@ describe('SermonDetail', () => {
     expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
   });
 
+  it('keeps selection context when changing highlight mode from word to sentence to paragraph', async () => {
+    const scrollBySpy = vi.spyOn(window, 'scrollBy').mockImplementation(() => undefined);
+    renderDetail('/sermons/sermon-1?reading=1&highlightMode=word');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    const selectedWord = getReaderWordByIndex(3);
+    expect(selectedWord).not.toBeNull();
+    fireEvent.click(selectedWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([3]);
+
+    fireEvent.click(getHighlightModeButton('Sentence'));
+    await waitFor(() => {
+      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
+    });
+    expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+
+    fireEvent.click(getHighlightModeButton('Paragraph'));
+    await waitFor(() => {
+      expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    const totalWords = getReaderWords().length;
+    expect(getSelectedReaderWords()).toHaveLength(totalWords);
+    expect(getSelectedReaderWordIndexes()).toEqual(Array.from({ length: totalWords }, (_, index) => index));
+    scrollBySpy.mockRestore();
+  });
+
   it('applies paragraph-mode click and keyboard navigation by paragraph units', async () => {
     fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
     renderDetail('/sermons/sermon-1?highlightMode=paragraph');
@@ -691,6 +722,34 @@ describe('SermonDetail', () => {
 
     fireEvent.keyDown(window, { key: 'ArrowLeft' });
     expect(getSelectedReaderWordIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('clears selected reader words when sermon id changes', async () => {
+    fetchAdjacentSermonsMock.mockResolvedValue({
+      prev: null,
+      next: { id: 'sermon-2', title: 'Next', date: '1965-10-11' },
+    });
+
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Next sermon hit' })).toBeEnabled();
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    fireEvent.click(firstWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([0]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next sermon hit' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-2?q=only+believe');
+    });
+    await waitFor(() => {
+      expect(getSelectedReaderWords()).toHaveLength(0);
+    });
   });
 
   it('combines word-by-word highlighting with existing search-match highlighting', async () => {
@@ -810,6 +869,65 @@ describe('SermonDetail', () => {
     expect(screen.getByRole('progressbar', { name: 'Sermon reading progress' })).toBeInTheDocument();
   });
 
+  it('scrolls highlighted text toward viewport when selected word is outside reading band', async () => {
+    const scrollBySpy = vi.spyOn(window, 'scrollBy').mockImplementation(() => undefined);
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 900,
+    });
+
+    renderDetail('/sermons/sermon-1?reading=1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    const wordRectSpy = vi
+      .spyOn(firstWord!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(240, 860, 48, 24));
+
+    fireEvent.click(firstWord!);
+
+    await waitFor(() => {
+      expect(scrollBySpy).toHaveBeenCalled();
+    });
+
+    const firstCall = scrollBySpy.mock.calls[0]?.[0] as ScrollToOptions;
+    expect(firstCall).toEqual(expect.objectContaining({ left: 0, behavior: 'auto' }));
+    expect((firstCall.top as number) > 0).toBe(true);
+
+    wordRectSpy.mockRestore();
+    scrollBySpy.mockRestore();
+  });
+
+  it('does not scroll highlighted text when selected word is already in the reading band', async () => {
+    const scrollBySpy = vi.spyOn(window, 'scrollBy').mockImplementation(() => undefined);
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 900,
+    });
+
+    renderDetail('/sermons/sermon-1?reading=1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    const wordRectSpy = vi
+      .spyOn(firstWord!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(240, 220, 48, 24));
+
+    fireEvent.click(firstWord!);
+    expect(scrollBySpy).not.toHaveBeenCalled();
+
+    wordRectSpy.mockRestore();
+    scrollBySpy.mockRestore();
+  });
+
   it('hides sticky sermon progress bar while audio player is active', async () => {
     audioUrlMock = 'https://example.com/audio.mp3';
     renderDetail('/sermons/sermon-1?q=only+believe');
@@ -866,6 +984,90 @@ describe('SermonDetail', () => {
       expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
       expect(screen.getByTestId('location-path')).not.toHaveTextContent('reading=1');
     });
+  });
+
+  it('keeps the selected word context anchored when toggling reading mode', async () => {
+    const scrollTargets: string[] = [];
+    const scrollIntoViewSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function mock(this: HTMLElement) {
+      const wordIndex = this.getAttribute('data-reader-word-index');
+      if (wordIndex != null) {
+        scrollTargets.push(`word:${wordIndex}`);
+        return;
+      }
+
+      const paragraphNumber = this.getAttribute('data-paragraph-number');
+      if (paragraphNumber != null) {
+        scrollTargets.push(`paragraph:${paragraphNumber}`);
+      }
+    });
+
+    renderDetail('/sermons/sermon-1?reading=1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(3);
+    });
+
+    const selectedWord = getReaderWordByIndex(3);
+    expect(selectedWord).not.toBeNull();
+    fireEvent.click(selectedWord!);
+    expect(getSelectedReaderWordIndexes()).toEqual([3]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('reading=1');
+    });
+
+    await waitFor(() => {
+      expect(scrollTargets).toContain('word:3');
+    });
+    expect(getSelectedReaderWordIndexes()).toContain(3);
+    scrollIntoViewSpy.mockRestore();
+  });
+
+  it('anchors to nearest visible paragraph when toggling reading mode without a selection', async () => {
+    fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 900,
+    });
+
+    const scrollTargets: string[] = [];
+    const scrollIntoViewSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function mock(this: HTMLElement) {
+      const paragraphNumber = this.getAttribute('data-paragraph-number');
+      if (paragraphNumber != null) {
+        scrollTargets.push(`paragraph:${paragraphNumber}`);
+      }
+    });
+
+    renderDetail('/sermons/sermon-1?reading=1');
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('sermon-paragraph-text')).toHaveLength(2);
+    });
+
+    const paragraph4 = document.querySelector<HTMLElement>('[data-paragraph-number="4"]');
+    const paragraph5 = document.querySelector<HTMLElement>('[data-paragraph-number="5"]');
+    expect(paragraph4).not.toBeNull();
+    expect(paragraph5).not.toBeNull();
+
+    const paragraph4RectSpy = vi
+      .spyOn(paragraph4!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(200, 80, 640, 120));
+    const paragraph5RectSpy = vi
+      .spyOn(paragraph5!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(200, 440, 640, 120));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('reading=1');
+    });
+    await waitFor(() => {
+      expect(scrollTargets).toContain('paragraph:5');
+    });
+
+    paragraph4RectSpy.mockRestore();
+    paragraph5RectSpy.mockRestore();
+    scrollIntoViewSpy.mockRestore();
   });
 
   it('toggles reading mode from configurable keyboard shortcut', async () => {

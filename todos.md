@@ -39,7 +39,7 @@
 | DONE-LOCKED | R03 | Resume position per sermon | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | DONE | R04 | Word-by-word highlighting with Space or Right, and Left to go back | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | DONE | R05 | Highlight mode toggle: word, sentence, paragraph | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
-| TODO | R06 | Auto-scroll with adjustable speed | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
+| DONE | R06 | Auto-scroll with adjustable speed | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | TODO | R07 | Read-aloud sync: word/sentence highlight follows sermon audio playback | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | TODO | P01 | Slide view of highlighted/selected text (P) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
 | TODO | P02 | Fullscreen presentation (F) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
@@ -634,7 +634,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Cross-cutting notes
 
 ### R06 - Auto-scroll with adjustable speed
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(reader)
 Goal: Deliver and verify the R06 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
