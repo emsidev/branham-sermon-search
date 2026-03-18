@@ -902,6 +902,39 @@ describe('SermonDetail', () => {
     scrollBySpy.mockRestore();
   });
 
+  it('scrolls highlighted text toward viewport when selected word is outside reading band with reading mode off', async () => {
+    const scrollBySpy = vi.spyOn(window, 'scrollBy').mockImplementation(() => undefined);
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 900,
+    });
+
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    const firstWord = getReaderWordByIndex(0);
+    expect(firstWord).not.toBeNull();
+    const wordRectSpy = vi
+      .spyOn(firstWord!, 'getBoundingClientRect')
+      .mockReturnValue(createMockDomRect(240, 860, 48, 24));
+
+    fireEvent.click(firstWord!);
+
+    await waitFor(() => {
+      expect(scrollBySpy).toHaveBeenCalled();
+    });
+
+    const firstCall = scrollBySpy.mock.calls[0]?.[0] as ScrollToOptions;
+    expect(firstCall).toEqual(expect.objectContaining({ left: 0, behavior: 'auto' }));
+    expect((firstCall.top as number) > 0).toBe(true);
+
+    wordRectSpy.mockRestore();
+    scrollBySpy.mockRestore();
+  });
+
   it('does not scroll highlighted text when selected word is already in the reading band', async () => {
     const scrollBySpy = vi.spyOn(window, 'scrollBy').mockImplementation(() => undefined);
     Object.defineProperty(window, 'innerHeight', {

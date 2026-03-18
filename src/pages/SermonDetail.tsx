@@ -865,10 +865,6 @@ export default function SermonDetail() {
   }, [selectedWordRange]);
 
   useEffect(() => {
-    if (!isReadingModeEnabled) {
-      return;
-    }
-
     const bounds = getReaderWordSelectionBounds(selectedWordRange);
     if (!bounds) {
       return;
@@ -893,7 +889,7 @@ export default function SermonDetail() {
     }
 
     scrollReaderBy(visibilityDistance);
-  }, [getReaderWordElementByIndex, isReadingModeEnabled, scrollReaderBy, selectedWordRange]);
+  }, [getReaderWordElementByIndex, scrollReaderBy, selectedWordRange]);
 
   useEffect(() => {
     const anchor = readingModeToggleAnchorRef.current;
