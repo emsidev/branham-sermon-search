@@ -25,7 +25,6 @@ class BacklogRow:
     feature_name: str
     primary_agent: str
     owned_surface: str
-    integrator: str
     raw_line: str
 
 
@@ -47,10 +46,10 @@ def _parse_table_row(line: str, line_index: int) -> BacklogRow | None:
         return None
 
     columns = [part.strip() for part in stripped.strip("|").split("|")]
-    if len(columns) < 6:
+    if len(columns) < 5:
         return None
 
-    status, feature_id, feature_name, primary_agent, owned_surface, integrator = columns[:6]
+    status, feature_id, feature_name, primary_agent, owned_surface = columns[:5]
     if not FEATURE_ID_RE.fullmatch(feature_id):
         return None
 
@@ -61,7 +60,6 @@ def _parse_table_row(line: str, line_index: int) -> BacklogRow | None:
         feature_name=feature_name,
         primary_agent=primary_agent,
         owned_surface=owned_surface,
-        integrator=integrator,
         raw_line=line,
     )
 
@@ -108,7 +106,7 @@ def _extract_primary_agent(block_lines: Sequence[str]) -> str | None:
 def _format_backlog_row(row: BacklogRow, status: str) -> str:
     return (
         f"| {status} | {row.feature_id} | {row.feature_name} | "
-        f"{row.primary_agent} | {row.owned_surface} | {row.integrator} |"
+        f"{row.primary_agent} | {row.owned_surface} |"
     )
 
 
@@ -129,7 +127,7 @@ def _build_brief(lines: Sequence[str], feature_id: str) -> str:
         "TypeScript strict mode must be maintained\n"
         "No new dependencies without explicit approval\n"
         "Do not modify any file outside your allowed ownership boundary\n"
-        "Integrator notes must be complete enough that integration-owner needs zero follow-up decisions\n\n"
+        "Cross-cutting notes must be complete enough that no follow-up decisions are needed\n\n"
         "Your Role and Boundaries\n"
         "Follow the Allowed files and Forbidden files sections exactly.\n\n"
         "Feature Spec\n"
