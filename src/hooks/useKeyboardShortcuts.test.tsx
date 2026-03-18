@@ -100,6 +100,7 @@ describe('KeyboardShortcutsProvider', () => {
       { action: 'open_settings', key: ',', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'result_next', key: 'x', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'result_prev', key: 'm', updated_at: '2026-03-11T09:00:00.000Z' },
+      { action: 'toggle_reading_mode', key: 'r', updated_at: '2026-03-11T09:00:00.000Z' },
     ];
 
     render(
@@ -124,6 +125,7 @@ describe('KeyboardShortcutsProvider', () => {
         open_settings: ',',
         result_next: 'x',
         result_prev: 'm',
+        toggle_reading_mode: 'r',
       },
       updatedAt: Date.now(),
     }));
@@ -148,6 +150,7 @@ describe('KeyboardShortcutsProvider', () => {
         open_settings: ',',
         result_next: 'x',
         result_prev: 'm',
+        toggle_reading_mode: 'r',
       },
       updatedAt: Date.parse('2026-03-11T11:00:00.000Z'),
     }));
@@ -158,6 +161,7 @@ describe('KeyboardShortcutsProvider', () => {
       { action: 'open_settings', key: ',', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'result_next', key: 'x', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'result_prev', key: 'm', updated_at: '2026-03-11T10:00:00.000Z' },
+      { action: 'toggle_reading_mode', key: 'r', updated_at: '2026-03-11T10:00:00.000Z' },
     ];
 
     render(
@@ -177,6 +181,8 @@ describe('KeyboardShortcutsProvider', () => {
     const latestRows = upsertCalls.at(-1) as Array<{ action: string; key: string }>;
     const openBooksRow = latestRows.find((row) => row.action === 'open_books');
     expect(openBooksRow?.key).toBe('n');
+    const readingModeRow = latestRows.find((row) => row.action === 'toggle_reading_mode');
+    expect(readingModeRow?.key).toBe('r');
   });
 
   it('applies shortcut edits immediately while preserving sync status', async () => {

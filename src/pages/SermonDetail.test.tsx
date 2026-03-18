@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SermonDetail from './SermonDetail';
+import type { ShortcutBindings } from '@/lib/keyboardShortcuts';
 
 const fetchSermonByIdMock = vi.fn();
 const fetchAdjacentSermonsMock = vi.fn();
@@ -10,6 +11,14 @@ const useSermonsMock = vi.fn();
 const setFilterMock = vi.fn();
 const setFiltersMock = vi.fn();
 let effectiveHitScrollBehaviorMock: ScrollBehavior = 'smooth';
+let shortcutBindingsMock: ShortcutBindings = {
+  focus_search: '/',
+  open_books: 'b',
+  open_settings: ',',
+  result_next: 'n',
+  result_prev: 'm',
+  toggle_reading_mode: 'r',
+};
 
 vi.mock('@/hooks/useSermons', () => ({
   useSermons: () => useSermonsMock(),
@@ -29,13 +38,7 @@ vi.mock('@/lib/preferences', () => ({
 
 vi.mock('@/hooks/useKeyboardShortcuts', () => ({
   useKeyboardShortcuts: () => ({
-    bindings: {
-      focus_search: '/',
-      open_books: 'b',
-      open_settings: ',',
-      result_next: 'n',
-      result_prev: 'm',
-    },
+    bindings: shortcutBindingsMock,
     syncStatus: 'synced',
     syncWarning: null,
     setShortcutBinding: vi.fn(),
@@ -109,6 +112,7 @@ function LocationStateSpy() {
   return (
     <>
       <div data-testid="location-path">{`${location.pathname}${location.search}`}</div>
+      <div data-testid="location-key">{location.key}</div>
       <div data-testid="location-state">{JSON.stringify(location.state ?? null)}</div>
     </>
   );
@@ -173,6 +177,14 @@ describe('SermonDetail', () => {
     });
 
     effectiveHitScrollBehaviorMock = 'smooth';
+    shortcutBindingsMock = {
+      focus_search: '/',
+      open_books: 'b',
+      open_settings: ',',
+      result_next: 'n',
+      result_prev: 'm',
+      toggle_reading_mode: 'r',
+    };
 
     if (!HTMLElement.prototype.scrollIntoView) {
       HTMLElement.prototype.scrollIntoView = () => {};
@@ -271,6 +283,104 @@ describe('SermonDetail', () => {
     fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
     fireEvent.keyDown(window, { key: 'f', metaKey: true });
     expect(screen.queryByRole('dialog', { name: 'Search popup' })).not.toBeInTheDocument();
+  });
+
+  it('enables reading mode from URL state and hides non-reading chrome', async () => {
+    fetchAdjacentSermonsMock.mockResolvedValue({
+      prev: { id: 'sermon-0', title: 'Prev Sermon', date: '1965-10-09' },
+      next: { id: 'sermon-2', title: 'Next Sermon', date: '1965-10-11' },
+    });
+
+    renderDetail('/sermons/sermon-1?q=only+believe&reading=1');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByTestId('breadcrumb-root')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sermon-meta-strip')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Jump to top' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Prev Sermon')).not.toBeInTheDocument();
+    expect(screen.queryByText('Next Sermon')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sermon-title')).toHaveClass('text-xl');
+    expect(screen.getByTestId('sermon-title')).toHaveClass('leading-snug');
+    expect(screen.getByTestId('sermon-summary')).toHaveClass('text-xs');
+    expect(screen.getAllByTestId('sermon-paragraph-text')[0]).toHaveClass('text-[1.2rem]');
+    expect(screen.getAllByTestId('sermon-paragraph-text')[0]).toHaveClass('leading-10');
+  });
+
+  it('toggles reading mode from header button and preserves existing route state', async () => {
+    renderDetail({
+      pathname: '/sermons/sermon-1',
+      search: '?q=only+believe',
+      state: { searchReturnTo: '/search?q=only+believe&sort=date-desc&view=table&page=4' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe&reading=1');
+    });
+    expect(screen.getByTestId('location-state')).toHaveTextContent(
+      '"searchReturnTo":"/search?q=only+believe&sort=date-desc&view=table&page=4"',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe');
+    });
+  });
+
+  it('toggles reading mode from configurable keyboard shortcut', async () => {
+    shortcutBindingsMock = {
+      ...shortcutBindingsMock,
+      toggle_reading_mode: 'x',
+    };
+
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: 'x' });
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe&reading=1');
+    });
+
+    fireEvent.keyDown(window, { key: 'X', shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe');
+    });
+  });
+
+  it('pushes reading mode URL transitions instead of replacing history entries', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
+    });
+
+    const initialKey = screen.getByTestId('location-key').textContent;
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe&reading=1');
+    });
+    const readingOnKey = screen.getByTestId('location-key').textContent;
+    expect(readingOnKey).toBeTruthy();
+    expect(readingOnKey).not.toBe(initialKey);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/sermons/sermon-1?q=only+believe');
+    });
+    const readingOffKey = screen.getByTestId('location-key').textContent;
+    expect(readingOffKey).toBeTruthy();
+    expect(readingOffKey).not.toBe(readingOnKey);
   });
 
   it('renders fixed sermon detail chevrons and disables lateral chevrons when no adjacent sermon exists', async () => {
