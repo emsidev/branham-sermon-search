@@ -41,11 +41,11 @@
 | DONE | R05 | Highlight mode toggle: word, sentence, paragraph | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | DONE | R06 | Auto-scroll with adjustable speed | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
 | TODO | R07 | Read-aloud sync: word/sentence highlight follows sermon audio playback | frontend-developer(reader) | src/** (feature-scoped, end-to-end) |
-| TODO | P01 | Slide view of highlighted/selected text (P) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
-| TODO | P02 | Fullscreen presentation (F) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
-| TODO | P03 | Next/Prev slide (Right / Left) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
+| DONE | P01 | Slide view of highlighted/selected text (P) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
+| DONE | P02 | Fullscreen presentation (F) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
+| DONE | P03 | Next/Prev slide (Right / Left) | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
 | TODO | P04 | Sermon code + title + author auto-shown as slide subtitle | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
-| TODO | P05 | Multi-selection passage queue for slides | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
+| DONE | P05 | Multi-selection passage queue for slides | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
 | TODO | P06 | Slide themes (background, font, color scheme) | ui-ux-designer | src/** (feature-scoped, end-to-end) |
 | TODO | P07 | Scripture watermark option | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
 | TODO | P08 | Export slides as PDF/images | frontend-developer(presentation) | src/** (feature-scoped, end-to-end) |
@@ -694,7 +694,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Cross-cutting notes
 
 ### P01 - Slide view of highlighted/selected text (P)
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P01 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -725,7 +725,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Cross-cutting notes
 
 ### P02 - Fullscreen presentation (F)
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P02 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -756,7 +756,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Cross-cutting notes
 
 ### P03 - Next/Prev slide (Right / Left)
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P03 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:
@@ -817,7 +817,7 @@ Acceptance criteria:
 Handoff required: FeatureID | Branch | Changed files | Behavior delivered | Tests run | Known risks | Cross-cutting notes
 
 ### P05 - Multi-selection passage queue for slides
-Status: TODO
+Status: DONE
 Primary agent: frontend-developer(presentation)
 Goal: Deliver and verify the P05 capability exactly as defined in backlog language while preserving existing app behavior and style conventions.
 In scope:

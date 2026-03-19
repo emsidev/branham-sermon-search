@@ -12,6 +12,8 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
       result_next: 'n',
       result_prev: 'm',
       toggle_reading_mode: 'r',
+      toggle_slide_view: 'p',
+      add_slide_highlight: 'g',
       cycle_highlight_mode: 'h',
       reader_extend_selection: 'ArrowRight',
       reader_shrink_selection: 'ArrowLeft',

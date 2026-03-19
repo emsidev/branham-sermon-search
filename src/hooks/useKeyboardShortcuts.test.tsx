@@ -101,6 +101,8 @@ describe('KeyboardShortcutsProvider', () => {
       { action: 'result_next', key: 'x', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'result_prev', key: 'm', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'toggle_reading_mode', key: 'r', updated_at: '2026-03-11T09:00:00.000Z' },
+      { action: 'toggle_slide_view', key: 'p', updated_at: '2026-03-11T09:00:00.000Z' },
+      { action: 'add_slide_highlight', key: 'g', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'cycle_highlight_mode', key: 'h', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'reader_extend_selection', key: 'ArrowRight', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'reader_shrink_selection', key: 'ArrowLeft', updated_at: '2026-03-11T09:00:00.000Z' },
@@ -129,6 +131,8 @@ describe('KeyboardShortcutsProvider', () => {
         result_next: 'x',
         result_prev: 'm',
         toggle_reading_mode: 'r',
+        toggle_slide_view: 'p',
+        add_slide_highlight: 'g',
         cycle_highlight_mode: 'h',
         reader_extend_selection: 'ArrowRight',
         reader_shrink_selection: 'ArrowLeft',
@@ -157,6 +161,8 @@ describe('KeyboardShortcutsProvider', () => {
         result_next: 'x',
         result_prev: 'm',
         toggle_reading_mode: 'r',
+        toggle_slide_view: 'p',
+        add_slide_highlight: 'g',
         cycle_highlight_mode: 'h',
         reader_extend_selection: 'ArrowRight',
         reader_shrink_selection: 'ArrowLeft',
@@ -171,6 +177,8 @@ describe('KeyboardShortcutsProvider', () => {
       { action: 'result_next', key: 'x', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'result_prev', key: 'm', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'toggle_reading_mode', key: 'r', updated_at: '2026-03-11T10:00:00.000Z' },
+      { action: 'toggle_slide_view', key: 'p', updated_at: '2026-03-11T10:00:00.000Z' },
+      { action: 'add_slide_highlight', key: 'g', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'cycle_highlight_mode', key: 'h', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'reader_extend_selection', key: 'ArrowRight', updated_at: '2026-03-11T10:00:00.000Z' },
       { action: 'reader_shrink_selection', key: 'ArrowLeft', updated_at: '2026-03-11T10:00:00.000Z' },
@@ -195,6 +203,10 @@ describe('KeyboardShortcutsProvider', () => {
     expect(openBooksRow?.key).toBe('n');
     const readingModeRow = latestRows.find((row) => row.action === 'toggle_reading_mode');
     expect(readingModeRow?.key).toBe('r');
+    const slideViewRow = latestRows.find((row) => row.action === 'toggle_slide_view');
+    expect(slideViewRow?.key).toBe('p');
+    const addSlideRow = latestRows.find((row) => row.action === 'add_slide_highlight');
+    expect(addSlideRow?.key).toBe('g');
     const cycleHighlightRow = latestRows.find((row) => row.action === 'cycle_highlight_mode');
     expect(cycleHighlightRow?.key).toBe('h');
   });

@@ -45,6 +45,8 @@ import {
   shrinkReaderWordSelectionByUnit,
   tokenizeReaderText,
   type ReaderHighlightMode,
+  type ReaderSelectionUnitMap,
+  type ReaderSelectionUnitRange,
   type ReaderWordRegion,
   type ReaderWordSelectionRange,
 } from '@/lib/readerWordNavigation';
@@ -52,6 +54,13 @@ import {
   buildReaderHighlightModeSearch,
   getReaderHighlightModeFromSearchParams,
 } from '@/lib/readerHighlightModeUrlState';
+import {
+  READER_SLIDE_PAGE_QUERY_PARAM,
+  buildReaderSlideViewSearch,
+  getReaderSlideSelectionFromSearchParams,
+  isReaderSlideViewEnabledFromSearchParams,
+  withReaderSlideSelectionSearchParams,
+} from '@/lib/readerSlideViewUrlState';
 
 interface AdjacentSermon {
   id: string;
@@ -90,15 +99,19 @@ const CONTENT_REGION_KEY = 'content';
 const SNIPPET_BEFORE_CHARS = 44;
 const SNIPPET_AFTER_CHARS = 70;
 const SELECTED_READER_SEGMENT_CLASS = 'bg-emerald-200/60 text-foreground';
-const READER_HIGHLIGHT_MODE_HUD_TIMEOUT_MS = 1500;
-const READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX = 12;
-const READER_HIGHLIGHT_MODE_HUD_ANCHOR_GAP_PX = 10;
-const READER_HIGHLIGHT_MODE_HUD_DEFAULT_TOP_OFFSET_PX = 16;
-const READER_HIGHLIGHT_MODE_HUD_FALLBACK_WIDTH_PX = 176;
-const READER_HIGHLIGHT_MODE_HUD_FALLBACK_HEIGHT_PX = 44;
+const READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX = 12;
+const READER_TEXT_OPTIONS_POPUP_ANCHOR_GAP_PX = 10;
+const READER_TEXT_OPTIONS_POPUP_DEFAULT_TOP_OFFSET_PX = 16;
+const READER_TEXT_OPTIONS_POPUP_FALLBACK_WIDTH_PX = 248;
+const READER_TEXT_OPTIONS_POPUP_FALLBACK_HEIGHT_PX = 124;
 const READER_SELECTION_VISIBILITY_TOP_MARGIN_PX = 96;
 const READER_SELECTION_VISIBILITY_BOTTOM_MARGIN_PX = 112;
 const READER_SELECTION_VISIBILITY_MIN_DISTANCE_PX = 0.5;
+const READER_SLIDE_VIEW_HINT_TIMEOUT_MS = 1400;
+const READER_SLIDE_DEFAULT_PAGE = 1;
+const READER_SLIDE_DEFAULT_VIEWPORT_WIDTH = 1920;
+const READER_SLIDE_DEFAULT_VIEWPORT_HEIGHT = 1080;
+const READER_SLIDE_QUOTE_ATTRIBUTION = 'William Branham';
 const READER_HIGHLIGHT_MODE_OPTIONS: Array<{ mode: ReaderHighlightMode; label: string; shortLabel: string }> = [
   { mode: 'word', label: 'Word', shortLabel: 'W' },
   { mode: 'sentence', label: 'Sentence', shortLabel: 'S' },
@@ -116,6 +129,31 @@ interface ReadingModeToggleAnchorSnapshot {
   targetReadingMode: boolean;
   selectedWordIndex: number | null;
   paragraphNumber: number | null;
+}
+
+interface ReaderSlideViewportSnapshot {
+  width: number;
+  height: number;
+}
+
+interface ReaderSlideFitMetrics {
+  maxLinesPerSlide: number;
+  maxCharsPerLine: number;
+}
+
+interface ReaderSlideQueueEntry {
+  startIndex: number;
+  endIndex: number;
+  modeAtCapture: ReaderHighlightMode;
+}
+
+interface ReaderSlidePage {
+  text: string;
+  sourceIndex: number;
+  sourceTotal: number;
+  modeAtCapture: ReaderHighlightMode;
+  continuationIndex: number;
+  continuationTotal: number;
 }
 
 function getNextReaderHighlightMode(mode: ReaderHighlightMode): ReaderHighlightMode {
@@ -434,6 +472,477 @@ function renderReaderWordHighlights(
   return renderReaderWordsFromNode(node, startWordIndex, selectedWordRange, onWordSelect).content;
 }
 
+function normalizeReaderSelectionBounds(
+  startIndex: number,
+  endIndex: number,
+): { startIndex: number; endIndex: number } {
+  return {
+    startIndex: Math.min(startIndex, endIndex),
+    endIndex: Math.max(startIndex, endIndex),
+  };
+}
+
+function extractSlideTextFromBounds(
+  regions: ReaderWordRegion[],
+  bounds: { startIndex: number; endIndex: number },
+): string {
+  const normalizedBounds = normalizeReaderSelectionBounds(bounds.startIndex, bounds.endIndex);
+
+  let globalWordIndex = 0;
+  const segments: string[] = [];
+
+  for (const region of regions) {
+    const tokens = tokenizeReaderText(region.text);
+    const regionWordCount = tokens.reduce((count, token) => count + (token.isWord ? 1 : 0), 0);
+    if (regionWordCount === 0) {
+      continue;
+    }
+
+    const regionStartWordIndex = globalWordIndex;
+    const regionEndWordIndex = regionStartWordIndex + regionWordCount - 1;
+    globalWordIndex += regionWordCount;
+
+    if (normalizedBounds.endIndex < regionStartWordIndex || normalizedBounds.startIndex > regionEndWordIndex) {
+      continue;
+    }
+
+    const targetStartWordInRegion = Math.max(normalizedBounds.startIndex, regionStartWordIndex) - regionStartWordIndex;
+    const targetEndWordInRegion = Math.min(normalizedBounds.endIndex, regionEndWordIndex) - regionStartWordIndex;
+
+    let cursor = 0;
+    let regionWordIndex = 0;
+    let selectionStartOffset: number | null = null;
+    let selectionEndOffset: number | null = null;
+
+    for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += 1) {
+      const token = tokens[tokenIndex];
+      const tokenStart = cursor;
+      const tokenEnd = tokenStart + token.text.length;
+      cursor = tokenEnd;
+
+      if (!token.isWord) {
+        continue;
+      }
+
+      if (selectionStartOffset == null && regionWordIndex === targetStartWordInRegion) {
+        selectionStartOffset = tokenStart;
+      }
+
+      if (regionWordIndex === targetEndWordInRegion) {
+        selectionEndOffset = tokenEnd;
+        for (let trailingIndex = tokenIndex + 1; trailingIndex < tokens.length; trailingIndex += 1) {
+          const trailingToken = tokens[trailingIndex];
+          if (trailingToken.isWord) {
+            break;
+          }
+          selectionEndOffset += trailingToken.text.length;
+        }
+        break;
+      }
+
+      regionWordIndex += 1;
+    }
+
+    if (selectionStartOffset == null || selectionEndOffset == null) {
+      continue;
+    }
+
+    const segment = region.text.slice(selectionStartOffset, selectionEndOffset).trim();
+    if (segment) {
+      segments.push(segment);
+    }
+  }
+
+  return segments.join('\n\n');
+}
+
+function extractParagraphTextsFromBounds(
+  regions: ReaderWordRegion[],
+  bounds: { startIndex: number; endIndex: number },
+): { paragraphs: string[]; snappedBounds: { startIndex: number; endIndex: number } } | null {
+  const normalizedBounds = normalizeReaderSelectionBounds(bounds.startIndex, bounds.endIndex);
+  let globalWordIndex = 0;
+  const matchedParagraphs: Array<{
+    text: string;
+    startIndex: number;
+    endIndex: number;
+  }> = [];
+
+  for (const region of regions) {
+    const tokens = tokenizeReaderText(region.text);
+    const regionWordCount = tokens.reduce((count, token) => count + (token.isWord ? 1 : 0), 0);
+    if (regionWordCount === 0) {
+      continue;
+    }
+
+    const regionStartWordIndex = globalWordIndex;
+    const regionEndWordIndex = regionStartWordIndex + regionWordCount - 1;
+    globalWordIndex += regionWordCount;
+
+    if (normalizedBounds.endIndex < regionStartWordIndex || normalizedBounds.startIndex > regionEndWordIndex) {
+      continue;
+    }
+
+    const paragraphText = region.text.replace(/\s+/g, ' ').trim();
+    if (!paragraphText) {
+      continue;
+    }
+
+    matchedParagraphs.push({
+      text: paragraphText,
+      startIndex: regionStartWordIndex,
+      endIndex: regionEndWordIndex,
+    });
+  }
+
+  if (matchedParagraphs.length === 0) {
+    return null;
+  }
+
+  return {
+    paragraphs: matchedParagraphs.map((paragraph) => paragraph.text),
+    snappedBounds: {
+      startIndex: matchedParagraphs[0].startIndex,
+      endIndex: matchedParagraphs[matchedParagraphs.length - 1].endIndex,
+    },
+  };
+}
+
+function createReaderSlideQueueEntryFromRange(
+  regions: ReaderWordRegion[],
+  range: ReaderWordSelectionRange | null,
+  modeAtCapture: ReaderHighlightMode,
+): ReaderSlideQueueEntry | null {
+  const bounds = getReaderWordSelectionBounds(range);
+  if (!bounds) {
+    return null;
+  }
+
+  if (modeAtCapture === 'paragraph') {
+    const paragraphSelection = extractParagraphTextsFromBounds(regions, bounds);
+    if (!paragraphSelection) {
+      return null;
+    }
+
+    return {
+      startIndex: paragraphSelection.snappedBounds.startIndex,
+      endIndex: paragraphSelection.snappedBounds.endIndex,
+      modeAtCapture,
+    };
+  }
+
+  const normalizedBounds = normalizeReaderSelectionBounds(bounds.startIndex, bounds.endIndex);
+  return {
+    startIndex: normalizedBounds.startIndex,
+    endIndex: normalizedBounds.endIndex,
+    modeAtCapture,
+  };
+}
+
+function buildReaderSlideTextForQueueEntry(
+  regions: ReaderWordRegion[],
+  queueEntry: ReaderSlideQueueEntry,
+): string {
+  const selectionBounds = {
+    startIndex: queueEntry.startIndex,
+    endIndex: queueEntry.endIndex,
+  };
+
+  if (queueEntry.modeAtCapture === 'paragraph') {
+    const paragraphSelection = extractParagraphTextsFromBounds(regions, selectionBounds);
+    if (!paragraphSelection) {
+      return '';
+    }
+    return paragraphSelection.paragraphs.join('\n\n');
+  }
+
+  return extractSlideTextFromBounds(regions, selectionBounds);
+}
+
+function isSameReaderSlideQueueEntry(
+  a: ReaderSlideQueueEntry,
+  b: ReaderSlideQueueEntry,
+): boolean {
+  return a.startIndex === b.startIndex
+    && a.endIndex === b.endIndex
+    && a.modeAtCapture === b.modeAtCapture;
+}
+
+function getReaderSlideSourceLabel(mode: ReaderHighlightMode): string {
+  if (mode === 'paragraph') {
+    return 'Paragraph';
+  }
+
+  if (mode === 'sentence') {
+    return 'Sentence';
+  }
+
+  return 'Selection';
+}
+
+function createReaderSlideQueueEntryFromSearchParams(
+  selection: { startIndex: number; endIndex: number } | null,
+): ReaderSlideQueueEntry | null {
+  if (!selection) {
+    return null;
+  }
+
+  const normalizedBounds = normalizeReaderSelectionBounds(selection.startIndex, selection.endIndex);
+  return {
+    startIndex: normalizedBounds.startIndex,
+    endIndex: normalizedBounds.endIndex,
+    modeAtCapture: 'paragraph',
+  };
+}
+
+function getSafeReaderSlideViewportSnapshot(): ReaderSlideViewportSnapshot {
+  if (typeof window === 'undefined') {
+    return {
+      width: READER_SLIDE_DEFAULT_VIEWPORT_WIDTH,
+      height: READER_SLIDE_DEFAULT_VIEWPORT_HEIGHT,
+    };
+  }
+
+  return {
+    width: Math.max(320, Math.floor(window.innerWidth || READER_SLIDE_DEFAULT_VIEWPORT_WIDTH)),
+    height: Math.max(320, Math.floor(window.innerHeight || READER_SLIDE_DEFAULT_VIEWPORT_HEIGHT)),
+  };
+}
+
+function splitSlideTextIntoSentences(text: string): string[] {
+  const normalized = text
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const candidates = normalized.match(/[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g) ?? [];
+  return candidates
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0);
+}
+
+function splitOversizedSlideUnit(unit: string, maxCharsPerPage: number): string[] {
+  const normalizedMaxChars = Math.max(36, Math.floor(maxCharsPerPage));
+  if (unit.length <= normalizedMaxChars) {
+    return [unit];
+  }
+
+  const words = unit.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) {
+    return [unit];
+  }
+
+  const chunks: string[] = [];
+  let currentChunk = '';
+  for (const word of words) {
+    const nextChunk = currentChunk ? `${currentChunk} ${word}` : word;
+    if (nextChunk.length <= normalizedMaxChars || !currentChunk) {
+      currentChunk = nextChunk;
+      continue;
+    }
+
+    chunks.push(currentChunk);
+    currentChunk = word;
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+}
+
+function resolveReaderSlideFitMetrics(viewport: ReaderSlideViewportSnapshot): ReaderSlideFitMetrics {
+  const width = Math.max(320, viewport.width);
+  const height = Math.max(320, viewport.height);
+
+  const quoteAreaWidth = Math.floor(width * 0.55);
+  const textColumnWidth = Math.max(340, quoteAreaWidth - 180);
+  const slideFontSize = Math.max(18, Math.min(34, Math.floor(width * 0.018)));
+  const lineHeight = Math.floor(slideFontSize * 1.14);
+  const availableTextHeight = Math.max(280, Math.floor(height * 0.6));
+  const maxLinesPerSlide = Math.max(6, Math.floor(availableTextHeight / Math.max(lineHeight, 1)));
+  const approxCharWidth = Math.max(9, Math.floor(slideFontSize * 0.46));
+  const maxCharsPerLine = Math.max(28, Math.floor(textColumnWidth / approxCharWidth));
+
+  return {
+    maxLinesPerSlide,
+    maxCharsPerLine,
+  };
+}
+
+function estimateSlideUnitLineCount(unit: string, maxCharsPerLine: number): number {
+  const safeCharsPerLine = Math.max(20, maxCharsPerLine);
+  if (!unit.trim()) {
+    return 1;
+  }
+
+  const logicalLines = unit
+    .split('\n')
+    .map((line) => Math.max(1, Math.ceil(line.length / safeCharsPerLine)));
+
+  return logicalLines.reduce((sum, lineCount) => sum + lineCount, 0);
+}
+
+function paginateReaderSlideUnits(
+  units: string[],
+  metrics: ReaderSlideFitMetrics,
+): string[] {
+  if (units.length === 0) {
+    return [];
+  }
+
+  const pages: string[] = [];
+  let currentUnits: string[] = [];
+  let currentLineCount = 0;
+
+  for (const unit of units) {
+    const unitLineCount = estimateSlideUnitLineCount(unit, metrics.maxCharsPerLine);
+    const nextLineCount = currentLineCount + unitLineCount;
+    const exceedsLineBudget = nextLineCount > metrics.maxLinesPerSlide;
+    if (currentUnits.length > 0 && exceedsLineBudget) {
+      pages.push(currentUnits.join(' ').trim());
+      currentUnits = [];
+      currentLineCount = 0;
+    }
+
+    currentUnits.push(unit);
+    currentLineCount += unitLineCount;
+  }
+
+  if (currentUnits.length > 0) {
+    pages.push(currentUnits.join(' ').trim());
+  }
+
+  return pages.filter((page) => page.length > 0);
+}
+
+function splitSlidePassageIntoParts(
+  passage: string,
+  metrics: ReaderSlideFitMetrics,
+): string[] {
+  const normalizedPassage = passage.replace(/\s+/g, ' ').trim();
+  if (!normalizedPassage) {
+    return [];
+  }
+
+  const maxCharsPerPage = Math.max(140, metrics.maxCharsPerLine * metrics.maxLinesPerSlide);
+  const lineCount = estimateSlideUnitLineCount(normalizedPassage, metrics.maxCharsPerLine);
+  if (lineCount <= metrics.maxLinesPerSlide) {
+    return [normalizedPassage];
+  }
+
+  const sentences = splitSlideTextIntoSentences(normalizedPassage);
+  if (sentences.length <= 1) {
+    const chunkedUnits = splitOversizedSlideUnit(normalizedPassage, maxCharsPerPage);
+    return paginateReaderSlideUnits(chunkedUnits, metrics);
+  }
+
+  const sentenceUnits = sentences.flatMap((sentence) => splitOversizedSlideUnit(sentence, maxCharsPerPage));
+  return paginateReaderSlideUnits(sentenceUnits, metrics);
+}
+
+function buildReaderSlidePages(
+  regions: ReaderWordRegion[],
+  queue: ReaderSlideQueueEntry[],
+  viewport: ReaderSlideViewportSnapshot,
+): ReaderSlidePage[] {
+  if (queue.length === 0) {
+    return [];
+  }
+
+  const metrics = resolveReaderSlideFitMetrics(viewport);
+  const pages: ReaderSlidePage[] = [];
+
+  queue.forEach((queueEntry, queueIndex) => {
+    const text = buildReaderSlideTextForQueueEntry(regions, queueEntry);
+    const parts = splitSlidePassageIntoParts(text, metrics);
+    if (parts.length === 0) {
+      return;
+    }
+
+    parts.forEach((partText, partIndex) => {
+      pages.push({
+        text: partText,
+        sourceIndex: queueIndex + 1,
+        sourceTotal: queue.length,
+        modeAtCapture: queueEntry.modeAtCapture,
+        continuationIndex: partIndex + 1,
+        continuationTotal: parts.length,
+      });
+    });
+  });
+
+  return pages;
+}
+
+function createReaderWordSelectionRangeFromBounds(
+  startIndex: number,
+  endIndex: number,
+  totalWords: number,
+): ReaderWordSelectionRange | null {
+  if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex)) {
+    return null;
+  }
+
+  const safeTotalWords = Math.floor(totalWords);
+  if (!Number.isFinite(safeTotalWords) || safeTotalWords <= 0) {
+    return null;
+  }
+
+  const safeStart = Math.min(
+    safeTotalWords - 1,
+    Math.max(0, Math.floor(Math.min(startIndex, endIndex))),
+  );
+  const safeEnd = Math.min(
+    safeTotalWords - 1,
+    Math.max(safeStart, Math.floor(Math.max(startIndex, endIndex))),
+  );
+
+  return {
+    anchorIndex: safeStart,
+    cursorIndex: safeEnd,
+  };
+}
+
+function getNextReaderSelectionUnitAfterQueueTail(
+  queueTail: ReaderSlideQueueEntry | null,
+  unitMap: ReaderSelectionUnitMap,
+): ReaderSelectionUnitRange | null {
+  if (!queueTail) {
+    return null;
+  }
+
+  const safeTotalWords = Math.floor(unitMap.totalWords);
+  if (!Number.isFinite(safeTotalWords) || safeTotalWords <= 0 || unitMap.units.length === 0) {
+    return null;
+  }
+
+  const safeTailEndIndex = Math.min(
+    safeTotalWords - 1,
+    Math.max(0, Math.floor(queueTail.endIndex)),
+  );
+
+  let unitIndex = unitMap.unitIndexByWordIndex[safeTailEndIndex] ?? -1;
+  if (!Number.isInteger(unitIndex) || unitIndex < 0 || unitIndex >= unitMap.units.length) {
+    unitIndex = unitMap.units.findIndex(
+      (unit) => safeTailEndIndex >= unit.startIndex && safeTailEndIndex <= unit.endIndex,
+    );
+  }
+
+  if (unitIndex < 0 || unitIndex >= unitMap.units.length - 1) {
+    return null;
+  }
+
+  const nextUnit = unitMap.units[unitIndex + 1];
+  return {
+    startIndex: nextUnit.startIndex,
+    endIndex: nextUnit.endIndex,
+  };
+}
+
 export default function SermonDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -448,13 +957,21 @@ export default function SermonDetail() {
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
   const [selectedWordRange, setSelectedWordRange] = useState<ReaderWordSelectionRange | null>(null);
-  const [isReaderHighlightModeHudVisible, setIsReaderHighlightModeHudVisible] = useState(false);
-  const [readerHighlightModeHudPosition, setReaderHighlightModeHudPosition] = useState<ReaderHighlightModeHudPosition | null>(null);
+  const [readerTextOptionsPopupPosition, setReaderTextOptionsPopupPosition] = useState<ReaderHighlightModeHudPosition | null>(null);
+  const [isSlideShortcutHintVisible, setIsSlideShortcutHintVisible] = useState(false);
+  const [slideShortcutHintText, setSlideShortcutHintText] = useState('');
+  const [readerSlideViewport, setReaderSlideViewport] = useState<ReaderSlideViewportSnapshot>(() => (
+    getSafeReaderSlideViewportSnapshot()
+  ));
+  const [isReaderSlideVisualImageVisible, setIsReaderSlideVisualImageVisible] = useState(true);
+  const [presentationHighlightQueue, setPresentationHighlightQueue] = useState<ReaderSlideQueueEntry[]>([]);
+  const [readerSlidePage, setReaderSlidePage] = useState(READER_SLIDE_DEFAULT_PAGE);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const readerHighlightModeHudRef = useRef<HTMLDivElement | null>(null);
+  const readerTextOptionsPopupRef = useRef<HTMLDivElement | null>(null);
   const selectedWordRangeRef = useRef<ReaderWordSelectionRange | null>(null);
-  const readerHighlightModeHudTimeoutRef = useRef<number | null>(null);
+  const slideShortcutHintTimeoutRef = useRef<number | null>(null);
   const readingModeToggleAnchorRef = useRef<ReadingModeToggleAnchorSnapshot | null>(null);
+  const presentationHighlightQueueRef = useRef<ReaderSlideQueueEntry[]>([]);
   const { play, url: activeAudioUrl } = useAudioPlayer();
   const { bindings } = useKeyboardShortcuts();
 
@@ -472,6 +989,14 @@ export default function SermonDetail() {
   );
   const readerHighlightMode = useMemo(
     () => getReaderHighlightModeFromSearchParams(searchParams),
+    [searchParams],
+  );
+  const isReaderSlideViewEnabled = useMemo(
+    () => isReaderSlideViewEnabledFromSearchParams(searchParams),
+    [searchParams],
+  );
+  const readerSlideSelectionFromSearchParams = useMemo(
+    () => getReaderSlideSelectionFromSearchParams(searchParams),
     [searchParams],
   );
   const effectiveMatchCase = fuzzy ? false : matchCase;
@@ -541,6 +1066,48 @@ export default function SermonDetail() {
     () => buildReaderSelectionUnitMap(bodyWordRegions, readerHighlightMode),
     [bodyWordRegions, readerHighlightMode],
   );
+  const readerSlideSelectionSeedFromSearch = useMemo(
+    () => createReaderSlideQueueEntryFromSearchParams(readerSlideSelectionFromSearchParams),
+    [readerSlideSelectionFromSearchParams],
+  );
+  const activePresentationHighlightQueue = useMemo(() => {
+    if (presentationHighlightQueue.length > 0) {
+      return presentationHighlightQueue;
+    }
+
+    if (isReaderSlideViewEnabled && readerSlideSelectionSeedFromSearch) {
+      return [readerSlideSelectionSeedFromSearch];
+    }
+
+    return [];
+  }, [isReaderSlideViewEnabled, presentationHighlightQueue, readerSlideSelectionSeedFromSearch]);
+  const presentationQueueCount = activePresentationHighlightQueue.length;
+  const readerSlidePages = useMemo(
+    () => buildReaderSlidePages(bodyWordRegions, activePresentationHighlightQueue, readerSlideViewport),
+    [activePresentationHighlightQueue, bodyWordRegions, readerSlideViewport],
+  );
+  const readerSlideSelectionSignature = useMemo(() => {
+    if (activePresentationHighlightQueue.length === 0) {
+      return 'none';
+    }
+
+    return activePresentationHighlightQueue
+      .map((entry) => `${entry.startIndex}:${entry.endIndex}:${entry.modeAtCapture}`)
+      .join('|');
+  }, [activePresentationHighlightQueue]);
+  const activeReaderSlidePageIndex = useMemo(() => {
+    if (readerSlidePages.length === 0) {
+      return 0;
+    }
+
+    return Math.min(
+      Math.max(readerSlidePage - 1, 0),
+      readerSlidePages.length - 1,
+    );
+  }, [readerSlidePage, readerSlidePages.length]);
+  const activeReaderSlidePage = readerSlidePages[activeReaderSlidePageIndex] ?? null;
+  const activeReaderSlidePageText = activeReaderSlidePage?.text ?? '';
+  const readerSlideTotalPages = readerSlidePages.length;
 
   const sermonHitNavigationContext = useMemo(() => ({
     searchQuery,
@@ -608,6 +1175,64 @@ export default function SermonDetail() {
       },
     );
   }, [location.hash, location.pathname, location.search, location.state, navigate, readerHighlightMode]);
+
+  const navigateWithSearch = useCallback((nextSearch: string, replace = false) => {
+    if (nextSearch === location.search) {
+      return;
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch,
+        hash: location.hash,
+      },
+      {
+        state: location.state,
+        replace,
+      },
+    );
+  }, [location.hash, location.pathname, location.search, location.state, navigate]);
+
+  const setReaderSlideViewEnabled = useCallback((
+    enabled: boolean,
+    options: {
+      selectionBounds?: { startIndex: number; endIndex: number };
+      replace?: boolean;
+    } = {},
+  ) => {
+    if (!enabled) {
+      if (!isReaderSlideViewEnabled && !location.search.includes('slide=')) {
+        return;
+      }
+
+      navigateWithSearch(buildReaderSlideViewSearch(location.search, false), options.replace);
+      return;
+    }
+
+    const nextSearch = buildReaderSlideViewSearch(location.search, true, {
+      selectionStart: options.selectionBounds?.startIndex,
+      selectionEnd: options.selectionBounds?.endIndex,
+    });
+    navigateWithSearch(nextSearch, options.replace);
+  }, [isReaderSlideViewEnabled, location.search, navigateWithSearch]);
+
+  const syncReaderSlideSelectionInUrl = useCallback((selectionBounds: { startIndex: number; endIndex: number }) => {
+    if (!isReaderSlideViewEnabled) {
+      return;
+    }
+
+    const normalizedSearchParams = new URLSearchParams(
+      location.search.startsWith('?') ? location.search.slice(1) : location.search,
+    );
+    const nextSearchParams = withReaderSlideSelectionSearchParams(
+      normalizedSearchParams,
+      selectionBounds.startIndex,
+      selectionBounds.endIndex,
+    );
+    const serialized = nextSearchParams.toString();
+    navigateWithSearch(serialized ? `?${serialized}` : '', true);
+  }, [isReaderSlideViewEnabled, location.search, navigateWithSearch]);
 
   const scrollReaderBy = useCallback((deltaY: number) => {
     if (!Number.isFinite(deltaY) || Math.abs(deltaY) < READER_SELECTION_VISIBILITY_MIN_DISTANCE_PX) {
@@ -707,7 +1332,7 @@ export default function SermonDetail() {
     return nearestVisible?.paragraphNumber ?? nearestOverall?.paragraphNumber ?? null;
   }, []);
 
-  const updateReaderHighlightModeHudPosition = useCallback(
+  const updateReaderTextOptionsPopupPosition = useCallback(
     (range: ReaderWordSelectionRange | null = selectedWordRangeRef.current) => {
       const bounds = getReaderWordSelectionBounds(range);
       const anchorElement = bounds
@@ -717,33 +1342,33 @@ export default function SermonDetail() {
         : null;
       const anchorRect = anchorElement?.getBoundingClientRect() ?? null;
       const contentRect = contentRef.current?.getBoundingClientRect() ?? null;
-      const hudWidth = readerHighlightModeHudRef.current?.offsetWidth ?? READER_HIGHLIGHT_MODE_HUD_FALLBACK_WIDTH_PX;
-      const hudHeight = readerHighlightModeHudRef.current?.offsetHeight ?? READER_HIGHLIGHT_MODE_HUD_FALLBACK_HEIGHT_PX;
-      const maxLeft = window.innerWidth - hudWidth - READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX;
+      const popupWidth = readerTextOptionsPopupRef.current?.offsetWidth ?? READER_TEXT_OPTIONS_POPUP_FALLBACK_WIDTH_PX;
+      const popupHeight = readerTextOptionsPopupRef.current?.offsetHeight ?? READER_TEXT_OPTIONS_POPUP_FALLBACK_HEIGHT_PX;
+      const maxLeft = window.innerWidth - popupWidth - READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX;
       let side: ReaderHighlightModeHudPosition['side'] = 'left';
-      let left = READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX;
+      let left = READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX;
 
       if (contentRect) {
-        const gutterLeftCandidate = contentRect.left - hudWidth - READER_HIGHLIGHT_MODE_HUD_ANCHOR_GAP_PX;
-        if (gutterLeftCandidate >= READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX) {
+        const gutterLeftCandidate = contentRect.left - popupWidth - READER_TEXT_OPTIONS_POPUP_ANCHOR_GAP_PX;
+        if (gutterLeftCandidate >= READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX) {
           left = gutterLeftCandidate;
         } else {
           side = 'inside-left';
-          left = contentRect.left + READER_HIGHLIGHT_MODE_HUD_ANCHOR_GAP_PX;
+          left = contentRect.left + READER_TEXT_OPTIONS_POPUP_ANCHOR_GAP_PX;
         }
       }
 
-      left = Math.max(READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX, Math.min(left, maxLeft));
+      left = Math.max(READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX, Math.min(left, maxLeft));
       const centerY = anchorRect
         ? anchorRect.top + (anchorRect.height / 2)
-        : (contentRect ? contentRect.top + READER_HIGHLIGHT_MODE_HUD_DEFAULT_TOP_OFFSET_PX : READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX);
-      const maxTop = window.innerHeight - hudHeight - READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX;
+        : (contentRect ? contentRect.top + READER_TEXT_OPTIONS_POPUP_DEFAULT_TOP_OFFSET_PX : READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX);
+      const maxTop = window.innerHeight - popupHeight - READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX;
       const top = Math.max(
-        READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX,
-        Math.min(centerY - (hudHeight / 2), maxTop),
+        READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX,
+        Math.min(centerY - (popupHeight / 2), maxTop),
       );
 
-      setReaderHighlightModeHudPosition({
+      setReaderTextOptionsPopupPosition({
         top,
         left,
         side,
@@ -752,35 +1377,196 @@ export default function SermonDetail() {
     },
     [],
   );
-  const showReaderHighlightModeHud = useCallback(() => {
-    updateReaderHighlightModeHudPosition();
-    setIsReaderHighlightModeHudVisible(true);
-
-    if (readerHighlightModeHudTimeoutRef.current != null) {
-      window.clearTimeout(readerHighlightModeHudTimeoutRef.current);
-    }
-
-    readerHighlightModeHudTimeoutRef.current = window.setTimeout(() => {
-      setIsReaderHighlightModeHudVisible(false);
-      readerHighlightModeHudTimeoutRef.current = null;
-    }, READER_HIGHLIGHT_MODE_HUD_TIMEOUT_MS);
-  }, [updateReaderHighlightModeHudPosition]);
 
   const handleReaderHighlightModeSelect = useCallback((mode: ReaderHighlightMode) => {
     if (mode !== readerHighlightMode) {
       setReaderHighlightMode(mode);
     }
-    showReaderHighlightModeHud();
-  }, [readerHighlightMode, setReaderHighlightMode, showReaderHighlightModeHud]);
+  }, [readerHighlightMode, setReaderHighlightMode]);
 
   const cycleReaderHighlightMode = useCallback(() => {
     const nextMode = getNextReaderHighlightMode(readerHighlightMode);
     setReaderHighlightMode(nextMode);
-    showReaderHighlightModeHud();
-  }, [readerHighlightMode, setReaderHighlightMode, showReaderHighlightModeHud]);
-  const readerHighlightModeLabel = useMemo(() => (
-    READER_HIGHLIGHT_MODE_OPTIONS.find((option) => option.mode === readerHighlightMode)?.label ?? 'Word'
-  ), [readerHighlightMode]);
+  }, [readerHighlightMode, setReaderHighlightMode]);
+
+  const showSlideShortcutHint = useCallback((message: string) => {
+    setSlideShortcutHintText(message);
+    setIsSlideShortcutHintVisible(true);
+
+    if (slideShortcutHintTimeoutRef.current != null) {
+      window.clearTimeout(slideShortcutHintTimeoutRef.current);
+    }
+
+    slideShortcutHintTimeoutRef.current = window.setTimeout(() => {
+      setIsSlideShortcutHintVisible(false);
+      slideShortcutHintTimeoutRef.current = null;
+    }, READER_SLIDE_VIEW_HINT_TIMEOUT_MS);
+  }, []);
+
+  const openReaderSlideViewFromQueueEntry = useCallback((
+    queueEntry: ReaderSlideQueueEntry,
+    replace = false,
+  ) => {
+    setReaderSlidePage(READER_SLIDE_DEFAULT_PAGE);
+    setIsReaderSlideVisualImageVisible(true);
+    setReaderSlideViewEnabled(true, {
+      selectionBounds: {
+        startIndex: queueEntry.startIndex,
+        endIndex: queueEntry.endIndex,
+      },
+      replace,
+    });
+  }, [setReaderSlideViewEnabled]);
+
+  const closeReaderSlideView = useCallback((replace = false, resetQueue = false) => {
+    if (resetQueue) {
+      setPresentationHighlightQueue([]);
+    }
+    setReaderSlideViewEnabled(false, { replace });
+  }, [setReaderSlideViewEnabled]);
+
+  const openReaderSlideViewFromSelection = useCallback((
+    range: ReaderWordSelectionRange | null,
+    replace = false,
+  ) => {
+    const queueEntry = createReaderSlideQueueEntryFromRange(
+      bodyWordRegions,
+      range,
+      readerHighlightMode,
+    );
+    if (!queueEntry) {
+      showSlideShortcutHint('Highlight text first to start presentation.');
+      return;
+    }
+
+    if (presentationHighlightQueueRef.current.length === 0) {
+      setPresentationHighlightQueue([queueEntry]);
+      openReaderSlideViewFromQueueEntry(queueEntry, replace);
+      return;
+    }
+
+    openReaderSlideViewFromQueueEntry(presentationHighlightQueueRef.current[0], replace);
+  }, [bodyWordRegions, openReaderSlideViewFromQueueEntry, readerHighlightMode, showSlideShortcutHint]);
+
+  const addSelectedHighlightToPresentationQueue = useCallback(() => {
+    const queueEntry = createReaderSlideQueueEntryFromRange(
+      bodyWordRegions,
+      selectedWordRangeRef.current,
+      readerHighlightMode,
+    );
+    if (!queueEntry) {
+      showSlideShortcutHint('Highlight text first to add to presentation queue.');
+      return;
+    }
+
+    const currentQueue = activePresentationHighlightQueue;
+    const alreadyQueued = currentQueue.some((entry) => isSameReaderSlideQueueEntry(entry, queueEntry));
+    if (!alreadyQueued) {
+      setPresentationHighlightQueue((currentValue) => [...currentValue, queueEntry]);
+      showSlideShortcutHint('Added highlight to presentation queue.');
+    } else {
+      showSlideShortcutHint('Highlight already in presentation queue.');
+    }
+
+    if (!isReaderSlideViewEnabled) {
+      const openFromEntry = currentQueue[0] ?? queueEntry;
+      openReaderSlideViewFromQueueEntry(openFromEntry);
+    }
+  }, [
+    activePresentationHighlightQueue,
+    bodyWordRegions,
+    isReaderSlideViewEnabled,
+    openReaderSlideViewFromQueueEntry,
+    readerHighlightMode,
+    showSlideShortcutHint,
+  ]);
+
+  const goToPreviousReaderSlidePage = useCallback(() => {
+    if (!isReaderSlideViewEnabled || readerSlidePages.length === 0) {
+      return;
+    }
+
+    setReaderSlidePage((currentPage) => Math.max(READER_SLIDE_DEFAULT_PAGE, currentPage - 1));
+  }, [isReaderSlideViewEnabled, readerSlidePages.length]);
+
+  const goToNextReaderSlidePage = useCallback(() => {
+    if (!isReaderSlideViewEnabled || readerSlidePages.length === 0) {
+      return;
+    }
+
+    const maxPage = Math.max(READER_SLIDE_DEFAULT_PAGE, readerSlidePages.length);
+    if (readerSlidePage < maxPage) {
+      setReaderSlidePage((currentPage) => Math.min(maxPage, currentPage + 1));
+      return;
+    }
+
+    const queueTail = activePresentationHighlightQueue[activePresentationHighlightQueue.length - 1] ?? null;
+    const nextUnit = getNextReaderSelectionUnitAfterQueueTail(queueTail, readerSelectionUnitMap);
+    if (!nextUnit) {
+      showSlideShortcutHint('Reached end of sermon.');
+      return;
+    }
+
+    const nextRange = createReaderWordSelectionRangeFromBounds(
+      nextUnit.startIndex,
+      nextUnit.endIndex,
+      bodyWordRegionMap.totalWords,
+    );
+    if (!nextRange) {
+      showSlideShortcutHint('Reached end of sermon.');
+      return;
+    }
+
+    const nextQueueEntry = createReaderSlideQueueEntryFromRange(
+      bodyWordRegions,
+      nextRange,
+      readerHighlightMode,
+    );
+    if (!nextQueueEntry) {
+      showSlideShortcutHint('Reached end of sermon.');
+      return;
+    }
+
+    const currentQueue = activePresentationHighlightQueue;
+    const alreadyQueued = currentQueue.some((entry) => isSameReaderSlideQueueEntry(entry, nextQueueEntry));
+    if (alreadyQueued) {
+      showSlideShortcutHint('Reached end of sermon.');
+      return;
+    }
+
+    selectedWordRangeRef.current = nextRange;
+    setSelectedWordRange(nextRange);
+    setPresentationHighlightQueue(
+      currentQueue.length > 0
+        ? [...currentQueue, nextQueueEntry]
+        : [nextQueueEntry],
+    );
+    setReaderSlidePage(readerSlidePages.length + 1);
+  }, [
+    activePresentationHighlightQueue,
+    bodyWordRegionMap.totalWords,
+    bodyWordRegions,
+    isReaderSlideViewEnabled,
+    readerHighlightMode,
+    readerSelectionUnitMap,
+    readerSlidePage,
+    readerSlidePages.length,
+    showSlideShortcutHint,
+  ]);
+
+  const toggleReaderSlideView = useCallback(() => {
+    if (isReaderSlideViewEnabled) {
+      closeReaderSlideView();
+      return;
+    }
+
+    if (presentationHighlightQueueRef.current.length > 0) {
+      openReaderSlideViewFromQueueEntry(presentationHighlightQueueRef.current[0]);
+      return;
+    }
+
+    openReaderSlideViewFromSelection(selectedWordRangeRef.current);
+  }, [closeReaderSlideView, isReaderSlideViewEnabled, openReaderSlideViewFromQueueEntry, openReaderSlideViewFromSelection]);
 
   const toggleReadingMode = useCallback(() => {
     const currentBounds = getReaderWordSelectionBounds(selectedWordRangeRef.current);
@@ -827,7 +1613,8 @@ export default function SermonDetail() {
   useEffect(() => {
     setSelectedWordRange(null);
     selectedWordRangeRef.current = null;
-    setReaderHighlightModeHudPosition(null);
+    setReaderTextOptionsPopupPosition(null);
+    setPresentationHighlightQueue([]);
   }, [bodyWordRegionMap.totalWords, id]);
 
   useEffect(() => {
@@ -865,6 +1652,136 @@ export default function SermonDetail() {
   }, [selectedWordRange]);
 
   useEffect(() => {
+    presentationHighlightQueueRef.current = presentationHighlightQueue;
+  }, [presentationHighlightQueue]);
+
+  useEffect(() => {
+    const refreshViewport = () => {
+      setReaderSlideViewport(getSafeReaderSlideViewportSnapshot());
+    };
+
+    window.addEventListener('resize', refreshViewport);
+    return () => window.removeEventListener('resize', refreshViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isReaderSlideViewEnabled || !readerSlideSelectionFromSearchParams) {
+      return;
+    }
+
+    if (bodyWordRegionMap.totalWords === 0) {
+      return;
+    }
+
+    const hydratedRange = createReaderWordSelectionRangeFromBounds(
+      readerSlideSelectionFromSearchParams.startIndex,
+      readerSlideSelectionFromSearchParams.endIndex,
+      bodyWordRegionMap.totalWords,
+    );
+    if (!hydratedRange) {
+      closeReaderSlideView(true, true);
+      return;
+    }
+
+    const currentRange = selectedWordRangeRef.current;
+    if (
+      currentRange
+      && currentRange.anchorIndex === hydratedRange.anchorIndex
+      && currentRange.cursorIndex === hydratedRange.cursorIndex
+    ) {
+      return;
+    }
+
+    selectedWordRangeRef.current = hydratedRange;
+    setSelectedWordRange(hydratedRange);
+  }, [
+    bodyWordRegionMap.totalWords,
+    closeReaderSlideView,
+    isReaderSlideViewEnabled,
+    readerSlideSelectionFromSearchParams,
+  ]);
+
+  useEffect(() => {
+    if (!isReaderSlideViewEnabled) {
+      return;
+    }
+
+    const primaryQueueEntry = activePresentationHighlightQueue[0]
+      ?? createReaderSlideQueueEntryFromRange(bodyWordRegions, selectedWordRange, readerHighlightMode);
+    if (!primaryQueueEntry) {
+      if (!readerSlideSelectionFromSearchParams && activePresentationHighlightQueue.length === 0) {
+        closeReaderSlideView(true, true);
+      }
+      return;
+    }
+
+    const currentBounds = {
+      startIndex: primaryQueueEntry.startIndex,
+      endIndex: primaryQueueEntry.endIndex,
+    };
+    const hasLegacySlidePageParam = searchParams.has(READER_SLIDE_PAGE_QUERY_PARAM);
+
+    if (
+      readerSlideSelectionFromSearchParams
+      && readerSlideSelectionFromSearchParams.startIndex === currentBounds.startIndex
+      && readerSlideSelectionFromSearchParams.endIndex === currentBounds.endIndex
+      && !hasLegacySlidePageParam
+    ) {
+      return;
+    }
+
+    syncReaderSlideSelectionInUrl(currentBounds);
+  }, [
+    activePresentationHighlightQueue,
+    bodyWordRegions,
+    closeReaderSlideView,
+    isReaderSlideViewEnabled,
+    readerHighlightMode,
+    readerSlideSelectionFromSearchParams,
+    searchParams,
+    selectedWordRange,
+    syncReaderSlideSelectionInUrl,
+  ]);
+
+  useEffect(() => {
+    if (!isReaderSlideViewEnabled) {
+      return;
+    }
+
+    setReaderSlidePage(READER_SLIDE_DEFAULT_PAGE);
+  }, [isReaderSlideViewEnabled]);
+
+  useEffect(() => {
+    if (!isReaderSlideViewEnabled || readerSlidePages.length === 0) {
+      return;
+    }
+
+    setReaderSlidePage((currentPage) => Math.min(
+      Math.max(currentPage, READER_SLIDE_DEFAULT_PAGE),
+      readerSlidePages.length,
+    ));
+  }, [
+    isReaderSlideViewEnabled,
+    readerSlidePages.length,
+  ]);
+
+  useEffect(() => {
+    if (!isReaderSlideViewEnabled) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isReaderSlideViewEnabled]);
+
+  useEffect(() => {
+    if (isReaderSlideViewEnabled) {
+      return;
+    }
+
     const bounds = getReaderWordSelectionBounds(selectedWordRange);
     if (!bounds) {
       return;
@@ -889,7 +1806,7 @@ export default function SermonDetail() {
     }
 
     scrollReaderBy(visibilityDistance);
-  }, [getReaderWordElementByIndex, scrollReaderBy, selectedWordRange]);
+  }, [getReaderWordElementByIndex, isReaderSlideViewEnabled, scrollReaderBy, selectedWordRange]);
 
   useEffect(() => {
     const anchor = readingModeToggleAnchorRef.current;
@@ -937,12 +1854,12 @@ export default function SermonDetail() {
   }, [getReaderWordElementByIndex, isReadingModeEnabled, loading, scrollElementIntoView, sermon]);
 
   useEffect(() => {
-    if (!isReaderHighlightModeHudVisible) {
+    if (!selectedWordRange || isReaderSlideViewEnabled) {
       return;
     }
 
     const refreshPosition = () => {
-      updateReaderHighlightModeHudPosition();
+      updateReaderTextOptionsPopupPosition();
     };
 
     refreshPosition();
@@ -952,14 +1869,13 @@ export default function SermonDetail() {
       window.removeEventListener('resize', refreshPosition);
       window.removeEventListener('scroll', refreshPosition, true);
     };
-  }, [isReaderHighlightModeHudVisible, selectedWordRange, updateReaderHighlightModeHudPosition]);
+  }, [isReaderSlideViewEnabled, selectedWordRange, updateReaderTextOptionsPopupPosition]);
 
   const handleReaderWordSelect = useCallback((wordIndex: number) => {
     const nextRange = createReaderWordSelectionRangeFromUnitMap(wordIndex, readerSelectionUnitMap);
     selectedWordRangeRef.current = nextRange;
     setSelectedWordRange(nextRange);
-    showReaderHighlightModeHud();
-  }, [readerSelectionUnitMap, showReaderHighlightModeHud]);
+  }, [readerSelectionUnitMap]);
 
   const {
     activeIndex: activeMatchIndex,
@@ -982,7 +1898,7 @@ export default function SermonDetail() {
 
   const { progressPercent } = useSermonScrollProgress({
     targetRef: contentRef,
-    enabled: !loading && Boolean(sermon),
+    enabled: !loading && Boolean(sermon) && !isReaderSlideViewEnabled,
   });
 
   const shouldHideProgressBar = Boolean(activeAudioUrl);
@@ -1028,6 +1944,10 @@ export default function SermonDetail() {
     }
 
     const handleReaderWordNavigationKeyDown = (event: KeyboardEvent) => {
+      if (isReaderSlideViewEnabled) {
+        return;
+      }
+
       const command = resolveReaderWordNavigationCommand(event, {
         extendShortcutKey: bindings.reader_extend_selection,
         shrinkShortcutKey: bindings.reader_shrink_selection,
@@ -1036,7 +1956,6 @@ export default function SermonDetail() {
         return;
       }
 
-      showReaderHighlightModeHud();
       const currentRange = selectedWordRangeRef.current;
       const nextRange = command === 'extend'
         ? extendReaderWordSelectionByUnit(currentRange, readerSelectionUnitMap)
@@ -1055,7 +1974,13 @@ export default function SermonDetail() {
 
     window.addEventListener('keydown', handleReaderWordNavigationKeyDown);
     return () => window.removeEventListener('keydown', handleReaderWordNavigationKeyDown);
-  }, [bindings.reader_extend_selection, bindings.reader_shrink_selection, bodyWordRegionMap.totalWords, readerSelectionUnitMap, showReaderHighlightModeHud]);
+  }, [
+    bindings.reader_extend_selection,
+    bindings.reader_shrink_selection,
+    bodyWordRegionMap.totalWords,
+    isReaderSlideViewEnabled,
+    readerSelectionUnitMap,
+  ]);
 
   useEffect(() => {
     const handleCycleHighlightModeShortcutKeyDown = (event: KeyboardEvent) => {
@@ -1073,12 +1998,83 @@ export default function SermonDetail() {
 
   useEffect(() => {
     return () => {
-      if (readerHighlightModeHudTimeoutRef.current != null) {
-        window.clearTimeout(readerHighlightModeHudTimeoutRef.current);
-        readerHighlightModeHudTimeoutRef.current = null;
+      if (slideShortcutHintTimeoutRef.current != null) {
+        window.clearTimeout(slideShortcutHintTimeoutRef.current);
+        slideShortcutHintTimeoutRef.current = null;
       }
     };
   }, []);
+
+  useEffect(() => {
+    const handleAddSlideHighlightShortcutKeyDown = (event: KeyboardEvent) => {
+      if (!shouldTriggerReadingModeShortcut(event, bindings.add_slide_highlight)) {
+        return;
+      }
+
+      event.preventDefault();
+      addSelectedHighlightToPresentationQueue();
+    };
+
+    window.addEventListener('keydown', handleAddSlideHighlightShortcutKeyDown);
+    return () => window.removeEventListener('keydown', handleAddSlideHighlightShortcutKeyDown);
+  }, [addSelectedHighlightToPresentationQueue, bindings.add_slide_highlight]);
+
+  useEffect(() => {
+    const handleSlideViewShortcutKeyDown = (event: KeyboardEvent) => {
+      if (!shouldTriggerReadingModeShortcut(event, bindings.toggle_slide_view)) {
+        return;
+      }
+
+      event.preventDefault();
+      toggleReaderSlideView();
+    };
+
+    window.addEventListener('keydown', handleSlideViewShortcutKeyDown);
+    return () => window.removeEventListener('keydown', handleSlideViewShortcutKeyDown);
+  }, [bindings.toggle_slide_view, toggleReaderSlideView]);
+
+  useEffect(() => {
+    if (!isReaderSlideViewEnabled) {
+      return;
+    }
+
+    const handleReaderSlidePaginationKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeReaderSlideView();
+        return;
+      }
+
+      const command = resolveReaderWordNavigationCommand(event, {
+        extendShortcutKey: bindings.reader_extend_selection,
+        shrinkShortcutKey: bindings.reader_shrink_selection,
+      });
+      if (command === 'extend') {
+        event.preventDefault();
+        goToNextReaderSlidePage();
+        return;
+      }
+
+      if (command === 'shrink') {
+        event.preventDefault();
+        goToPreviousReaderSlidePage();
+      }
+    };
+
+    window.addEventListener('keydown', handleReaderSlidePaginationKeyDown);
+    return () => window.removeEventListener('keydown', handleReaderSlidePaginationKeyDown);
+  }, [
+    bindings.reader_extend_selection,
+    bindings.reader_shrink_selection,
+    closeReaderSlideView,
+    goToNextReaderSlidePage,
+    goToPreviousReaderSlidePage,
+    isReaderSlideViewEnabled,
+  ]);
 
   useEffect(() => {
     const handleReadingModeShortcutKeyDown = (event: KeyboardEvent) => {
@@ -1169,44 +2165,193 @@ export default function SermonDetail() {
           onHitNavigate={closeSearchPopup}
         />
       </SearchPopup>
-      <div
-        aria-live="polite"
-        className={`pointer-events-none fixed z-50 rounded-lg border border-border bg-background/95 px-3 py-2 font-mono text-xs shadow-md transition-opacity duration-200 ${
-          isReaderHighlightModeHudVisible ? 'opacity-100' : 'opacity-0'
-        }`}
-        data-anchor-word-index={readerHighlightModeHudPosition?.anchorWordIndex}
-        data-placement={readerHighlightModeHudPosition?.side ?? 'left'}
-        ref={readerHighlightModeHudRef}
-        style={{
-          left: `${readerHighlightModeHudPosition?.left ?? READER_HIGHLIGHT_MODE_HUD_EDGE_MARGIN_PX}px`,
-          top: `${readerHighlightModeHudPosition?.top ?? 96}px`,
-        }}
-        data-testid="reader-highlight-mode-hud"
-      >
-        <p className="text-foreground">Highlight: {readerHighlightModeLabel}</p>
-        <p className="mt-1 text-muted-foreground">
-          Cycle{' '}
-          <kbd className="rounded border border-border bg-muted px-1 text-[11px]">
-            {formatShortcutKey(bindings.cycle_highlight_mode)}
-          </kbd>
-        </p>
-      </div>
-      {!isReadingModeEnabled && (
-        <SermonDetailFixedChevrons
-          canNavigatePrev={fixedChevronNavigation.canNavigatePrev}
-          canNavigateNext={fixedChevronNavigation.canNavigateNext}
-          onNavigatePrev={fixedChevronNavigation.navigatePrev}
-          onNavigateNext={fixedChevronNavigation.navigateNext}
-          onJumpToTop={handleJumpToTop}
-        />
+      {isReaderSlideViewEnabled && (
+        <section
+          className="fixed inset-0 z-[70] flex min-h-screen"
+          aria-label="Fullscreen sermon presentation"
+          data-testid="reader-fullscreen-slide-view"
+        >
+          <div className="relative flex min-h-screen flex-1 overflow-hidden bg-[#040609] text-white">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(255,255,255,0.11),transparent_45%),linear-gradient(160deg,#020205_0%,#04090f_55%,#0f131a_100%)]" />
+            <div className="absolute inset-y-0 right-0 hidden w-[42%] overflow-hidden lg:block">
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,#11161f_0%,#070a10_78%)]" />
+              {isReaderSlideVisualImageVisible && (
+                <img
+                  src="/image.png"
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover object-center opacity-45"
+                  loading="lazy"
+                  decoding="async"
+                  onError={() => setIsReaderSlideVisualImageVisible(false)}
+                />
+              )}
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(4,6,9,0.97)_0%,rgba(4,6,9,0.62)_40%,rgba(4,6,9,0.24)_100%)]" />
+            </div>
+            <div className="relative z-10 flex w-full flex-col justify-between px-7 py-7 sm:px-10 sm:py-8 lg:w-[58%] lg:px-14 lg:py-10 xl:px-20 xl:py-14">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-white/60" data-testid="reader-fullscreen-slide-header">
+                  Highlighted Text Presentation
+                </p>
+                <button
+                  type="button"
+                  onClick={() => closeReaderSlideView()}
+                  className="rounded border border-white/30 bg-black/20 px-3 py-1.5 text-[11px] font-mono uppercase tracking-wide text-white/85 transition-colors hover:bg-white/10"
+                  data-testid="reader-fullscreen-slide-close"
+                >
+                  Exit ({formatShortcutKey(bindings.toggle_slide_view)} / Esc)
+                </button>
+              </div>
+              <div className="mt-8 grid min-h-0 flex-1 grid-cols-[clamp(2.6rem,5vw,4.4rem)_minmax(0,1fr)] gap-x-4 sm:gap-x-6 lg:gap-x-7">
+                <p className="pt-1 text-[clamp(3.6rem,7vw,6.4rem)] leading-[0.78] text-white/80">&ldquo;</p>
+                <p
+                  className="max-w-[36ch] self-center whitespace-pre-wrap font-serif text-[clamp(1.1rem,1.9vw,2.2rem)] font-semibold leading-[1.12] tracking-[0.004em] text-white"
+                  data-testid="reader-fullscreen-slide-text"
+                >
+                  {activeReaderSlidePageText || 'No highlighted text selected.'}
+                </p>
+              </div>
+              <div className="mt-8 space-y-2 border-t border-white/20 pt-5">
+                <p
+                  className="text-[12px] uppercase tracking-[0.2em] text-white/65"
+                  data-testid="reader-fullscreen-slide-meta"
+                >
+                  {sermon.sermon_code} / {sermon.title}
+                </p>
+                <p className="font-serif text-[clamp(1.2rem,1.75vw,2rem)] text-white/92">
+                  {READER_SLIDE_QUOTE_ATTRIBUTION}
+                </p>
+                <p
+                  className="text-[11px] uppercase tracking-[0.16em] text-white/62"
+                  data-testid="reader-fullscreen-slide-part-indicator"
+                >
+                  {getReaderSlideSourceLabel(activeReaderSlidePage?.modeAtCapture ?? 'word')} {activeReaderSlidePage?.sourceIndex ?? 1}
+                  {' / '}
+                  {Math.max(1, activeReaderSlidePage?.sourceTotal ?? 1)}
+                  {(activeReaderSlidePage?.continuationTotal ?? 1) > 1
+                    ? `  Part ${activeReaderSlidePage?.continuationIndex ?? 1}/${activeReaderSlidePage?.continuationTotal ?? 1}`
+                    : ''}
+                </p>
+                <p
+                  className="text-[11px] uppercase tracking-[0.16em] text-white/60"
+                  data-testid="reader-fullscreen-slide-page-indicator"
+                >
+                  Slide {Math.max(READER_SLIDE_DEFAULT_PAGE, activeReaderSlidePageIndex + 1)}
+                  {' / '}
+                  {Math.max(READER_SLIDE_DEFAULT_PAGE, readerSlideTotalPages)}
+                </p>
+              </div>
+            </div>
+            <div className="relative z-10 hidden flex-1 items-end justify-end p-8 text-right lg:flex">
+              <div className="rounded-md border border-white/20 bg-black/35 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.12em] text-white/75">
+                Next: Right / Space / Previous: Left / Shift+Space
+              </div>
+            </div>
+          </div>
+        </section>
       )}
-      <SermonProgressBar progressPercent={progressPercent} hidden={shouldHideProgressBar} />
+      {selectedWordRange && !isReaderSlideViewEnabled && (
+        <div
+          aria-label="Highlighted text options"
+          className="fixed z-50 w-[248px] rounded-lg border border-border bg-background/95 px-3 py-3 font-mono text-xs shadow-md backdrop-blur"
+          data-anchor-word-index={readerTextOptionsPopupPosition?.anchorWordIndex}
+          data-placement={readerTextOptionsPopupPosition?.side ?? 'left'}
+          ref={readerTextOptionsPopupRef}
+          style={{
+            left: `${readerTextOptionsPopupPosition?.left ?? READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX}px`,
+            top: `${readerTextOptionsPopupPosition?.top ?? 96}px`,
+          }}
+          data-testid="reader-text-options-popup"
+        >
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Highlighted Text Options</p>
+          <p className="mt-2 text-foreground">Highlight mode</p>
+          <div
+            aria-label="Reader highlight mode"
+            className="mt-2 inline-flex items-center gap-1"
+            data-testid="reader-highlight-mode-toggle"
+          >
+            {READER_HIGHLIGHT_MODE_OPTIONS.map((option) => {
+              const isActive = option.mode === readerHighlightMode;
+              return (
+                <button
+                  key={option.mode}
+                  type="button"
+                  aria-label={`Highlight mode ${option.label}`}
+                  aria-pressed={isActive}
+                  title={`Highlight by ${option.label.toLowerCase()}`}
+                  onClick={() => handleReaderHighlightModeSelect(option.mode)}
+                  className={`rounded border px-1.5 py-1 text-[10px] font-mono transition-colors ${
+                    isActive
+                      ? 'border-foreground bg-foreground text-background'
+                      : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {option.shortLabel}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={toggleReaderSlideView}
+            aria-pressed={isReaderSlideViewEnabled}
+            className={`mt-3 inline-flex w-full items-center justify-between rounded border px-2 py-1.5 text-left text-[11px] transition-colors ${
+              isReaderSlideViewEnabled
+                ? 'border-foreground bg-foreground text-background'
+                : 'border-border bg-background text-foreground hover:bg-hover-row'
+            }`}
+            data-testid="reader-slide-view-toggle"
+          >
+            <span>{isReaderSlideViewEnabled ? 'Exit presentation' : 'Start presentation'}</span>
+            <kbd className="rounded border border-border/60 bg-background/60 px-1 text-[10px]">
+              {formatShortcutKey(bindings.toggle_slide_view)}
+            </kbd>
+          </button>
+          <p className="mt-2 text-muted-foreground">
+            Cycle mode{' '}
+            <kbd className="rounded border border-border bg-muted px-1 text-[11px]">
+              {formatShortcutKey(bindings.cycle_highlight_mode)}
+            </kbd>
+          </p>
+          <p
+            className="mt-1 text-[11px] text-muted-foreground"
+            data-testid="reader-slide-queue-hint"
+          >
+            Queued: {presentationQueueCount}{' '}
+            - Add{' '}
+            <kbd className="rounded border border-border bg-muted px-1 text-[10px]">
+              {formatShortcutKey(bindings.add_slide_highlight)}
+            </kbd>
+          </p>
+        </div>
+      )}
+      {isSlideShortcutHintVisible && (
+        <div
+          aria-live="polite"
+          role="status"
+          className="pointer-events-none fixed right-3 top-3 z-50 rounded-lg border border-border bg-background/95 px-3 py-2 font-mono text-xs text-foreground shadow-md"
+          data-testid="reader-slide-view-hint"
+        >
+          {slideShortcutHintText}
+        </div>
+      )}
+      {!isReaderSlideViewEnabled && (
+        <>
+          {!isReadingModeEnabled && (
+            <SermonDetailFixedChevrons
+              canNavigatePrev={fixedChevronNavigation.canNavigatePrev}
+              canNavigateNext={fixedChevronNavigation.canNavigateNext}
+              onNavigatePrev={fixedChevronNavigation.navigatePrev}
+              onNavigateNext={fixedChevronNavigation.navigateNext}
+              onJumpToTop={handleJumpToTop}
+            />
+          )}
+          <SermonProgressBar progressPercent={progressPercent} hidden={shouldHideProgressBar} />
 
-      <div
-        ref={contentRef}
-        data-testid="sermon-detail-content"
-        className={`mx-auto max-w-[900px] px-6 lg:px-0 ${isReadingModeEnabled ? 'space-y-6 py-5' : 'space-y-8 py-8'}`}
-      >
+          <div
+            ref={contentRef}
+            data-testid="sermon-detail-content"
+            className={`mx-auto max-w-[900px] px-6 lg:px-0 ${isReadingModeEnabled ? 'space-y-6 py-5' : 'space-y-8 py-8'}`}
+          >
         {!isReadingModeEnabled && (
           <SermonBreadcrumb year={sermon.year} title={sermon.title} rootHref={breadcrumbRootHref} />
         )}
@@ -1273,32 +2418,6 @@ export default function SermonDetail() {
                   onToggle={toggleReadingMode}
                   className="inline-flex items-center gap-1.5 border-l border-border px-3 py-2 text-foreground hover:bg-hover-row"
                 />
-                <div
-                  aria-label="Reader highlight mode"
-                  className="inline-flex items-center gap-1 border-l border-border px-3 py-2"
-                  data-testid="reader-highlight-mode-toggle"
-                >
-                  {READER_HIGHLIGHT_MODE_OPTIONS.map((option) => {
-                    const isActive = option.mode === readerHighlightMode;
-                    return (
-                      <button
-                        key={option.mode}
-                        type="button"
-                        aria-label={`Highlight mode ${option.label}`}
-                        aria-pressed={isActive}
-                        title={`Highlight by ${option.label.toLowerCase()}`}
-                        onClick={() => handleReaderHighlightModeSelect(option.mode)}
-                        className={`rounded border px-1.5 py-1 text-[10px] font-mono transition-colors ${
-                          isActive
-                            ? 'border-foreground bg-foreground text-background'
-                            : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {option.shortLabel}
-                      </button>
-                    );
-                  })}
-                </div>
                 <button
                   onClick={handleShare}
                   className="inline-flex items-center gap-1.5 border-l border-border px-3 py-2 text-foreground hover:bg-hover-row"
@@ -1414,7 +2533,9 @@ export default function SermonDetail() {
             ) : <div />}
           </div>
         )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

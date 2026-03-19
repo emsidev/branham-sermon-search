@@ -17,6 +17,8 @@ const shortcutBindingsMock: ShortcutBindings = {
   result_next: 'n',
   result_prev: 'm',
   toggle_reading_mode: 'r',
+  toggle_slide_view: 'p',
+  add_slide_highlight: 'g',
   cycle_highlight_mode: 'h',
   reader_extend_selection: 'ArrowRight',
   reader_shrink_selection: 'ArrowLeft',
@@ -215,6 +217,8 @@ describe('Settings', () => {
       </MemoryRouter>
     );
 
+    expect(screen.getByRole('button', { name: 'Shortcut for Toggle slide view' })).toHaveTextContent('p');
+    expect(screen.getByRole('button', { name: 'Shortcut for Add highlight to presentation' })).toHaveTextContent('g');
     expect(screen.getByRole('button', { name: 'Shortcut for Cycle highlight mode' })).toHaveTextContent('h');
     expect(screen.getByRole('button', { name: 'Shortcut for Reader extend selection' })).toHaveTextContent('Right');
     expect(screen.getByRole('button', { name: 'Shortcut for Reader shrink selection' })).toHaveTextContent('Left');

@@ -19,6 +19,8 @@ let shortcutBindingsMock: ShortcutBindings = {
   result_next: 'n',
   result_prev: 'm',
   toggle_reading_mode: 'r',
+  toggle_slide_view: 'p',
+  add_slide_highlight: 'g',
   cycle_highlight_mode: 'h',
   reader_extend_selection: 'ArrowRight',
   reader_shrink_selection: 'ArrowLeft',
@@ -110,6 +112,31 @@ const multiParagraphSermonDetailFixture = {
   ],
 };
 
+const longSlideSentenceSet = [
+  'Faith gives us courage when the valley feels cold.',
+  'Hope keeps speaking when fear would rather stay silent.',
+  'Grace teaches us to be patient with one another.',
+  'Truth steadies the heart when voices become noisy.',
+  'Prayer turns anxious waiting into quiet confidence.',
+  'Mercy keeps our words gentle when tempers rise.',
+  'Love remembers people are more than their failures.',
+  'Joy returns strength to weary souls in the night.',
+];
+
+const longSlideParagraphText = Array.from({ length: 5 }, () => longSlideSentenceSet.join(' ')).join(' ');
+
+const longSlideSermonDetailFixture = {
+  ...sermonDetailFixture,
+  text_content: longSlideParagraphText,
+  paragraphs: [
+    {
+      paragraph_number: 4,
+      printed_paragraph_number: 4,
+      paragraph_text: longSlideParagraphText,
+    },
+  ],
+};
+
 function renderDetail(entry: string | { pathname: string; search?: string; state?: unknown }) {
   return render(
     <MemoryRouter initialEntries={[entry]}>
@@ -165,8 +192,29 @@ function getHighlightModeButton(modeLabel: 'Word' | 'Sentence' | 'Paragraph'): H
   return screen.getByRole('button', { name: `Highlight mode ${modeLabel}` });
 }
 
-function getReaderHighlightHud(): HTMLElement {
-  return screen.getByTestId('reader-highlight-mode-hud');
+function getReaderTextOptionsPopup(): HTMLElement {
+  return screen.getByTestId('reader-text-options-popup');
+}
+
+function getReaderSlideViewHint(): HTMLElement {
+  return screen.getByTestId('reader-slide-view-hint');
+}
+
+function getReaderFullscreenSlideView(): HTMLElement {
+  return screen.getByTestId('reader-fullscreen-slide-view');
+}
+
+function getReaderFullscreenSlideText(): HTMLElement {
+  return screen.getByTestId('reader-fullscreen-slide-text');
+}
+
+async function selectReaderWordAndOpenOptionsPopup(wordIndex = 0): Promise<void> {
+  const word = getReaderWordByIndex(wordIndex);
+  expect(word).not.toBeNull();
+  fireEvent.click(word!);
+  await waitFor(() => {
+    expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+  });
 }
 
 function getSermonDetailContent(): HTMLElement {
@@ -250,6 +298,8 @@ describe('SermonDetail', () => {
       result_next: 'n',
       result_prev: 'm',
       toggle_reading_mode: 'r',
+      toggle_slide_view: 'p',
+      add_slide_highlight: 'g',
       cycle_highlight_mode: 'h',
       reader_extend_selection: 'ArrowRight',
       reader_shrink_selection: 'ArrowLeft',
@@ -305,6 +355,7 @@ describe('SermonDetail', () => {
 
     await waitFor(() => {
       expect(document.querySelectorAll('mark[data-search-match="true"]')).toHaveLength(1);
+      expect(getActiveMatch()).not.toBeNull();
     });
 
     const active = getActiveMatch();
@@ -405,25 +456,31 @@ describe('SermonDetail', () => {
     const { unmount } = renderDetail('/sermons/sermon-1');
 
     await waitFor(() => {
-      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+      expect(getReaderWords().length).toBeGreaterThan(0);
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
 
     unmount();
     renderDetail('/sermons/sermon-1?highlightMode=invalid');
 
     await waitFor(() => {
-      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
-      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'false');
-      expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'false');
+      expect(getReaderWords().length).toBeGreaterThan(0);
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'false');
+    expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('updates URL and active state when highlight mode is toggled from toolbar controls', async () => {
+  it('updates URL and active state when highlight mode is toggled from highlighted text options popup', async () => {
     renderDetail('/sermons/sermon-1?q=only+believe');
 
     await waitFor(() => {
-      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+      expect(getReaderWords().length).toBeGreaterThan(0);
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(getHighlightModeButton('Sentence'));
     await waitFor(() => {
@@ -448,8 +505,10 @@ describe('SermonDetail', () => {
     renderDetail('/sermons/sermon-1?q=only+believe');
 
     await waitFor(() => {
-      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+      expect(getReaderWords().length).toBeGreaterThan(0);
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.keyDown(window, { key: 'h' });
     await waitFor(() => {
@@ -464,35 +523,20 @@ describe('SermonDetail', () => {
     });
   });
 
-  it('shows reader highlight HUD on mode and navigation interactions, then auto-hides', async () => {
+  it('shows highlighted text options popup only after text is selected', async () => {
     renderDetail('/sermons/sermon-1');
 
     await waitFor(() => {
-      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+      expect(getReaderWords().length).toBeGreaterThan(0);
     });
 
-    const hud = getReaderHighlightHud();
-    expect(hud).toHaveTextContent('Highlight: Word');
-    expect(hud).toHaveTextContent('Cycle');
-
-    fireEvent.click(getHighlightModeButton('Sentence'));
-    await waitFor(() => {
-      expect(getReaderHighlightHud()).toHaveTextContent('Highlight: Sentence');
-    });
-    expect(getReaderHighlightHud().className).toContain('opacity-100');
-
-    const firstWord = getReaderWordByIndex(0);
-    expect(firstWord).not.toBeNull();
-    fireEvent.click(firstWord!);
-    fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(getReaderHighlightHud().className).toContain('opacity-100');
-
-    await waitFor(() => {
-      expect(getReaderHighlightHud().className).toContain('opacity-0');
-    }, { timeout: 2200 });
+    expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getReaderTextOptionsPopup()).toHaveTextContent('Highlighted Text Options');
+    expect(screen.getByTestId('reader-slide-view-toggle')).toBeInTheDocument();
   });
 
-  it('anchors reader highlight HUD in the left gutter beside the latest highlighted word', async () => {
+  it('anchors highlighted text options popup in the left gutter beside the latest highlighted word', async () => {
     renderDetail('/sermons/sermon-1');
 
     await waitFor(() => {
@@ -505,15 +549,6 @@ describe('SermonDetail', () => {
     expect(firstWord).not.toBeNull();
     expect(secondWord).not.toBeNull();
 
-    const hud = getReaderHighlightHud();
-    Object.defineProperty(hud, 'offsetWidth', {
-      configurable: true,
-      get: () => 160,
-    });
-    Object.defineProperty(hud, 'offsetHeight', {
-      configurable: true,
-      get: () => 44,
-    });
     const contentRectSpy = vi
       .spyOn(content, 'getBoundingClientRect')
       .mockReturnValue(createMockDomRect(300, 120, 900, 640));
@@ -526,14 +561,27 @@ describe('SermonDetail', () => {
       .mockReturnValue(createMockDomRect(420, 240, 46, 20));
 
     fireEvent.click(firstWord!);
+    await waitFor(() => {
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+    });
+    const popup = getReaderTextOptionsPopup();
+    Object.defineProperty(popup, 'offsetWidth', {
+      configurable: true,
+      get: () => 160,
+    });
+    Object.defineProperty(popup, 'offsetHeight', {
+      configurable: true,
+      get: () => 44,
+    });
+    fireEvent.scroll(window);
     fireEvent.keyDown(window, { key: 'ArrowRight' });
 
     await waitFor(() => {
-      const anchoredHud = getReaderHighlightHud();
-      expect(anchoredHud).toHaveAttribute('data-anchor-word-index', '1');
-      expect(anchoredHud).toHaveAttribute('data-placement', 'left');
-      expect(anchoredHud.style.left).toBe('130px');
-      expect(anchoredHud.style.top).toBe('228px');
+      const anchoredPopup = getReaderTextOptionsPopup();
+      expect(anchoredPopup).toHaveAttribute('data-anchor-word-index', '1');
+      expect(anchoredPopup).toHaveAttribute('data-placement', 'left');
+      expect(anchoredPopup.style.left).toBe('130px');
+      expect(anchoredPopup.style.top).toBe('228px');
     });
 
     contentRectSpy.mockRestore();
@@ -541,7 +589,7 @@ describe('SermonDetail', () => {
     secondRectSpy.mockRestore();
   });
 
-  it('falls back to inside-left placement when no left gutter space is available', async () => {
+  it('falls back to inside-left popup placement when no left gutter space is available', async () => {
     renderDetail('/sermons/sermon-1');
 
     await waitFor(() => {
@@ -552,15 +600,6 @@ describe('SermonDetail', () => {
     const firstWord = getReaderWordByIndex(0);
     expect(firstWord).not.toBeNull();
 
-    const hud = getReaderHighlightHud();
-    Object.defineProperty(hud, 'offsetWidth', {
-      configurable: true,
-      get: () => 160,
-    });
-    Object.defineProperty(hud, 'offsetHeight', {
-      configurable: true,
-      get: () => 44,
-    });
     const contentRectSpy = vi
       .spyOn(content, 'getBoundingClientRect')
       .mockReturnValue(createMockDomRect(120, 100, 760, 640));
@@ -569,50 +608,427 @@ describe('SermonDetail', () => {
       .mockReturnValue(createMockDomRect(220, 240, 32, 20));
 
     fireEvent.click(firstWord!);
+    await waitFor(() => {
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+    });
+    const popup = getReaderTextOptionsPopup();
+    Object.defineProperty(popup, 'offsetWidth', {
+      configurable: true,
+      get: () => 160,
+    });
+    Object.defineProperty(popup, 'offsetHeight', {
+      configurable: true,
+      get: () => 44,
+    });
+    fireEvent.scroll(window);
 
     await waitFor(() => {
-      const anchoredHud = getReaderHighlightHud();
-      expect(anchoredHud).toHaveAttribute('data-placement', 'inside-left');
-      expect(anchoredHud.style.left).toBe('130px');
-      expect(anchoredHud.style.top).toBe('228px');
+      const anchoredPopup = getReaderTextOptionsPopup();
+      expect(anchoredPopup).toHaveAttribute('data-placement', 'inside-left');
+      expect(anchoredPopup.style.left).toBe('130px');
+      expect(anchoredPopup.style.top).toBe('228px');
     });
 
     contentRectSpy.mockRestore();
     wordRectSpy.mockRestore();
   });
 
-  it('places reader highlight HUD on the left side even before any text selection exists', async () => {
+  it('does not render highlighted text options popup before text selection exists', async () => {
     renderDetail('/sermons/sermon-1');
 
     await waitFor(() => {
-      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+      expect(getReaderWords().length).toBeGreaterThan(0);
     });
+    expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
+  });
 
-    const content = getSermonDetailContent();
-    const hud = getReaderHighlightHud();
-    Object.defineProperty(hud, 'offsetWidth', {
-      configurable: true,
-      get: () => 160,
-    });
-    Object.defineProperty(hud, 'offsetHeight', {
-      configurable: true,
-      get: () => 44,
-    });
-    const contentRectSpy = vi
-      .spyOn(content, 'getBoundingClientRect')
-      .mockReturnValue(createMockDomRect(300, 140, 900, 640));
-
-    fireEvent.click(getHighlightModeButton('Sentence'));
+  it('starts and exits fullscreen presentation from highlighted text options popup and updates URL state', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe');
 
     await waitFor(() => {
-      const anchoredHud = getReaderHighlightHud();
-      expect(anchoredHud).toHaveAttribute('data-placement', 'left');
-      expect(anchoredHud).not.toHaveAttribute('data-anchor-word-index');
-      expect(anchoredHud.style.left).toBe('130px');
-      expect(anchoredHud.style.top).toBe('134px');
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.click(screen.getByTestId('reader-slide-view-toggle'));
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('slide=1');
+      expect(screen.getByTestId('location-path')).toHaveTextContent('slideStart=0');
+      expect(screen.getByTestId('location-path')).toHaveTextContent('slideEnd=');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slidePage=');
+    });
+    expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+    expect(getReaderFullscreenSlideText()).toHaveTextContent('First');
+    expect(screen.queryByTestId('sermon-detail-content')).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'p' });
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slide=1');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slideStart=');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slideEnd=');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slidePage=');
+    });
+    expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+  });
+
+  it('toggles fullscreen presentation from configurable keyboard shortcut', async () => {
+    shortcutBindingsMock = {
+      ...shortcutBindingsMock,
+      toggle_slide_view: 'x',
+    };
+
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.keyDown(window, { key: 'x' });
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('slide=1');
+    });
+    expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'X', shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slide=1');
+    });
+    expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+  });
+
+  it('shows hint and keeps presentation mode off when shortcut is pressed without selection', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
     });
 
-    contentRectSpy.mockRestore();
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(getReaderSlideViewHint()).toHaveTextContent('Highlight text first to start presentation.');
+    expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+    expect(screen.getByTestId('location-path')).not.toHaveTextContent('slide=1');
+  });
+
+  it('adds highlighted passages to the presentation queue with g and auto-opens without query churn', async () => {
+    fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?highlightMode=paragraph');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(screen.getByTestId('reader-slide-queue-hint')).toHaveTextContent('Queued: 0');
+
+    fireEvent.keyDown(window, { key: 'g' });
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('First I am looking forward to this week');
+    });
+
+    const openedPath = screen.getByTestId('location-path').textContent ?? '';
+    fireEvent.keyDown(window, { key: 'p' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+    });
+
+    await selectReaderWordAndOpenOptionsPopup(8);
+    expect(screen.getByTestId('reader-slide-queue-hint')).toHaveTextContent('Queued: 1');
+
+    fireEvent.keyDown(window, { key: 'g' });
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 2');
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 / 2');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('Later i am looking forward to that');
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+  });
+
+  it('keeps queue deduplicated and preserves mode-at-capture labels', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.keyDown(window, { key: 'g' });
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Selection 1 / 1');
+    });
+
+    fireEvent.keyDown(window, { key: 'p' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+    });
+
+    await selectReaderWordAndOpenOptionsPopup(0);
+    fireEvent.keyDown(window, { key: 'g' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-slide-view-hint')).toHaveTextContent('already in presentation queue');
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
+    });
+
+    fireEvent.keyDown(window, { key: 'p' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+    });
+
+    await selectReaderWordAndOpenOptionsPopup(0);
+    fireEvent.click(getHighlightModeButton('Sentence'));
+    await waitFor(() => {
+      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
+    });
+    fireEvent.keyDown(window, { key: 'g' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 2');
+    });
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Sentence 2 / 2');
+    });
+  });
+
+  it('shows add-to-queue hint and keeps presentation off when g is pressed without selection', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
+    fireEvent.keyDown(window, { key: 'g' });
+    expect(getReaderSlideViewHint()).toHaveTextContent('Highlight text first to add to presentation queue.');
+    expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+  });
+
+  it('paginates fullscreen presentation slides by paragraph with arrow and space shortcuts', async () => {
+    fetchSermonByIdMock.mockResolvedValue(longSlideSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?highlightMode=paragraph');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.click(screen.getByTestId('reader-slide-view-toggle'));
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 /');
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Paragraph 1 / 1');
+    });
+
+    const pageIndicator = screen.getByTestId('reader-fullscreen-slide-page-indicator');
+    const parsed = pageIndicator.textContent?.match(/Slide\s+(\d+)\s*\/\s*(\d+)/);
+    expect(parsed).not.toBeNull();
+    const totalPages = Number.parseInt(parsed?.[2] ?? '1', 10);
+    expect(totalPages).toBeGreaterThan(1);
+
+    const openedPath = screen.getByTestId('location-path').textContent ?? '';
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 /');
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+
+    fireEvent.keyDown(window, { key: ' ' });
+    const expectedAfterSpace = Math.min(3, totalPages);
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent(`Slide ${expectedAfterSpace} /`);
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    const expectedAfterLeft = Math.max(1, expectedAfterSpace - 1);
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent(`Slide ${expectedAfterLeft} /`);
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+
+    fireEvent.keyDown(window, { key: ' ', shiftKey: true });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent(`Slide ${Math.max(1, expectedAfterLeft - 1)} /`);
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+  });
+
+  it('auto-appends next sentence when pressing next on the last slide in sentence mode', async () => {
+    renderDetail('/sermons/sermon-1?highlightMode=sentence');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.click(screen.getByTestId('reader-slide-view-toggle'));
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('First I am looking forward to this week.');
+    });
+
+    const openedPath = screen.getByTestId('location-path').textContent ?? '';
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 / 2');
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Sentence 2 / 2');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('Later i am looking forward to that.');
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+  });
+
+  it('auto-appends next paragraph when pressing next on the last slide in paragraph mode', async () => {
+    fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?highlightMode=paragraph');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.click(screen.getByTestId('reader-slide-view-toggle'));
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('First I am looking forward to this week.');
+    });
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 / 2');
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Paragraph 2 / 2');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('Later i am looking forward to that.');
+    });
+  });
+
+  it('shows end-of-sermon hint and keeps the same slide when there is no next unit to append', async () => {
+    fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?highlightMode=paragraph');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.click(screen.getByTestId('reader-slide-view-toggle'));
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
+    });
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 / 2');
+    });
+
+    const lastPath = screen.getByTestId('location-path').textContent ?? '';
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(getReaderSlideViewHint()).toHaveTextContent('Reached end of sermon.');
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 / 2');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('Later i am looking forward to that.');
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(lastPath);
+    });
+  });
+
+  it('auto-append works from URL-seeded presentation queue and keeps query stable', async () => {
+    fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?slide=1&slideStart=0&slideEnd=7&highlightMode=paragraph');
+
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('First I am looking forward to this week.');
+    });
+
+    const openedPath = screen.getByTestId('location-path').textContent ?? '';
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 / 2');
+      expect(getReaderFullscreenSlideText()).toHaveTextContent('Later i am looking forward to that.');
+      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+    });
+  });
+
+  it('splits oversized paragraph slides into continuation parts', async () => {
+    fetchSermonByIdMock.mockResolvedValue(longSlideSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?highlightMode=paragraph');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.click(screen.getByTestId('reader-slide-view-toggle'));
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 /');
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Paragraph 1 / 1');
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Part 1/');
+    });
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).not.toHaveTextContent('Slide 1 / 1');
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Part 2/');
+    });
+  });
+
+  it('exits fullscreen presentation with Escape and clears slide query params', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
+    fireEvent.keyDown(window, { key: 'p' });
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+      expect(screen.getByTestId('location-path')).toHaveTextContent('slide=1');
+    });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slide=1');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slideStart=');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slideEnd=');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slidePage=');
+    });
+  });
+
+  it('hydrates fullscreen presentation state from URL selection and ignores legacy slidePage', async () => {
+    fetchSermonByIdMock.mockResolvedValue(longSlideSermonDetailFixture);
+    renderDetail('/sermons/sermon-1?slide=1&slideStart=0&slideEnd=60&slidePage=2');
+
+    await waitFor(() => {
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 /');
+      expect(screen.getByTestId('location-path')).not.toHaveTextContent('slidePage=');
+    });
+
+    expect(screen.queryByTestId('sermon-detail-content')).not.toBeInTheDocument();
+    expect(getReaderFullscreenSlideText().textContent?.trim().length).toBeGreaterThan(0);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
+      expect(screen.getByTestId('sermon-detail-content')).toBeInTheDocument();
+      expect(getSelectedReaderWords().length).toBeGreaterThan(0);
+    });
   });
 
   it('uses configured reader primary keys while preserving legacy aliases', async () => {
@@ -654,8 +1070,9 @@ describe('SermonDetail', () => {
 
     await waitFor(() => {
       expect(getReaderWords().length).toBeGreaterThan(0);
-      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
 
     const firstWord = getReaderWordByIndex(0);
     expect(firstWord).not.toBeNull();
@@ -676,12 +1093,15 @@ describe('SermonDetail', () => {
 
     await waitFor(() => {
       expect(getReaderWords().length).toBeGreaterThan(0);
-      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
     });
 
     const selectedWord = getReaderWordByIndex(3);
     expect(selectedWord).not.toBeNull();
     fireEvent.click(selectedWord!);
+    await waitFor(() => {
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+      expect(getHighlightModeButton('Word')).toHaveAttribute('aria-pressed', 'true');
+    });
     expect(getSelectedReaderWordIndexes()).toEqual([3]);
 
     fireEvent.click(getHighlightModeButton('Sentence'));
@@ -707,8 +1127,9 @@ describe('SermonDetail', () => {
 
     await waitFor(() => {
       expect(getReaderWords().length).toBeGreaterThan(0);
-      expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'true');
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getHighlightModeButton('Paragraph')).toHaveAttribute('aria-pressed', 'true');
 
     const totalWords = getReaderWords().length;
     const firstWord = getReaderWordByIndex(0);
@@ -1003,8 +1424,9 @@ describe('SermonDetail', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Toggle reading mode' })).toBeInTheDocument();
-      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
+    expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle reading mode' }));
     await waitFor(() => {

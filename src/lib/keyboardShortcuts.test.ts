@@ -69,10 +69,12 @@ describe('keyboardShortcuts', () => {
       reader_shrink_selection: 'ArrowLeft',
     });
 
-    expect(Object.values(coerced)).toHaveLength(9);
-    expect(new Set(Object.values(coerced)).size).toBe(9);
+    expect(Object.values(coerced)).toHaveLength(11);
+    expect(new Set(Object.values(coerced)).size).toBe(11);
     expect(coerced.open_settings).toBe(',');
     expect(coerced.toggle_reading_mode).toBe('r');
+    expect(coerced.toggle_slide_view).toBe('p');
+    expect(coerced.add_slide_highlight).toBe('g');
     expect(coerced.cycle_highlight_mode).toBe('h');
     expect(coerced.reader_extend_selection).toBe('ArrowRight');
     expect(coerced.reader_shrink_selection).toBe('ArrowLeft');
