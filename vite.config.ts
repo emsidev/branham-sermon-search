@@ -11,6 +11,9 @@ const appBuildDate = new Date().toISOString();
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  optimizeDeps: {
+    entries: ["index.html"],
+  },
   server: {
     host: "::",
     port: 8080,

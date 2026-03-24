@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SermonDetail from './SermonDetail';
@@ -215,10 +215,6 @@ async function selectReaderWordAndOpenOptionsPopup(wordIndex = 0): Promise<void>
   await waitFor(() => {
     expect(getReaderTextOptionsPopup()).toBeInTheDocument();
   });
-}
-
-function getSermonDetailContent(): HTMLElement {
-  return screen.getByTestId('sermon-detail-content');
 }
 
 function createMockDomRect(left: number, top: number, width: number, height: number): DOMRect {
@@ -536,101 +532,121 @@ describe('SermonDetail', () => {
     expect(screen.getByTestId('reader-slide-view-toggle')).toBeInTheDocument();
   });
 
-  it('anchors highlighted text options popup in the left gutter beside the latest highlighted word', async () => {
-    renderDetail('/sermons/sermon-1');
-
-    await waitFor(() => {
-      expect(getReaderWords().length).toBeGreaterThan(2);
-    });
-
-    const content = getSermonDetailContent();
-    const firstWord = getReaderWordByIndex(0);
-    const secondWord = getReaderWordByIndex(1);
-    expect(firstWord).not.toBeNull();
-    expect(secondWord).not.toBeNull();
-
-    const contentRectSpy = vi
-      .spyOn(content, 'getBoundingClientRect')
-      .mockReturnValue(createMockDomRect(300, 120, 900, 640));
-
-    const firstRectSpy = vi
-      .spyOn(firstWord!, 'getBoundingClientRect')
-      .mockReturnValue(createMockDomRect(300, 200, 34, 20));
-    const secondRectSpy = vi
-      .spyOn(secondWord!, 'getBoundingClientRect')
-      .mockReturnValue(createMockDomRect(420, 240, 46, 20));
-
-    fireEvent.click(firstWord!);
-    await waitFor(() => {
-      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
-    });
-    const popup = getReaderTextOptionsPopup();
-    Object.defineProperty(popup, 'offsetWidth', {
-      configurable: true,
-      get: () => 160,
-    });
-    Object.defineProperty(popup, 'offsetHeight', {
-      configurable: true,
-      get: () => 44,
-    });
-    fireEvent.scroll(window);
-    fireEvent.keyDown(window, { key: 'ArrowRight' });
-
-    await waitFor(() => {
-      const anchoredPopup = getReaderTextOptionsPopup();
-      expect(anchoredPopup).toHaveAttribute('data-anchor-word-index', '1');
-      expect(anchoredPopup).toHaveAttribute('data-placement', 'left');
-      expect(anchoredPopup.style.left).toBe('130px');
-      expect(anchoredPopup.style.top).toBe('228px');
-    });
-
-    contentRectSpy.mockRestore();
-    firstRectSpy.mockRestore();
-    secondRectSpy.mockRestore();
-  });
-
-  it('falls back to inside-left popup placement when no left gutter space is available', async () => {
+  it('renders highlighted text options in a right-side drawer after text selection', async () => {
     renderDetail('/sermons/sermon-1');
 
     await waitFor(() => {
       expect(getReaderWords().length).toBeGreaterThan(0);
     });
+    await selectReaderWordAndOpenOptionsPopup(0);
 
-    const content = getSermonDetailContent();
-    const firstWord = getReaderWordByIndex(0);
-    expect(firstWord).not.toBeNull();
-
-    const contentRectSpy = vi
-      .spyOn(content, 'getBoundingClientRect')
-      .mockReturnValue(createMockDomRect(120, 100, 760, 640));
-    const wordRectSpy = vi
-      .spyOn(firstWord!, 'getBoundingClientRect')
-      .mockReturnValue(createMockDomRect(220, 240, 32, 20));
-
-    fireEvent.click(firstWord!);
-    await waitFor(() => {
-      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
-    });
     const popup = getReaderTextOptionsPopup();
-    Object.defineProperty(popup, 'offsetWidth', {
-      configurable: true,
-      get: () => 160,
-    });
-    Object.defineProperty(popup, 'offsetHeight', {
-      configurable: true,
-      get: () => 44,
-    });
-    fireEvent.scroll(window);
+    expect(popup.className).toContain('right-3');
+    expect(popup.className).toContain('top-24');
+    expect(screen.getByTestId('reader-highlight-mode-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('reader-slide-view-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('reader-slide-queue-hint')).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      const anchoredPopup = getReaderTextOptionsPopup();
-      expect(anchoredPopup).toHaveAttribute('data-placement', 'inside-left');
-      expect(anchoredPopup.style.left).toBe('130px');
-      expect(anchoredPopup.style.top).toBe('228px');
-    });
+  it('auto-hides highlighted text options drawer after 2.5 seconds of inactivity', async () => {
+    vi.useFakeTimers();
+    try {
+      renderDetail('/sermons/sermon-1');
 
-    contentRectSpy.mockRestore();
-    wordRectSpy.mockRestore();
+      await waitFor(() => {
+        expect(getReaderWords().length).toBeGreaterThan(0);
+      });
+      await selectReaderWordAndOpenOptionsPopup(0);
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(2499);
+      });
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('pauses drawer auto-hide while interacting and resumes after interaction ends', async () => {
+    vi.useFakeTimers();
+    try {
+      renderDetail('/sermons/sermon-1');
+
+      await waitFor(() => {
+        expect(getReaderWords().length).toBeGreaterThan(0);
+      });
+      await selectReaderWordAndOpenOptionsPopup(0);
+      const popup = getReaderTextOptionsPopup();
+
+      fireEvent.mouseEnter(popup);
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+
+      fireEvent.mouseLeave(getReaderTextOptionsPopup());
+      await act(async () => {
+        vi.advanceTimersByTime(2400);
+      });
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
+
+      await selectReaderWordAndOpenOptionsPopup(0);
+      const highlightModeButton = getHighlightModeButton('Word');
+      fireEvent.focus(highlightModeButton);
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+
+      fireEvent.blur(highlightModeButton);
+      await act(async () => {
+        vi.advanceTimersByTime(2500);
+      });
+      expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps keyboard shortcuts working after the drawer auto-hides', async () => {
+    vi.useFakeTimers();
+    try {
+      renderDetail('/sermons/sermon-1?q=only+believe');
+
+      await waitFor(() => {
+        expect(getReaderWords().length).toBeGreaterThan(0);
+      });
+      await selectReaderWordAndOpenOptionsPopup(0);
+
+      await act(async () => {
+        vi.advanceTimersByTime(2500);
+      });
+      expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
+
+      fireEvent.keyDown(window, { key: 'h' });
+      await waitFor(() => {
+        expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
+      });
+
+      fireEvent.keyDown(window, { key: 'p' });
+      await waitFor(() => {
+        expect(screen.getByTestId('location-path')).toHaveTextContent('slide=1');
+      });
+      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not render highlighted text options popup before text selection exists', async () => {

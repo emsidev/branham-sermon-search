@@ -117,7 +117,7 @@ describe('Index', () => {
     renderIndex();
 
     expect(screen.getByText('the table search')).toBeInTheDocument();
-    expect(screen.getByText('a fast, modern browser for the table')).toBeInTheDocument();
+    expect(screen.getByText('A fast, modern browser for the table search')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Toggle fuzzy search' })).toBeInTheDocument();
     expect(screen.getByText('1958')).toBeInTheDocument();
     expect(screen.getByText('1972')).toBeInTheDocument();

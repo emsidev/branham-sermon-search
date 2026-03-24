@@ -173,7 +173,7 @@ export default function Index() {
           the table search
         </h1>
         <p className="mt-5 text-lg text-muted-foreground">
-          a fast, modern browser for the table
+          A fast, modern browser for the table search
         </p>
 
         <div className="mt-10">

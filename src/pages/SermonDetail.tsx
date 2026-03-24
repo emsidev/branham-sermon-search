@@ -61,6 +61,7 @@ import {
   isReaderSlideViewEnabledFromSearchParams,
   withReaderSlideSelectionSearchParams,
 } from '@/lib/readerSlideViewUrlState';
+import { buildShareUrl } from '@/lib/shareUrl';
 
 interface AdjacentSermon {
   id: string;
@@ -99,11 +100,7 @@ const CONTENT_REGION_KEY = 'content';
 const SNIPPET_BEFORE_CHARS = 44;
 const SNIPPET_AFTER_CHARS = 70;
 const SELECTED_READER_SEGMENT_CLASS = 'bg-emerald-200/60 text-foreground';
-const READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX = 12;
-const READER_TEXT_OPTIONS_POPUP_ANCHOR_GAP_PX = 10;
-const READER_TEXT_OPTIONS_POPUP_DEFAULT_TOP_OFFSET_PX = 16;
-const READER_TEXT_OPTIONS_POPUP_FALLBACK_WIDTH_PX = 248;
-const READER_TEXT_OPTIONS_POPUP_FALLBACK_HEIGHT_PX = 124;
+const READER_TEXT_OPTIONS_DRAWER_AUTO_HIDE_MS = 2500;
 const READER_SELECTION_VISIBILITY_TOP_MARGIN_PX = 96;
 const READER_SELECTION_VISIBILITY_BOTTOM_MARGIN_PX = 112;
 const READER_SELECTION_VISIBILITY_MIN_DISTANCE_PX = 0.5;
@@ -117,13 +114,6 @@ const READER_HIGHLIGHT_MODE_OPTIONS: Array<{ mode: ReaderHighlightMode; label: s
   { mode: 'sentence', label: 'Sentence', shortLabel: 'S' },
   { mode: 'paragraph', label: 'Paragraph', shortLabel: 'P' },
 ];
-
-interface ReaderHighlightModeHudPosition {
-  top: number;
-  left: number;
-  side: 'left' | 'inside-left';
-  anchorWordIndex: number | null;
-}
 
 interface ReadingModeToggleAnchorSnapshot {
   targetReadingMode: boolean;
@@ -957,7 +947,7 @@ export default function SermonDetail() {
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
   const [selectedWordRange, setSelectedWordRange] = useState<ReaderWordSelectionRange | null>(null);
-  const [readerTextOptionsPopupPosition, setReaderTextOptionsPopupPosition] = useState<ReaderHighlightModeHudPosition | null>(null);
+  const [isReaderTextOptionsDrawerVisible, setIsReaderTextOptionsDrawerVisible] = useState(false);
   const [isSlideShortcutHintVisible, setIsSlideShortcutHintVisible] = useState(false);
   const [slideShortcutHintText, setSlideShortcutHintText] = useState('');
   const [readerSlideViewport, setReaderSlideViewport] = useState<ReaderSlideViewportSnapshot>(() => (
@@ -967,8 +957,8 @@ export default function SermonDetail() {
   const [presentationHighlightQueue, setPresentationHighlightQueue] = useState<ReaderSlideQueueEntry[]>([]);
   const [readerSlidePage, setReaderSlidePage] = useState(READER_SLIDE_DEFAULT_PAGE);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const readerTextOptionsPopupRef = useRef<HTMLDivElement | null>(null);
   const selectedWordRangeRef = useRef<ReaderWordSelectionRange | null>(null);
+  const readerTextOptionsDrawerHideTimeoutRef = useRef<number | null>(null);
   const slideShortcutHintTimeoutRef = useRef<number | null>(null);
   const readingModeToggleAnchorRef = useRef<ReadingModeToggleAnchorSnapshot | null>(null);
   const presentationHighlightQueueRef = useRef<ReaderSlideQueueEntry[]>([]);
@@ -1332,51 +1322,65 @@ export default function SermonDetail() {
     return nearestVisible?.paragraphNumber ?? nearestOverall?.paragraphNumber ?? null;
   }, []);
 
-  const updateReaderTextOptionsPopupPosition = useCallback(
-    (range: ReaderWordSelectionRange | null = selectedWordRangeRef.current) => {
-      const bounds = getReaderWordSelectionBounds(range);
-      const anchorElement = bounds
-        ? document.querySelector<HTMLElement>(
-          `[data-reader-word="true"][data-reader-word-index="${bounds.endIndex}"]`,
-        )
-        : null;
-      const anchorRect = anchorElement?.getBoundingClientRect() ?? null;
-      const contentRect = contentRef.current?.getBoundingClientRect() ?? null;
-      const popupWidth = readerTextOptionsPopupRef.current?.offsetWidth ?? READER_TEXT_OPTIONS_POPUP_FALLBACK_WIDTH_PX;
-      const popupHeight = readerTextOptionsPopupRef.current?.offsetHeight ?? READER_TEXT_OPTIONS_POPUP_FALLBACK_HEIGHT_PX;
-      const maxLeft = window.innerWidth - popupWidth - READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX;
-      let side: ReaderHighlightModeHudPosition['side'] = 'left';
-      let left = READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX;
+  const clearReaderTextOptionsDrawerHideTimeout = useCallback(() => {
+    if (readerTextOptionsDrawerHideTimeoutRef.current != null) {
+      window.clearTimeout(readerTextOptionsDrawerHideTimeoutRef.current);
+      readerTextOptionsDrawerHideTimeoutRef.current = null;
+    }
+  }, []);
 
-      if (contentRect) {
-        const gutterLeftCandidate = contentRect.left - popupWidth - READER_TEXT_OPTIONS_POPUP_ANCHOR_GAP_PX;
-        if (gutterLeftCandidate >= READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX) {
-          left = gutterLeftCandidate;
-        } else {
-          side = 'inside-left';
-          left = contentRect.left + READER_TEXT_OPTIONS_POPUP_ANCHOR_GAP_PX;
-        }
-      }
+  const hideReaderTextOptionsDrawer = useCallback(() => {
+    clearReaderTextOptionsDrawerHideTimeout();
+    setIsReaderTextOptionsDrawerVisible(false);
+  }, [clearReaderTextOptionsDrawerHideTimeout]);
 
-      left = Math.max(READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX, Math.min(left, maxLeft));
-      const centerY = anchorRect
-        ? anchorRect.top + (anchorRect.height / 2)
-        : (contentRect ? contentRect.top + READER_TEXT_OPTIONS_POPUP_DEFAULT_TOP_OFFSET_PX : READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX);
-      const maxTop = window.innerHeight - popupHeight - READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX;
-      const top = Math.max(
-        READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX,
-        Math.min(centerY - (popupHeight / 2), maxTop),
-      );
+  const scheduleReaderTextOptionsDrawerHide = useCallback(() => {
+    clearReaderTextOptionsDrawerHideTimeout();
+    if (!selectedWordRangeRef.current || isReaderSlideViewEnabled) {
+      setIsReaderTextOptionsDrawerVisible(false);
+      return;
+    }
 
-      setReaderTextOptionsPopupPosition({
-        top,
-        left,
-        side,
-        anchorWordIndex: bounds?.endIndex ?? null,
-      });
-    },
-    [],
-  );
+    readerTextOptionsDrawerHideTimeoutRef.current = window.setTimeout(() => {
+      setIsReaderTextOptionsDrawerVisible(false);
+      readerTextOptionsDrawerHideTimeoutRef.current = null;
+    }, READER_TEXT_OPTIONS_DRAWER_AUTO_HIDE_MS);
+  }, [clearReaderTextOptionsDrawerHideTimeout, isReaderSlideViewEnabled]);
+
+  const showReaderTextOptionsDrawer = useCallback(() => {
+    if (!selectedWordRangeRef.current || isReaderSlideViewEnabled) {
+      return;
+    }
+
+    setIsReaderTextOptionsDrawerVisible(true);
+    scheduleReaderTextOptionsDrawerHide();
+  }, [isReaderSlideViewEnabled, scheduleReaderTextOptionsDrawerHide]);
+
+  const handleReaderTextOptionsDrawerMouseEnter = useCallback(() => {
+    clearReaderTextOptionsDrawerHideTimeout();
+  }, [clearReaderTextOptionsDrawerHideTimeout]);
+
+  const handleReaderTextOptionsDrawerMouseLeave = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const activeElement = document.activeElement;
+    if (activeElement && event.currentTarget.contains(activeElement)) {
+      return;
+    }
+
+    scheduleReaderTextOptionsDrawerHide();
+  }, [scheduleReaderTextOptionsDrawerHide]);
+
+  const handleReaderTextOptionsDrawerFocusCapture = useCallback(() => {
+    clearReaderTextOptionsDrawerHideTimeout();
+  }, [clearReaderTextOptionsDrawerHideTimeout]);
+
+  const handleReaderTextOptionsDrawerBlurCapture = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+    const nextFocusedElement = event.relatedTarget as Node | null;
+    if (nextFocusedElement && event.currentTarget.contains(nextFocusedElement)) {
+      return;
+    }
+
+    scheduleReaderTextOptionsDrawerHide();
+  }, [scheduleReaderTextOptionsDrawerHide]);
 
   const handleReaderHighlightModeSelect = useCallback((mode: ReaderHighlightMode) => {
     if (mode !== readerHighlightMode) {
@@ -1613,9 +1617,9 @@ export default function SermonDetail() {
   useEffect(() => {
     setSelectedWordRange(null);
     selectedWordRangeRef.current = null;
-    setReaderTextOptionsPopupPosition(null);
+    hideReaderTextOptionsDrawer();
     setPresentationHighlightQueue([]);
-  }, [bodyWordRegionMap.totalWords, id]);
+  }, [bodyWordRegionMap.totalWords, hideReaderTextOptionsDrawer, id]);
 
   useEffect(() => {
     const currentRange = selectedWordRangeRef.current;
@@ -1855,21 +1859,17 @@ export default function SermonDetail() {
 
   useEffect(() => {
     if (!selectedWordRange || isReaderSlideViewEnabled) {
+      hideReaderTextOptionsDrawer();
       return;
     }
 
-    const refreshPosition = () => {
-      updateReaderTextOptionsPopupPosition();
-    };
-
-    refreshPosition();
-    window.addEventListener('resize', refreshPosition);
-    window.addEventListener('scroll', refreshPosition, true);
-    return () => {
-      window.removeEventListener('resize', refreshPosition);
-      window.removeEventListener('scroll', refreshPosition, true);
-    };
-  }, [isReaderSlideViewEnabled, selectedWordRange, updateReaderTextOptionsPopupPosition]);
+    showReaderTextOptionsDrawer();
+  }, [
+    hideReaderTextOptionsDrawer,
+    isReaderSlideViewEnabled,
+    selectedWordRange,
+    showReaderTextOptionsDrawer,
+  ]);
 
   const handleReaderWordSelect = useCallback((wordIndex: number) => {
     const nextRange = createReaderWordSelectionRangeFromUnitMap(wordIndex, readerSelectionUnitMap);
@@ -1998,12 +1998,13 @@ export default function SermonDetail() {
 
   useEffect(() => {
     return () => {
+      clearReaderTextOptionsDrawerHideTimeout();
       if (slideShortcutHintTimeoutRef.current != null) {
         window.clearTimeout(slideShortcutHintTimeoutRef.current);
         slideShortcutHintTimeoutRef.current = null;
       }
     };
-  }, []);
+  }, [clearReaderTextOptionsDrawerHideTimeout]);
 
   useEffect(() => {
     const handleAddSlideHighlightShortcutKeyDown = (event: KeyboardEvent) => {
@@ -2091,7 +2092,16 @@ export default function SermonDetail() {
   }, [bindings.toggle_reading_mode, toggleReadingMode]);
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
+    const shareUrl = buildShareUrl({
+      currentHref: window.location.href,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      hash: window.location.hash,
+      desktopRuntime: window.desktopRuntime,
+      publicWebBaseUrl: import.meta.env.VITE_PUBLIC_WEB_BASE_URL,
+    });
+
+    navigator.clipboard.writeText(shareUrl);
     setShared(true);
     setTimeout(() => setShared(false), 2000);
   };
@@ -2249,17 +2259,14 @@ export default function SermonDetail() {
           </div>
         </section>
       )}
-      {selectedWordRange && !isReaderSlideViewEnabled && (
+      {selectedWordRange && !isReaderSlideViewEnabled && isReaderTextOptionsDrawerVisible && (
         <div
           aria-label="Highlighted text options"
-          className="fixed z-50 w-[248px] rounded-lg border border-border bg-background/95 px-3 py-3 font-mono text-xs shadow-md backdrop-blur"
-          data-anchor-word-index={readerTextOptionsPopupPosition?.anchorWordIndex}
-          data-placement={readerTextOptionsPopupPosition?.side ?? 'left'}
-          ref={readerTextOptionsPopupRef}
-          style={{
-            left: `${readerTextOptionsPopupPosition?.left ?? READER_TEXT_OPTIONS_POPUP_EDGE_MARGIN_PX}px`,
-            top: `${readerTextOptionsPopupPosition?.top ?? 96}px`,
-          }}
+          className="fixed right-3 top-24 z-50 w-[min(232px,calc(100vw-1.5rem))] rounded-lg border border-border bg-background/95 px-3 py-3 font-mono text-xs shadow-md backdrop-blur transition-all duration-200 animate-in slide-in-from-right-4 fade-in-0"
+          onMouseEnter={handleReaderTextOptionsDrawerMouseEnter}
+          onMouseLeave={handleReaderTextOptionsDrawerMouseLeave}
+          onFocusCapture={handleReaderTextOptionsDrawerFocusCapture}
+          onBlurCapture={handleReaderTextOptionsDrawerBlurCapture}
           data-testid="reader-text-options-popup"
         >
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Highlighted Text Options</p>

@@ -30,7 +30,7 @@ export default function GlobalFooter() {
       <div className="mx-auto flex w-full max-w-[1200px] flex-col justify-between gap-10 px-6 py-10 md:flex-row md:items-start">
         <div className="space-y-3 text-muted-foreground">
           <p className="font-mono text-sm text-foreground/90">
-            a fast, modern browser for the table
+            A fast, modern browser for the table search
           </p>
           <p className="font-mono text-sm">
             built {buildDateLabel} {'\u00B7'} v{appVersion}

@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# the table search
 
 ## Project info
 
@@ -59,6 +59,23 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Electron (desktop shell)
+
+## Desktop (WSL)
+
+Use WSL as the primary shell for desktop commands.
+
+```sh
+npm run dev:desktop
+npm run build:desktop
+npm run dist:desktop
+```
+
+Notes:
+
+- `dev:desktop` runs Vite + Electron.
+- `dist:desktop` builds a Windows NSIS installer into `release/` via Docker (`electronuserland/builder:wine`).
+- Optional share-link mapping from desktop URLs to web URLs is controlled by `VITE_PUBLIC_WEB_BASE_URL`.
 
 ## How can I deploy this project?
 

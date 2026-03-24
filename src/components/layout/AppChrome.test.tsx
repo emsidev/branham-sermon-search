@@ -59,7 +59,7 @@ describe('AppChrome', () => {
       expect(screen.getAllByRole('link', { name: /settings/i }).length).toBeGreaterThan(0);
       expect(screen.getAllByRole('link', { name: /about/i }).length).toBeGreaterThan(0);
       expect(screen.getByRole('link', { name: 'the table search' })).toBeInTheDocument();
-      expect(screen.getByText('a fast, modern browser for the table')).toBeInTheDocument();
+      expect(screen.getByText('A fast, modern browser for the table search')).toBeInTheDocument();
     }
   );
 
@@ -71,7 +71,7 @@ describe('AppChrome', () => {
     expect(screen.queryByRole('link', { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /about/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'the table search' })).not.toBeInTheDocument();
-    expect(screen.queryByText('a fast, modern browser for the table')).not.toBeInTheDocument();
+    expect(screen.queryByText('A fast, modern browser for the table search')).not.toBeInTheDocument();
     expect(screen.getByText('sermon route')).toBeInTheDocument();
   });
 });

@@ -144,7 +144,7 @@ export default function Settings() {
   }, [navigate]);
 
   return (
-    <SubpageLayout title="settings" description="Customize your table search experience.">
+    <SubpageLayout title="settings" description="Customize your the table search experience.">
       <div className="space-y-7">
         <section>
           <h2 className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">Appearance</h2>
