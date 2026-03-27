@@ -4,7 +4,9 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync, SQLInputValue } from 'node:sqlite';
-import { CONTENT_SCHEMA_SQL } from '../src/data/sqlite/schema';
+import { CONTENT_SCHEMA_SQL, CONTENT_SCHEMA_VERSION } from '../src/data/sqlite/schema';
+import { normalizeSearchText } from '../src/data/sqlite/searchIndex';
+import { rebuildSearchIndexes } from './rebuild-search-indexes';
 
 type SeedPayload = {
   sermons?: any[];
@@ -40,12 +42,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     outPath: args.get('--out') ?? path.resolve(process.cwd(), 'public', 'data', 'content.sqlite'),
     seedPath: args.get('--seed') ?? null,
     dbVersion: args.get('--db-version') ?? new Date().toISOString().slice(0, 10),
-    schemaVersion: Number.parseInt(args.get('--schema-version') ?? '1', 10),
+    schemaVersion: Number.parseInt(args.get('--schema-version') ?? String(CONTENT_SCHEMA_VERSION), 10),
   };
-}
-
-function normalizeSearchText(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function addSearchDocument(
@@ -294,6 +292,7 @@ function run(): void {
   bulkInsert(db, 'sermon_chunks', seed.sermon_chunks ?? []);
 
   createSearchDocuments(db);
+  rebuildSearchIndexes(db);
   upsertMetadata(db, 'content_db_version', args.dbVersion);
   upsertMetadata(db, 'content_schema_version', String(args.schemaVersion));
   db.close();

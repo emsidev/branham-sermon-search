@@ -1,12 +1,14 @@
 import type { DataPort } from '@/data/contracts';
 
-interface WorkerRequest {
+interface WorkerRpcRequest {
+  type: 'rpc';
   id: number;
   method: keyof DataPort | 'init';
   params: unknown;
 }
 
-interface WorkerResponse {
+interface WorkerRpcResponse {
+  type: 'rpc';
   id: number;
   ok: boolean;
   result?: unknown;
@@ -20,7 +22,7 @@ class WorkerRpcClient {
 
   constructor() {
     this.worker = new Worker(new URL('./webSqliteWorker.ts', import.meta.url), { type: 'module' });
-    this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+    this.worker.onmessage = (event: MessageEvent<WorkerRpcResponse>) => {
       const payload = event.data;
       const pendingRequest = this.pending.get(payload.id);
       if (!pendingRequest) {
@@ -39,7 +41,7 @@ class WorkerRpcClient {
 
   request<T>(method: keyof DataPort | 'init', params: unknown): Promise<T> {
     const id = ++this.idCounter;
-    const payload: WorkerRequest = { id, method, params };
+    const payload: WorkerRpcRequest = { type: 'rpc', id, method, params };
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       this.worker.postMessage(payload);
@@ -78,6 +80,9 @@ export const webSqliteDataPort: DataPort = {
   searchSermonHits(params) {
     return invoke('searchSermonHits', params);
   },
+  getSearchSuggestions(params) {
+    return invoke('getSearchSuggestions', params);
+  },
   getSermonDetail(id) {
     return invoke('getSermonDetail', id);
   },
@@ -94,4 +99,3 @@ export const webSqliteDataPort: DataPort = {
     return invoke('saveShortcutBindings', bindings);
   },
 };
-

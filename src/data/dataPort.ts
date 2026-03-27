@@ -17,6 +17,9 @@ const emptyFallbackPort: DataPort = {
   async searchSermonHits() {
     return [];
   },
+  async getSearchSuggestions() {
+    return [];
+  },
   async getSermonDetail() {
     return null;
   },

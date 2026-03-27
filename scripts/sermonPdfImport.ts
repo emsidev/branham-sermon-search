@@ -22,6 +22,8 @@ import {
   type SermonPayload,
 } from '../src/lib/sermonPdfImportPersistence';
 import { CONTENT_SCHEMA_SQL } from '../src/data/sqlite/schema';
+import { normalizeSearchText } from '../src/data/sqlite/searchIndex';
+import { rebuildSearchIndexes } from './rebuild-search-indexes';
 
 const YEAR_FOLDER_PATTERN = /^\d{4}$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -178,10 +180,6 @@ function loadEnvFile(filePath: string): void {
 export function loadProjectEnv(): void {
   loadEnvFile(path.resolve(process.cwd(), '.env'));
   loadEnvFile(path.resolve(process.cwd(), '.env.local'));
-}
-
-function normalizeSearchText(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function sha256OfFile(filePath: string): string {
@@ -560,6 +558,7 @@ export function createSqliteSermonImportRepository(sqlitePath: string): SermonIm
       }
 
       rebuildSearchDocumentsForSermon(sermonId);
+      rebuildSearchIndexes(db);
     },
   };
 }

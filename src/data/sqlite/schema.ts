@@ -1,4 +1,4 @@
-export const CONTENT_SCHEMA_VERSION = 1;
+export const CONTENT_SCHEMA_VERSION = 2;
 export const USER_SCHEMA_VERSION = 1;
 
 export const CONTENT_SCHEMA_SQL = `
@@ -79,12 +79,25 @@ CREATE TABLE IF NOT EXISTS search_documents (
   snippet_text TEXT NOT NULL
 );
 
+CREATE VIRTUAL TABLE IF NOT EXISTS search_documents_fts USING fts4(
+  searchable_text,
+  content='search_documents'
+);
+
+CREATE TABLE IF NOT EXISTS search_terms (
+  term TEXT PRIMARY KEY,
+  prefix2 TEXT NOT NULL,
+  length INTEGER NOT NULL,
+  doc_freq INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sermons_date ON sermons(date DESC);
 CREATE INDEX IF NOT EXISTS idx_sermons_year ON sermons(year);
 CREATE INDEX IF NOT EXISTS idx_sermons_location ON sermons(location);
 CREATE INDEX IF NOT EXISTS idx_sermons_title ON sermons(title);
 CREATE INDEX IF NOT EXISTS idx_search_documents_sermon ON search_documents(sermon_id);
 CREATE INDEX IF NOT EXISTS idx_search_documents_source ON search_documents(match_source);
+CREATE INDEX IF NOT EXISTS idx_search_terms_prefix2_length_freq ON search_terms(prefix2, length, doc_freq DESC);
 
 CREATE TABLE IF NOT EXISTS app_metadata (
   key TEXT PRIMARY KEY,
@@ -106,4 +119,3 @@ CREATE TABLE IF NOT EXISTS app_metadata (
   value TEXT NOT NULL
 );
 `;
-

@@ -58,9 +58,18 @@ vi.mock('@/components/SermonPagination', () => ({
 }));
 
 vi.mock('@/components/SearchHitsCards', () => ({
-  default: ({ onHitNavigate, selectedIndex }: { onHitNavigate?: () => void; selectedIndex: number }) => (
+  default: ({
+    onHitNavigate,
+    selectedIndex,
+    showEmptyState,
+  }: {
+    onHitNavigate?: () => void;
+    selectedIndex: number;
+    showEmptyState?: boolean;
+  }) => (
     <div>
       <div data-testid="selected-index">{selectedIndex}</div>
+      <div data-testid="cards-show-empty-state">{showEmptyState ? 'true' : 'false'}</div>
       <button type="button" onClick={() => onHitNavigate?.()}>
         trigger-hit
       </button>
@@ -119,6 +128,7 @@ function buildUseSermonsMockValue(overrides?: Partial<ReturnType<typeof useSermo
     isSearchMode: true,
     total: 1,
     loading: false,
+    searchSuggestions: [],
     filters: {
       q: 'leadership',
       year: '',
@@ -231,6 +241,21 @@ describe('SharedSearchExperience', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-hit' }));
     expect(onHitNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders did-you-mean suggestions for strict zero-hit state', () => {
+    useSermonsMock.mockReturnValue(buildUseSermonsMockValue({
+      searchHits: [],
+      total: 0,
+      loading: false,
+      searchSuggestions: ['discernment', 'discerning'],
+    }));
+
+    renderSharedSearch();
+
+    expect(screen.getByText('Did you mean:')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'discernment' }));
+    expect(setFilterMock).toHaveBeenCalledWith('q', 'discernment');
   });
 
   it('toggles match options from search bar controls', () => {

@@ -109,6 +109,7 @@ export default function SharedSearchExperience({
     isSearchMode,
     total,
     loading,
+    searchSuggestions,
     filters,
     setFilters,
     setFilter,
@@ -338,6 +339,11 @@ export default function SharedSearchExperience({
     setSelectedIndex(-1);
   }, [clearFilters]);
 
+  const handleSuggestionClick = useCallback((suggestion: string) => {
+    setFilter('q', suggestion);
+    setSelectedIndex(-1);
+  }, [setFilter]);
+
   const handleJumpToHitSubmit = useCallback((event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -437,9 +443,11 @@ export default function SharedSearchExperience({
           )}
 
           <section className="mt-8 flex items-center justify-between gap-3">
-            <p className="font-mono text-sm text-muted-foreground">
-              Found {visibleHitCount.toLocaleString()} hits
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="font-mono text-sm text-muted-foreground">
+                Found {visibleHitCount.toLocaleString()} hits
+              </p>
+            </div>
 
             <div className="flex items-center gap-2">
               {visibleHitCount > 0 && (
@@ -548,6 +556,24 @@ export default function SharedSearchExperience({
           </section>
 
           <section className="mt-6">
+            {!loading && visibleHitCount === 0 && !filters.fuzzy && searchSuggestions.length > 0 && (
+              <div className="mb-4 rounded-md border border-border bg-card px-3 py-2">
+                <p className="font-mono text-xs text-muted-foreground">Did you mean:</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {searchSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => handleSuggestionClick(suggestion)}
+                      className="rounded-full border border-border bg-background px-3 py-1 font-mono text-xs text-foreground hover:bg-muted"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {filters.view === 'table' ? (
               <SearchHitsTable
                 hits={visibleSearchHits}

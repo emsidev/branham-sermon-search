@@ -8,6 +8,7 @@ const setSearchParamsMock = vi.fn();
 const getSearchMetaMock = vi.fn();
 const listSermonsMock = vi.fn();
 const searchSermonHitsMock = vi.fn();
+const getSearchSuggestionsMock = vi.fn();
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -43,6 +44,7 @@ vi.mock('@/data/dataPort', () => ({
     getSearchMeta: (...args: unknown[]) => getSearchMetaMock(...args),
     listSermons: (...args: unknown[]) => listSermonsMock(...args),
     searchSermonHits: (...args: unknown[]) => searchSermonHitsMock(...args),
+    getSearchSuggestions: (...args: unknown[]) => getSearchSuggestionsMock(...args),
     getSermonDetail: vi.fn(),
     getAdjacentSermons: vi.fn(),
     getBoundarySermons: vi.fn(),
@@ -58,6 +60,7 @@ describe('useSermons', () => {
     getSearchMetaMock.mockReset();
     listSermonsMock.mockReset();
     searchSermonHitsMock.mockReset();
+    getSearchSuggestionsMock.mockReset();
 
     getSearchMetaMock.mockResolvedValue({
       years: [1963],
@@ -88,6 +91,7 @@ describe('useSermons', () => {
     });
 
     searchSermonHitsMock.mockResolvedValue([]);
+    getSearchSuggestionsMock.mockResolvedValue([]);
   });
 
   it('returns idle results when q is empty', async () => {
@@ -348,5 +352,65 @@ describe('useSermons', () => {
     expect(nextParams.get('title')).toBeNull();
     expect(nextParams.get('location')).toBeNull();
     expect(nextParams.get('page')).toBeNull();
+  });
+
+  it('fetches suggestions for strict zero-hit searches', async () => {
+    currentParams = new URLSearchParams('q=discrenment');
+    getSearchSuggestionsMock.mockResolvedValue(['discernment', 'discernments']);
+
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(1);
+      expect(getSearchSuggestionsMock).toHaveBeenCalledTimes(1);
+      expect(result.current.loading).toBe(false);
+      expect(result.current.searchSuggestions).toEqual(['discernment', 'discernments']);
+    });
+  });
+
+  it('does not fetch suggestions while fuzzy mode is enabled', async () => {
+    currentParams = new URLSearchParams('q=discrenment&fuzzy=1');
+    const { result } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(1);
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(getSearchSuggestionsMock).not.toHaveBeenCalled();
+    expect(result.current.searchSuggestions).toEqual([]);
+  });
+
+  it('ignores stale suggestion responses from older queries', async () => {
+    const firstSuggestions = createDeferred<string[]>();
+    const secondSuggestions = createDeferred<string[]>();
+    getSearchSuggestionsMock
+      .mockImplementationOnce(() => firstSuggestions.promise)
+      .mockImplementationOnce(() => secondSuggestions.promise);
+
+    currentParams = new URLSearchParams('q=first');
+    const { result, rerender } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(1);
+    });
+
+    currentParams = new URLSearchParams('q=second');
+    rerender();
+
+    await waitFor(() => {
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(2);
+      expect(getSearchSuggestionsMock).toHaveBeenCalledTimes(2);
+    });
+
+    secondSuggestions.resolve(['second-fix']);
+    await waitFor(() => {
+      expect(result.current.searchSuggestions).toEqual(['second-fix']);
+    });
+
+    firstSuggestions.resolve(['first-fix']);
+    await waitFor(() => {
+      expect(result.current.searchSuggestions).toEqual(['second-fix']);
+    });
   });
 });

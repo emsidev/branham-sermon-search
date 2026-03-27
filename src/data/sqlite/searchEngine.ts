@@ -1,4 +1,10 @@
 import type { SearchHitRecord, SearchSermonsParams } from '@/data/contracts';
+import {
+  hasWholeWordMatch,
+  normalizeSearchQuery,
+  normalizeSearchText,
+  trigramSimilarity,
+} from '@/data/sqlite/searchIndex';
 
 export interface SearchCandidateRow {
   hit_id: string;
@@ -35,47 +41,9 @@ function parseTags(tagsJson: string | null): string[] {
   }
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function normalizeText(value: string, matchCase: boolean): string {
-  return (matchCase ? value : value.toLowerCase()).replace(/\s+/g, ' ').trim();
-}
-
-function hasWholeWordMatch(haystack: string, needle: string): boolean {
-  const regex = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(needle)}([^\\p{L}\\p{N}]|$)`, 'u');
-  return regex.test(haystack);
-}
-
-function trigrams(value: string): Set<string> {
-  const normalized = `  ${value}  `;
-  const out = new Set<string>();
-  for (let index = 0; index <= normalized.length - 3; index += 1) {
-    out.add(normalized.slice(index, index + 3));
-  }
-  return out;
-}
-
-function trigramSimilarity(a: string, b: string): number {
-  if (!a || !b) {
-    return 0;
-  }
-
-  const aSet = trigrams(a);
-  const bSet = trigrams(b);
-  let intersection = 0;
-  for (const token of aSet) {
-    if (bSet.has(token)) {
-      intersection += 1;
-    }
-  }
-  return (2 * intersection) / (aSet.size + bSet.size);
-}
-
 function computeRelevance(text: string, query: string, wholeWord: boolean, fuzzy: boolean): number {
-  const normalizedText = normalizeText(text, false);
-  const normalizedQuery = normalizeText(query, false);
+  const normalizedText = normalizeSearchText(text);
+  const normalizedQuery = normalizeSearchText(query);
 
   if (!normalizedText || !normalizedQuery) {
     return 0;
@@ -101,16 +69,22 @@ function computeRelevance(text: string, query: string, wholeWord: boolean, fuzzy
   return 0;
 }
 
-function isMatch(row: SearchCandidateRow, params: SearchSermonsParams): { matched: boolean; exact: boolean; score: number } {
+export interface SearchCandidateMatchEvaluation {
+  matched: boolean;
+  exact: boolean;
+  score: number;
+}
+
+export function evaluateSearchCandidate(row: SearchCandidateRow, params: SearchSermonsParams): SearchCandidateMatchEvaluation {
   const text = params.matchCase ? row.searchable_text : row.normalized_text;
-  const normalizedQuery = normalizeText(params.query, params.matchCase);
+  const normalizedQuery = normalizeSearchQuery(params.query, params.matchCase);
   if (!normalizedQuery) {
     return { matched: false, exact: false, score: 0 };
   }
 
   if (params.fuzzy) {
-    const similarity = trigramSimilarity(normalizeText(row.searchable_text, false), normalizeText(params.query, false));
-    const contains = normalizeText(row.searchable_text, false).includes(normalizeText(params.query, false));
+    const similarity = trigramSimilarity(normalizeSearchText(row.searchable_text), normalizeSearchText(params.query));
+    const contains = normalizeSearchText(row.searchable_text).includes(normalizeSearchText(params.query));
     const matched = contains || similarity >= 0.28;
     return {
       matched,
@@ -124,12 +98,12 @@ function isMatch(row: SearchCandidateRow, params: SearchSermonsParams): { matche
     return { matched: false, exact: false, score: 0 };
   }
 
-  const exact = normalizeText(row.searchable_text, params.matchCase) === normalizedQuery;
+  const exact = normalizeSearchQuery(row.searchable_text, params.matchCase) === normalizedQuery;
   const score = computeRelevance(row.searchable_text, params.query, params.wholeWord, false);
   return { matched: true, exact, score };
 }
 
-function sortByParams(a: SearchHitRecord, b: SearchHitRecord, sort: SearchSermonsParams['sort']): number {
+export function compareSearchHitsBySort(a: SearchHitRecord, b: SearchHitRecord, sort: SearchSermonsParams['sort']): number {
   if (sort === 'date-asc') {
     return a.date.localeCompare(b.date);
   }
@@ -152,39 +126,45 @@ function sortByParams(a: SearchHitRecord, b: SearchHitRecord, sort: SearchSermon
   return b.date.localeCompare(a.date);
 }
 
+export function buildSearchHitRecord(
+  row: SearchCandidateRow,
+  evaluation: SearchCandidateMatchEvaluation,
+): SearchHitRecord {
+  return {
+    hit_id: row.hit_id,
+    sermon_id: row.sermon_id,
+    sermon_code: row.sermon_code,
+    title: row.title,
+    summary: row.summary,
+    date: row.date,
+    location: row.location,
+    tags: parseTags(row.tags_json),
+    paragraph_number: row.paragraph_number,
+    printed_paragraph_number: row.printed_paragraph_number,
+    chunk_index: row.chunk_index,
+    chunk_total: row.chunk_total,
+    match_source: row.match_source,
+    is_exact_match: evaluation.exact,
+    snippet: row.snippet_text || row.searchable_text,
+    relevance: evaluation.score,
+    total_count: 0,
+  };
+}
+
 export function rankSearchCandidates(candidates: SearchCandidateRow[], params: SearchSermonsParams): SearchHitRecord[] {
   const matches: SearchHitRecord[] = [];
 
   for (const row of candidates) {
-    const { matched, exact, score } = isMatch(row, params);
-    if (!matched) {
+    const evaluation = evaluateSearchCandidate(row, params);
+    if (!evaluation.matched) {
       continue;
     }
 
-    matches.push({
-      hit_id: row.hit_id,
-      sermon_id: row.sermon_id,
-      sermon_code: row.sermon_code,
-      title: row.title,
-      summary: row.summary,
-      date: row.date,
-      location: row.location,
-      tags: parseTags(row.tags_json),
-      paragraph_number: row.paragraph_number,
-      printed_paragraph_number: row.printed_paragraph_number,
-      chunk_index: row.chunk_index,
-      chunk_total: row.chunk_total,
-      match_source: row.match_source,
-      is_exact_match: exact,
-      snippet: row.snippet_text || row.searchable_text,
-      relevance: score,
-      total_count: 0,
-    });
+    matches.push(buildSearchHitRecord(row, evaluation));
   }
 
-  matches.sort((left, right) => sortByParams(left, right, params.sort));
+  matches.sort((left, right) => compareSearchHitsBySort(left, right, params.sort));
   const total = matches.length;
   const sliced = matches.slice(params.offset, params.offset + params.limit);
   return sliced.map((row) => ({ ...row, total_count: total }));
 }
-

@@ -3,17 +3,39 @@
 import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { openDB } from 'idb';
-import type { DataPort, ListSermonsParams, SearchSermonsParams, ShortcutBindingRow } from '@/data/contracts';
+import type {
+  DataPort,
+  ListSermonsParams,
+  SearchSuggestionsParams,
+  SearchSermonsParams,
+  ShortcutBindingRow,
+} from '@/data/contracts';
 import { CONTENT_SCHEMA_SQL, CONTENT_SCHEMA_VERSION, USER_SCHEMA_SQL, USER_SCHEMA_VERSION } from '@/data/sqlite/schema';
-import { rankSearchCandidates, type SearchCandidateRow } from '@/data/sqlite/searchEngine';
+import {
+  evaluateSearchCandidate,
+  rankSearchCandidates,
+  type SearchCandidateRow,
+} from '@/data/sqlite/searchEngine';
+import {
+  buildFuzzyFtsExpression,
+  extractSearchTerms,
+  normalizeSearchText,
+  termPrefix2,
+  toFtsPhraseQuery,
+  trigramSimilarity,
+} from '@/data/sqlite/searchIndex';
 
-interface RpcRequest {
+interface WorkerRpcRequest {
+  type: 'rpc';
   id: number;
   method: keyof DataPort | 'init';
   params: unknown;
 }
 
-interface RpcResponse {
+type WorkerRequest = WorkerRpcRequest;
+
+interface WorkerRpcResponse {
+  type: 'rpc';
   id: number;
   ok: boolean;
   result?: unknown;
@@ -33,6 +55,10 @@ const DB_STORE = 'files';
 const CONTENT_KEY = 'content.sqlite';
 const USER_KEY = 'user.sqlite';
 const DEFAULT_MANIFEST_URL = '/data/content-manifest.json';
+const FUZZY_PREFILTER_LIMIT = 3000;
+const FUZZY_TERM_EXPANSION_LIMIT = 8;
+const SUGGESTION_TERM_EXPANSION_LIMIT = 40;
+const DEFAULT_SUGGESTION_LIMIT = 3;
 
 let sqlRuntime: SqlJsStatic | null = null;
 let contentDb: Database | null = null;
@@ -199,24 +225,32 @@ async function loadUserDb(runtime: SqlJsStatic): Promise<Database> {
   return db;
 }
 
-async function maybeUpgradeContentDb(db: Database): Promise<void> {
+async function maybeUpgradeContentDb(db: Database): Promise<boolean> {
   db.exec(CONTENT_SCHEMA_SQL);
   const versionRows = runQuery<{ value: string }>(db, "SELECT value FROM app_metadata WHERE key = 'content_schema_version' LIMIT 1");
-  if (versionRows.length === 0 || Number.parseInt(versionRows[0].value ?? '0', 10) < CONTENT_SCHEMA_VERSION) {
+  const currentVersion = versionRows.length === 0 ? 0 : Number.parseInt(versionRows[0].value ?? '0', 10);
+  if (currentVersion < CONTENT_SCHEMA_VERSION) {
+    rebuildSearchIndexes(db);
     const statement = db.prepare('INSERT OR REPLACE INTO app_metadata(key, value) VALUES (?, ?)');
     statement.run(['content_schema_version', String(CONTENT_SCHEMA_VERSION)]);
     statement.free();
+    return true;
   }
+
+  return ensureSearchIndexesReady(db);
 }
 
-async function maybeUpgradeUserDb(db: Database): Promise<void> {
+async function maybeUpgradeUserDb(db: Database): Promise<boolean> {
   db.exec(USER_SCHEMA_SQL);
   const versionRows = runQuery<{ value: string }>(db, "SELECT value FROM app_metadata WHERE key = 'user_schema_version' LIMIT 1");
   if (versionRows.length === 0 || Number.parseInt(versionRows[0].value ?? '0', 10) < USER_SCHEMA_VERSION) {
     const statement = db.prepare('INSERT OR REPLACE INTO app_metadata(key, value) VALUES (?, ?)');
     statement.run(['user_schema_version', String(USER_SCHEMA_VERSION)]);
     statement.free();
+    return true;
   }
+
+  return false;
 }
 
 async function persistContentDb(): Promise<void> {
@@ -237,8 +271,14 @@ async function initialize(): Promise<void> {
   });
   contentDb = await loadContentDb(ensureRuntime());
   userDb = await loadUserDb(ensureRuntime());
-  await maybeUpgradeContentDb(ensureContentDb());
-  await maybeUpgradeUserDb(ensureUserDb());
+  const contentChanged = await maybeUpgradeContentDb(ensureContentDb());
+  const userChanged = await maybeUpgradeUserDb(ensureUserDb());
+  if (contentChanged) {
+    await persistContentDb();
+  }
+  if (userChanged) {
+    await persistUserDb();
+  }
   initialized = true;
 }
 
@@ -278,6 +318,277 @@ function buildListSermonsQuery(params: ListSermonsParams): { sql: string; queryP
 
   queryParams.push(params.limit, params.offset);
   return { sql, queryParams };
+}
+
+function buildSearchFilters(params: Pick<SearchSermonsParams, 'year' | 'title' | 'location'>): { whereClause: string; queryParams: unknown[] } {
+  const where: string[] = [];
+  const queryParams: unknown[] = [];
+  appendFilter(where, queryParams, 's.year', params.year);
+  appendFilter(where, queryParams, 's.title', params.title);
+  appendFilter(where, queryParams, 's.location', params.location);
+  return {
+    whereClause: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
+    queryParams,
+  };
+}
+
+function buildSearchCandidateSelect(whereClause: string, includeFts = false): string {
+  return `
+    SELECT
+      sd.hit_id,
+      sd.sermon_id,
+      s.sermon_code,
+      s.title,
+      s.summary,
+      s.date,
+      s.location,
+      s.tags_json,
+      sd.paragraph_number,
+      sd.printed_paragraph_number,
+      sd.chunk_index,
+      sd.chunk_total,
+      sd.match_source,
+      sd.searchable_text,
+      sd.normalized_text,
+      sd.snippet_text
+    FROM search_documents sd
+    INNER JOIN sermons s ON s.id = sd.sermon_id
+    ${includeFts ? 'INNER JOIN search_documents_fts ON search_documents_fts.docid = sd.rowid' : ''}
+    ${whereClause}
+  `;
+}
+
+function rebuildSearchIndexes(db: Database): void {
+  db.run("INSERT INTO search_documents_fts(search_documents_fts) VALUES('rebuild')");
+  db.exec('DELETE FROM search_terms');
+
+  const termDocumentFrequency = new Map<string, number>();
+  const rowsStatement = db.prepare('SELECT normalized_text FROM search_documents');
+  try {
+    while (rowsStatement.step()) {
+      const row = rowsStatement.getAsObject() as { normalized_text?: string | null };
+      const uniqueTerms = new Set(
+        extractSearchTerms(row.normalized_text ?? '').filter((term) => term.length >= 2),
+      );
+
+      for (const term of uniqueTerms) {
+        termDocumentFrequency.set(term, (termDocumentFrequency.get(term) ?? 0) + 1);
+      }
+    }
+  } finally {
+    rowsStatement.free();
+  }
+
+  db.exec('BEGIN');
+  const insertStatement = db.prepare(`
+    INSERT INTO search_terms(term, prefix2, length, doc_freq)
+    VALUES (?, ?, ?, ?)
+  `);
+  try {
+    for (const [term, docFrequency] of [...termDocumentFrequency.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+      insertStatement.run([term, termPrefix2(term), term.length, docFrequency]);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  } finally {
+    insertStatement.free();
+  }
+}
+
+function ensureSearchIndexesReady(db: Database): boolean {
+  const [{ total: documentCount }] = runQuery<{ total: number }>(
+    db,
+    'SELECT COUNT(*) AS total FROM search_documents',
+  );
+  if (Number(documentCount ?? 0) === 0) {
+    return false;
+  }
+
+  const [{ total: ftsCount }] = runQuery<{ total: number }>(
+    db,
+    'SELECT COUNT(*) AS total FROM search_documents_fts',
+  );
+  const [{ total: termCount }] = runQuery<{ total: number }>(
+    db,
+    'SELECT COUNT(*) AS total FROM search_terms',
+  );
+
+  if (Number(ftsCount ?? 0) === 0 || Number(termCount ?? 0) === 0) {
+    rebuildSearchIndexes(db);
+    return true;
+  }
+
+  return false;
+}
+
+function buildCandidateWhereClause(baseWhereClause: string, condition: string): string {
+  if (!baseWhereClause) {
+    return `WHERE ${condition}`;
+  }
+
+  return `${baseWhereClause} AND ${condition}`;
+}
+
+function fetchStrictWholeWordCandidates(db: Database, params: SearchSermonsParams): SearchCandidateRow[] {
+  const { whereClause, queryParams } = buildSearchFilters(params);
+  const phraseQuery = toFtsPhraseQuery(params.query);
+  const withMatchClause = buildCandidateWhereClause(whereClause, 'search_documents_fts MATCH ?');
+  return runQuery<SearchCandidateRow>(
+    db,
+    buildSearchCandidateSelect(withMatchClause, true),
+    [...queryParams, phraseQuery],
+  );
+}
+
+function fetchStrictSubstringCandidates(db: Database, params: SearchSermonsParams): SearchCandidateRow[] {
+  const { whereClause, queryParams } = buildSearchFilters(params);
+  const withSubstringClause = buildCandidateWhereClause(whereClause, "sd.normalized_text LIKE '%' || ? || '%'");
+  return runQuery<SearchCandidateRow>(
+    db,
+    buildSearchCandidateSelect(withSubstringClause),
+    [...queryParams, normalizeSearchText(params.query)],
+  );
+}
+
+function expandFuzzyTerms(db: Database, query: string): string[] {
+  const expanded = new Set<string>();
+  const sourceTerms = extractSearchTerms(query).filter((term) => term.length >= 3);
+
+  for (const term of sourceTerms) {
+    expanded.add(term);
+    const candidateRows = runQuery<{ term: string; doc_freq: number }>(
+      db,
+      `
+      SELECT term, doc_freq
+      FROM search_terms
+      WHERE prefix2 = ?
+        AND length BETWEEN ? AND ?
+      ORDER BY doc_freq DESC, term ASC
+      LIMIT ?
+      `,
+      [termPrefix2(term), Math.max(2, term.length - 2), term.length + 2, SUGGESTION_TERM_EXPANSION_LIMIT],
+    );
+
+    const best = candidateRows
+      .map((row) => ({
+        term: row.term,
+        docFrequency: Number(row.doc_freq ?? 0),
+        similarity: trigramSimilarity(term, row.term),
+      }))
+      .filter((row) => row.similarity >= 0.3)
+      .sort((left, right) =>
+        right.similarity - left.similarity
+          || right.docFrequency - left.docFrequency
+          || left.term.localeCompare(right.term),
+      )
+      .slice(0, FUZZY_TERM_EXPANSION_LIMIT);
+
+    for (const row of best) {
+      expanded.add(row.term);
+    }
+  }
+
+  return [...expanded];
+}
+
+function fetchFuzzyCandidates(db: Database, params: SearchSermonsParams): SearchCandidateRow[] {
+  const { whereClause, queryParams } = buildSearchFilters(params);
+  const expandedTerms = expandFuzzyTerms(db, params.query);
+  const fallbackTerms = extractSearchTerms(params.query);
+  const ftsExpression = buildFuzzyFtsExpression(expandedTerms.length > 0 ? expandedTerms : fallbackTerms);
+  if (!ftsExpression) {
+    return [];
+  }
+
+  const withMatchClause = buildCandidateWhereClause(whereClause, 'search_documents_fts MATCH ?');
+  return runQuery<SearchCandidateRow>(
+    db,
+    `${buildSearchCandidateSelect(withMatchClause, true)} LIMIT ?`,
+    [...queryParams, ftsExpression, FUZZY_PREFILTER_LIMIT],
+  );
+}
+
+function fetchSearchCandidates(db: Database, params: SearchSermonsParams): SearchCandidateRow[] {
+  if (params.fuzzy) {
+    return fetchFuzzyCandidates(db, params);
+  }
+
+  if (params.wholeWord) {
+    return fetchStrictWholeWordCandidates(db, params);
+  }
+
+  return fetchStrictSubstringCandidates(db, params);
+}
+
+function buildSearchSuggestions(db: Database, params: SearchSuggestionsParams): string[] {
+  const maxSuggestions = Math.max(1, Math.min(5, params.maxSuggestions ?? DEFAULT_SUGGESTION_LIMIT));
+  const normalizedQuery = normalizeSearchText(params.query);
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  const queryTerms = extractSearchTerms(params.query);
+  if (queryTerms.length === 0) {
+    return [];
+  }
+
+  const suggestions = new Set<string>();
+  const candidateRowsByIndex = queryTerms.map((term) => {
+    if (term.length < 4) {
+      return [];
+    }
+
+    const rows = runQuery<{ term: string; doc_freq: number }>(
+      db,
+      `
+      SELECT term, doc_freq
+      FROM search_terms
+      WHERE prefix2 = ?
+        AND length BETWEEN ? AND ?
+      ORDER BY doc_freq DESC, term ASC
+      LIMIT ?
+      `,
+      [termPrefix2(term), Math.max(2, term.length - 2), term.length + 2, SUGGESTION_TERM_EXPANSION_LIMIT],
+    );
+
+    return rows
+      .map((row) => ({
+        term: row.term,
+        docFrequency: Number(row.doc_freq ?? 0),
+        similarity: trigramSimilarity(term, row.term),
+      }))
+      .filter((row) => row.term !== term && row.similarity >= 0.35)
+      .sort((left, right) =>
+        right.similarity - left.similarity
+          || right.docFrequency - left.docFrequency
+          || left.term.localeCompare(right.term),
+      )
+      .slice(0, 3);
+  });
+
+  for (let termIndex = 0; termIndex < queryTerms.length; termIndex += 1) {
+    const candidates = candidateRowsByIndex[termIndex];
+    if (!candidates || candidates.length === 0) {
+      continue;
+    }
+
+    for (const candidate of candidates) {
+      const suggestionTerms = [...queryTerms];
+      suggestionTerms[termIndex] = candidate.term;
+      const suggestion = suggestionTerms.join(' ');
+      if (suggestion === normalizedQuery) {
+        continue;
+      }
+      suggestions.add(suggestion);
+      if (suggestions.size >= maxSuggestions) {
+        return [...suggestions];
+      }
+    }
+  }
+
+  return [...suggestions];
 }
 
 const handlers: Record<string, (params: any) => Promise<any>> = {
@@ -326,40 +637,22 @@ const handlers: Record<string, (params: any) => Promise<any>> = {
 
   async searchSermonHits(params: SearchSermonsParams) {
     const db = ensureContentDb();
-    const where: string[] = [];
-    const queryParams: unknown[] = [];
-    appendFilter(where, queryParams, 's.year', params.year);
-    appendFilter(where, queryParams, 's.title', params.title);
-    appendFilter(where, queryParams, 's.location', params.location);
-    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-    const rows = runQuery<SearchCandidateRow>(
-      db,
-      `
-      SELECT
-        sd.hit_id,
-        sd.sermon_id,
-        s.sermon_code,
-        s.title,
-        s.summary,
-        s.date,
-        s.location,
-        s.tags_json,
-        sd.paragraph_number,
-        sd.printed_paragraph_number,
-        sd.chunk_index,
-        sd.chunk_total,
-        sd.match_source,
-        sd.searchable_text,
-        sd.normalized_text,
-        sd.snippet_text
-      FROM search_documents sd
-      INNER JOIN sermons s ON s.id = sd.sermon_id
-      ${whereClause}
-      `,
-      queryParams
-    );
+    const normalizedQuery = normalizeSearchText(params.query);
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const rows = fetchSearchCandidates(db, {
+      ...params,
+      query: normalizedQuery,
+    });
 
     return rankSearchCandidates(rows, params);
+  },
+
+  async getSearchSuggestions(params: SearchSuggestionsParams) {
+    const db = ensureContentDb();
+    return buildSearchSuggestions(db, params);
   },
 
   async getSermonDetail(id: string) {
@@ -463,9 +756,11 @@ const handlers: Record<string, (params: any) => Promise<any>> = {
   },
 };
 
-self.onmessage = async (event: MessageEvent<RpcRequest>) => {
-  const { id, method, params } = event.data;
-  const response: RpcResponse = { id, ok: false };
+self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
+  const payload = event.data;
+
+  const { id, method, params } = payload;
+  const response: WorkerRpcResponse = { type: 'rpc', id, ok: false };
   try {
     const handler = handlers[method];
     if (!handler) {

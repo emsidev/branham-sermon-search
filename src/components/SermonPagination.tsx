@@ -8,8 +8,14 @@ interface SermonPaginationProps {
   onPageChange: (page: number) => void;
 }
 
-export default function SermonPagination({ currentPage, totalItems, pageSize, onPageChange }: SermonPaginationProps) {
-  const totalPages = Math.ceil(totalItems / pageSize);
+export default function SermonPagination({
+  currentPage,
+  totalItems,
+  pageSize,
+  onPageChange,
+}: SermonPaginationProps) {
+  const computedPages = Math.ceil(totalItems / pageSize);
+  const totalPages = Math.max(1, computedPages);
   if (totalPages <= 1) return null;
 
   const from = (currentPage - 1) * pageSize + 1;

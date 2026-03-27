@@ -76,6 +76,11 @@ export interface SearchSermonsParams extends ListSermonsParams {
   fuzzy: boolean;
 }
 
+export interface SearchSuggestionsParams {
+  query: string;
+  maxSuggestions?: number;
+}
+
 export interface ShortcutBindingRow {
   action: string;
   key: string;
@@ -86,10 +91,10 @@ export interface DataPort {
   getSearchMeta(): Promise<SearchMeta>;
   listSermons(params: ListSermonsParams): Promise<{ rows: SermonRecord[]; total: number }>;
   searchSermonHits(params: SearchSermonsParams): Promise<SearchHitRecord[]>;
+  getSearchSuggestions(params: SearchSuggestionsParams): Promise<string[]>;
   getSermonDetail(id: string): Promise<SermonDetailRecord | null>;
   getAdjacentSermons(date: string): Promise<{ prev: AdjacentSermonRecord | null; next: AdjacentSermonRecord | null }>;
   getBoundarySermons(): Promise<{ first: AdjacentSermonRecord | null; last: AdjacentSermonRecord | null }>;
   getShortcutBindings(): Promise<ShortcutBindingRow[]>;
   saveShortcutBindings(bindings: ShortcutBindingRow[]): Promise<void>;
 }
-

@@ -175,6 +175,7 @@ async function bootstrap(): Promise<void> {
   ipcMain.handle('desktop-data:getSearchMeta', () => desktopDataPort?.getSearchMeta());
   ipcMain.handle('desktop-data:listSermons', (_event, params: unknown) => desktopDataPort?.listSermons(params as any));
   ipcMain.handle('desktop-data:searchSermonHits', (_event, params: unknown) => desktopDataPort?.searchSermonHits(params as any));
+  ipcMain.handle('desktop-data:getSearchSuggestions', (_event, params: unknown) => desktopDataPort?.getSearchSuggestions(params as any));
   ipcMain.handle('desktop-data:getSermonDetail', (_event, id: string) => desktopDataPort?.getSermonDetail(id));
   ipcMain.handle('desktop-data:getAdjacentSermons', (_event, date: string) => desktopDataPort?.getAdjacentSermons(date));
   ipcMain.handle('desktop-data:getBoundarySermons', () => desktopDataPort?.getBoundarySermons());

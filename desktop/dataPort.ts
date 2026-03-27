@@ -80,11 +80,24 @@ CREATE TABLE IF NOT EXISTS search_documents (
   snippet_text TEXT NOT NULL
 );
 
+CREATE VIRTUAL TABLE IF NOT EXISTS search_documents_fts USING fts4(
+  searchable_text,
+  content='search_documents'
+);
+
+CREATE TABLE IF NOT EXISTS search_terms (
+  term TEXT PRIMARY KEY,
+  prefix2 TEXT NOT NULL,
+  length INTEGER NOT NULL,
+  doc_freq INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sermons_date ON sermons(date DESC);
 CREATE INDEX IF NOT EXISTS idx_sermons_year ON sermons(year);
 CREATE INDEX IF NOT EXISTS idx_sermons_location ON sermons(location);
 CREATE INDEX IF NOT EXISTS idx_sermons_title ON sermons(title);
 CREATE INDEX IF NOT EXISTS idx_search_documents_sermon ON search_documents(sermon_id);
+CREATE INDEX IF NOT EXISTS idx_search_terms_prefix2_length_freq ON search_terms(prefix2, length, doc_freq DESC);
 `;
 
 const USER_SCHEMA_SQL = `
@@ -110,10 +123,15 @@ interface SearchSermonsParams {
   location: string | null;
   limit: number;
   offset: number;
-  sort: string;
+  sort: 'relevance-desc' | 'date-desc' | 'date-asc' | 'title-asc' | 'title-desc';
   matchCase: boolean;
   wholeWord: boolean;
   fuzzy: boolean;
+}
+
+interface SearchSuggestionsParams {
+  query: string;
+  maxSuggestions?: number;
 }
 
 interface SearchCandidate {
@@ -135,8 +153,29 @@ interface SearchCandidate {
   snippet_text: string;
 }
 
-function normalizeText(value: string, matchCase: boolean): string {
-  return (matchCase ? value : value.toLowerCase()).replace(/\s+/g, ' ').trim();
+interface SearchCandidateEvaluation {
+  matched: boolean;
+  exact: boolean;
+  score: number;
+}
+
+const TOKEN_PATTERN = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
+const FUZZY_PREFILTER_LIMIT = 3000;
+const FUZZY_TERM_EXPANSION_LIMIT = 8;
+const SUGGESTION_TERM_EXPANSION_LIMIT = 40;
+const DEFAULT_SUGGESTION_LIMIT = 3;
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeSearchText(value: string): string {
+  return normalizeWhitespace(value).toLowerCase();
+}
+
+function normalizeSearchQuery(value: string, matchCase: boolean): string {
+  const normalized = normalizeWhitespace(value);
+  return matchCase ? normalized : normalized.toLowerCase();
 }
 
 function escapeRegex(value: string): string {
@@ -146,6 +185,22 @@ function escapeRegex(value: string): string {
 function hasWholeWordMatch(haystack: string, needle: string): boolean {
   const regex = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(needle)}([^\\p{L}\\p{N}]|$)`, 'u');
   return regex.test(haystack);
+}
+
+function extractSearchTerms(value: string): string[] {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const matches = normalized.match(TOKEN_PATTERN);
+  if (!matches) {
+    return [];
+  }
+
+  return matches
+    .map((term) => term.replace(/^['’]+|['’]+$/g, ''))
+    .filter((term) => term.length > 0);
 }
 
 function trigrams(value: string): Set<string> {
@@ -173,31 +228,28 @@ function trigramSimilarity(a: string, b: string): number {
   return (2 * intersection) / (aSet.size + bSet.size);
 }
 
-function computeRelevance(text: string, query: string, wholeWord: boolean, fuzzy: boolean): number {
-  const normalizedText = normalizeText(text, false);
-  const normalizedQuery = normalizeText(query, false);
+function toFtsPhraseQuery(value: string): string {
+  return `"${normalizeWhitespace(value).replace(/"/g, '""')}"`;
+}
 
-  if (!normalizedText || !normalizedQuery) {
-    return 0;
+function sanitizeFtsTerm(value: string): string {
+  return value
+    .replace(/"/g, '')
+    .replace(/[^\p{L}\p{N}'’]/gu, '')
+    .trim();
+}
+
+function buildFuzzyFtsExpression(candidateTerms: string[]): string | null {
+  const uniqueTerms = [...new Set(candidateTerms.map((term) => sanitizeFtsTerm(term)).filter((term) => term.length >= 2))];
+  if (uniqueTerms.length === 0) {
+    return null;
   }
 
-  if (normalizedText === normalizedQuery) {
-    return 1.0;
-  }
+  return uniqueTerms.map((term) => `${term}*`).join(' OR ');
+}
 
-  if (wholeWord && hasWholeWordMatch(normalizedText, normalizedQuery)) {
-    return 0.92;
-  }
-
-  if (normalizedText.includes(normalizedQuery)) {
-    return 0.78;
-  }
-
-  if (fuzzy) {
-    return trigramSimilarity(normalizedText, normalizedQuery) * 0.7;
-  }
-
-  return 0;
+function termPrefix2(term: string): string {
+  return term.slice(0, 2);
 }
 
 function parseTags(tagsJson: string | null): string[] {
@@ -212,82 +264,375 @@ function parseTags(tagsJson: string | null): string[] {
   }
 }
 
-function rankSearchCandidates(candidates: SearchCandidate[], params: SearchSermonsParams): any[] {
-  const out: any[] = [];
-  const normalizedQuery = normalizeText(params.query, params.matchCase);
+function computeRelevance(text: string, query: string, wholeWord: boolean, fuzzy: boolean): number {
+  const normalizedText = normalizeSearchText(text);
+  const normalizedQuery = normalizeSearchText(query);
 
-  for (const row of candidates) {
-    if (!normalizedQuery) {
-      continue;
-    }
-
-    const comparableText = params.matchCase ? row.searchable_text : row.normalized_text;
-    let matched = false;
-    let exact = false;
-
-    if (params.fuzzy) {
-      const contains = normalizeText(row.searchable_text, false).includes(normalizeText(params.query, false));
-      const similarity = trigramSimilarity(normalizeText(row.searchable_text, false), normalizeText(params.query, false));
-      matched = contains || similarity >= 0.28;
-      exact = contains;
-    } else if (params.wholeWord) {
-      matched = hasWholeWordMatch(comparableText, normalizedQuery);
-      exact = normalizeText(row.searchable_text, params.matchCase) === normalizedQuery;
-    } else {
-      matched = comparableText.includes(normalizedQuery);
-      exact = normalizeText(row.searchable_text, params.matchCase) === normalizedQuery;
-    }
-
-    if (!matched) {
-      continue;
-    }
-
-    out.push({
-      hit_id: row.hit_id,
-      sermon_id: row.sermon_id,
-      sermon_code: row.sermon_code,
-      title: row.title,
-      summary: row.summary,
-      date: row.date,
-      location: row.location,
-      tags: parseTags(row.tags_json),
-      paragraph_number: row.paragraph_number,
-      printed_paragraph_number: row.printed_paragraph_number,
-      chunk_index: row.chunk_index,
-      chunk_total: row.chunk_total,
-      match_source: row.match_source,
-      is_exact_match: exact,
-      snippet: row.snippet_text || row.searchable_text,
-      relevance: computeRelevance(row.searchable_text, params.query, params.wholeWord, params.fuzzy),
-      total_count: 0,
-    });
+  if (!normalizedText || !normalizedQuery) {
+    return 0;
   }
 
-  out.sort((left, right) => {
-    if (params.sort === 'date-asc') {
-      return left.date.localeCompare(right.date);
-    }
-    if (params.sort === 'date-desc') {
-      return right.date.localeCompare(left.date);
-    }
-    if (params.sort === 'title-asc') {
-      return left.title.localeCompare(right.title);
-    }
-    if (params.sort === 'title-desc') {
-      return right.title.localeCompare(left.title);
-    }
-    if (right.relevance !== left.relevance) {
-      return right.relevance - left.relevance;
-    }
-    if (Number(right.is_exact_match) !== Number(left.is_exact_match)) {
-      return Number(right.is_exact_match) - Number(left.is_exact_match);
-    }
-    return right.date.localeCompare(left.date);
-  });
+  if (normalizedText === normalizedQuery) {
+    return 1.0;
+  }
 
+  if (wholeWord && hasWholeWordMatch(normalizedText, normalizedQuery)) {
+    return 0.92;
+  }
+
+  if (normalizedText.includes(normalizedQuery)) {
+    const density = Math.min(1, normalizedQuery.length / Math.max(normalizedText.length, 1));
+    return 0.72 + density * 0.2;
+  }
+
+  if (fuzzy) {
+    return trigramSimilarity(normalizedText, normalizedQuery) * 0.7;
+  }
+
+  return 0;
+}
+
+function evaluateSearchCandidate(row: SearchCandidate, params: SearchSermonsParams): SearchCandidateEvaluation {
+  const text = params.matchCase ? row.searchable_text : row.normalized_text;
+  const normalizedQuery = normalizeSearchQuery(params.query, params.matchCase);
+  if (!normalizedQuery) {
+    return { matched: false, exact: false, score: 0 };
+  }
+
+  if (params.fuzzy) {
+    const searchableNormalized = normalizeSearchText(row.searchable_text);
+    const queryNormalized = normalizeSearchText(params.query);
+    const contains = searchableNormalized.includes(queryNormalized);
+    const similarity = trigramSimilarity(searchableNormalized, queryNormalized);
+    return {
+      matched: contains || similarity >= 0.28,
+      exact: contains,
+      score: Math.max(computeRelevance(row.searchable_text, params.query, false, true), similarity),
+    };
+  }
+
+  const matched = params.wholeWord
+    ? hasWholeWordMatch(text, normalizedQuery)
+    : text.includes(normalizedQuery);
+  if (!matched) {
+    return { matched: false, exact: false, score: 0 };
+  }
+
+  return {
+    matched: true,
+    exact: normalizeSearchQuery(row.searchable_text, params.matchCase) === normalizedQuery,
+    score: computeRelevance(row.searchable_text, params.query, params.wholeWord, false),
+  };
+}
+
+function buildSearchHit(row: SearchCandidate, evaluation: SearchCandidateEvaluation): any {
+  return {
+    hit_id: row.hit_id,
+    sermon_id: row.sermon_id,
+    sermon_code: row.sermon_code,
+    title: row.title,
+    summary: row.summary,
+    date: row.date,
+    location: row.location,
+    tags: parseTags(row.tags_json),
+    paragraph_number: row.paragraph_number,
+    printed_paragraph_number: row.printed_paragraph_number,
+    chunk_index: row.chunk_index,
+    chunk_total: row.chunk_total,
+    match_source: row.match_source,
+    is_exact_match: evaluation.exact,
+    snippet: row.snippet_text || row.searchable_text,
+    relevance: evaluation.score,
+    total_count: 0,
+  };
+}
+
+function compareSearchHits(left: any, right: any, sort: SearchSermonsParams['sort']): number {
+  if (sort === 'date-asc') {
+    return left.date.localeCompare(right.date);
+  }
+  if (sort === 'date-desc') {
+    return right.date.localeCompare(left.date);
+  }
+  if (sort === 'title-asc') {
+    return left.title.localeCompare(right.title);
+  }
+  if (sort === 'title-desc') {
+    return right.title.localeCompare(left.title);
+  }
+  if (right.relevance !== left.relevance) {
+    return right.relevance - left.relevance;
+  }
+  if (Number(right.is_exact_match) !== Number(left.is_exact_match)) {
+    return Number(right.is_exact_match) - Number(left.is_exact_match);
+  }
+  return right.date.localeCompare(left.date);
+}
+
+function rankSearchCandidates(candidates: SearchCandidate[], params: SearchSermonsParams): any[] {
+  const out: any[] = [];
+  for (const row of candidates) {
+    const evaluation = evaluateSearchCandidate(row, params);
+    if (!evaluation.matched) {
+      continue;
+    }
+
+    out.push(buildSearchHit(row, evaluation));
+  }
+
+  out.sort((left, right) => compareSearchHits(left, right, params.sort));
   const total = out.length;
   const sliced = out.slice(params.offset, params.offset + params.limit);
   return sliced.map((row) => ({ ...row, total_count: total }));
+}
+
+function buildSearchFilters(params: Pick<SearchSermonsParams, 'year' | 'title' | 'location'>): { whereClause: string; queryParams: SQLInputValue[] } {
+  const where: string[] = [];
+  const queryParams: SQLInputValue[] = [];
+  if (params.year != null) {
+    where.push('s.year = ?');
+    queryParams.push(params.year);
+  }
+  if (params.title) {
+    where.push('s.title = ?');
+    queryParams.push(params.title);
+  }
+  if (params.location) {
+    where.push('s.location = ?');
+    queryParams.push(params.location);
+  }
+
+  return {
+    whereClause: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
+    queryParams,
+  };
+}
+
+function buildCandidateWhereClause(baseWhereClause: string, condition: string): string {
+  if (!baseWhereClause) {
+    return `WHERE ${condition}`;
+  }
+  return `${baseWhereClause} AND ${condition}`;
+}
+
+function buildSearchCandidateSelect(whereClause: string, includeFts = false): string {
+  return `
+    SELECT
+      sd.hit_id,
+      sd.sermon_id,
+      s.sermon_code,
+      s.title,
+      s.summary,
+      s.date,
+      s.location,
+      s.tags_json,
+      sd.paragraph_number,
+      sd.printed_paragraph_number,
+      sd.chunk_index,
+      sd.chunk_total,
+      sd.match_source,
+      sd.searchable_text,
+      sd.normalized_text,
+      sd.snippet_text
+    FROM search_documents sd
+    INNER JOIN sermons s ON s.id = sd.sermon_id
+    ${includeFts ? 'INNER JOIN search_documents_fts ON search_documents_fts.docid = sd.rowid' : ''}
+    ${whereClause}
+  `;
+}
+
+function rebuildSearchIndexes(db: DatabaseSync): void {
+  db.prepare("INSERT INTO search_documents_fts(search_documents_fts) VALUES('rebuild')").run();
+  db.exec('DELETE FROM search_terms');
+
+  const termDocumentFrequency = new Map<string, number>();
+  const iterator = db.prepare('SELECT normalized_text FROM search_documents').iterate() as Iterable<{ normalized_text: string | null }>;
+  for (const row of iterator) {
+    const uniqueTerms = new Set(extractSearchTerms(row.normalized_text ?? '').filter((term) => term.length >= 2));
+    for (const term of uniqueTerms) {
+      termDocumentFrequency.set(term, (termDocumentFrequency.get(term) ?? 0) + 1);
+    }
+  }
+
+  const statement = db.prepare(`
+    INSERT INTO search_terms(term, prefix2, length, doc_freq)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  db.exec('BEGIN');
+  try {
+    for (const [term, docFrequency] of [...termDocumentFrequency.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+      statement.run(term, termPrefix2(term), term.length, docFrequency);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+function ensureSearchIndexesReady(db: DatabaseSync): void {
+  const { total: documentCount } = db.prepare('SELECT COUNT(*) AS total FROM search_documents').get() as { total: number };
+  if ((documentCount ?? 0) === 0) {
+    return;
+  }
+
+  const { total: ftsCount } = db.prepare('SELECT COUNT(*) AS total FROM search_documents_fts').get() as { total: number };
+  const { total: termCount } = db.prepare('SELECT COUNT(*) AS total FROM search_terms').get() as { total: number };
+  if ((ftsCount ?? 0) === 0 || (termCount ?? 0) === 0) {
+    rebuildSearchIndexes(db);
+  }
+}
+
+function expandFuzzyTerms(db: DatabaseSync, query: string): string[] {
+  const expanded = new Set<string>();
+  const sourceTerms = extractSearchTerms(query).filter((term) => term.length >= 3);
+
+  for (const term of sourceTerms) {
+    expanded.add(term);
+    const rows = db.prepare(`
+      SELECT term, doc_freq
+      FROM search_terms
+      WHERE prefix2 = ?
+        AND length BETWEEN ? AND ?
+      ORDER BY doc_freq DESC, term ASC
+      LIMIT ?
+    `).all(
+      termPrefix2(term),
+      Math.max(2, term.length - 2),
+      term.length + 2,
+      SUGGESTION_TERM_EXPANSION_LIMIT,
+    ) as Array<{ term: string; doc_freq: number }>;
+
+    const best = rows
+      .map((row) => ({
+        term: row.term,
+        docFrequency: Number(row.doc_freq ?? 0),
+        similarity: trigramSimilarity(term, row.term),
+      }))
+      .filter((row) => row.similarity >= 0.3)
+      .sort((left, right) =>
+        right.similarity - left.similarity
+          || right.docFrequency - left.docFrequency
+          || left.term.localeCompare(right.term),
+      )
+      .slice(0, FUZZY_TERM_EXPANSION_LIMIT);
+
+    for (const row of best) {
+      expanded.add(row.term);
+    }
+  }
+
+  return [...expanded];
+}
+
+function fetchStrictWholeWordCandidates(db: DatabaseSync, params: SearchSermonsParams): SearchCandidate[] {
+  const { whereClause, queryParams } = buildSearchFilters(params);
+  const withMatchClause = buildCandidateWhereClause(whereClause, 'search_documents_fts MATCH ?');
+  return db.prepare(buildSearchCandidateSelect(withMatchClause, true))
+    .all(...queryParams, toFtsPhraseQuery(params.query)) as unknown as SearchCandidate[];
+}
+
+function fetchStrictSubstringCandidates(db: DatabaseSync, params: SearchSermonsParams): SearchCandidate[] {
+  const { whereClause, queryParams } = buildSearchFilters(params);
+  const withSubstringClause = buildCandidateWhereClause(whereClause, "sd.normalized_text LIKE '%' || ? || '%'");
+  return db.prepare(buildSearchCandidateSelect(withSubstringClause))
+    .all(...queryParams, normalizeSearchText(params.query)) as unknown as SearchCandidate[];
+}
+
+function fetchFuzzyCandidates(db: DatabaseSync, params: SearchSermonsParams): SearchCandidate[] {
+  const { whereClause, queryParams } = buildSearchFilters(params);
+  const expandedTerms = expandFuzzyTerms(db, params.query);
+  const fallbackTerms = extractSearchTerms(params.query);
+  const ftsExpression = buildFuzzyFtsExpression(expandedTerms.length > 0 ? expandedTerms : fallbackTerms);
+  if (!ftsExpression) {
+    return [];
+  }
+
+  const withMatchClause = buildCandidateWhereClause(whereClause, 'search_documents_fts MATCH ?');
+  return db.prepare(`${buildSearchCandidateSelect(withMatchClause, true)} LIMIT ?`)
+    .all(...queryParams, ftsExpression, FUZZY_PREFILTER_LIMIT) as unknown as SearchCandidate[];
+}
+
+function fetchSearchCandidates(db: DatabaseSync, params: SearchSermonsParams): SearchCandidate[] {
+  if (params.fuzzy) {
+    return fetchFuzzyCandidates(db, params);
+  }
+  if (params.wholeWord) {
+    return fetchStrictWholeWordCandidates(db, params);
+  }
+  return fetchStrictSubstringCandidates(db, params);
+}
+
+function buildSearchSuggestions(db: DatabaseSync, params: SearchSuggestionsParams): string[] {
+  const maxSuggestions = Math.max(1, Math.min(5, params.maxSuggestions ?? DEFAULT_SUGGESTION_LIMIT));
+  const normalizedQuery = normalizeSearchText(params.query);
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  const queryTerms = extractSearchTerms(params.query);
+  if (queryTerms.length === 0) {
+    return [];
+  }
+
+  const suggestions = new Set<string>();
+  const candidateRowsByIndex = queryTerms.map((term) => {
+    if (term.length < 4) {
+      return [];
+    }
+
+    const rows = db.prepare(`
+      SELECT term, doc_freq
+      FROM search_terms
+      WHERE prefix2 = ?
+        AND length BETWEEN ? AND ?
+      ORDER BY doc_freq DESC, term ASC
+      LIMIT ?
+    `).all(
+      termPrefix2(term),
+      Math.max(2, term.length - 2),
+      term.length + 2,
+      SUGGESTION_TERM_EXPANSION_LIMIT,
+    ) as Array<{ term: string; doc_freq: number }>;
+
+    return rows
+      .map((row) => ({
+        term: row.term,
+        docFrequency: Number(row.doc_freq ?? 0),
+        similarity: trigramSimilarity(term, row.term),
+      }))
+      .filter((row) => row.term !== term && row.similarity >= 0.35)
+      .sort((left, right) =>
+        right.similarity - left.similarity
+          || right.docFrequency - left.docFrequency
+          || left.term.localeCompare(right.term),
+      )
+      .slice(0, 3);
+  });
+
+  for (let index = 0; index < queryTerms.length; index += 1) {
+    const candidates = candidateRowsByIndex[index];
+    if (!candidates || candidates.length === 0) {
+      continue;
+    }
+
+    for (const candidate of candidates) {
+      const suggestionTerms = [...queryTerms];
+      suggestionTerms[index] = candidate.term;
+      const suggestion = suggestionTerms.join(' ');
+      if (suggestion === normalizedQuery) {
+        continue;
+      }
+
+      suggestions.add(suggestion);
+      if (suggestions.size >= maxSuggestions) {
+        return [...suggestions];
+      }
+    }
+  }
+
+  return [...suggestions];
 }
 
 function readManifest(baseDir: string): ContentManifest | null {
@@ -322,6 +667,7 @@ export class DesktopDataPort {
     this.userDb = new DatabaseSync(userDbPath);
     this.contentDb.exec(CONTENT_SCHEMA_SQL);
     this.userDb.exec(USER_SCHEMA_SQL);
+    ensureSearchIndexesReady(this.contentDb);
   }
 
   static initialize(projectRoot: string, isDevelopment: boolean): DesktopDataPort {
@@ -433,46 +779,21 @@ export class DesktopDataPort {
   }
 
   async searchSermonHits(params: SearchSermonsParams): Promise<any[]> {
-    const where: string[] = [];
-    const queryParams: SQLInputValue[] = [];
-    if (params.year != null) {
-      where.push('s.year = ?');
-      queryParams.push(params.year);
+    const normalizedQuery = normalizeSearchText(params.query);
+    if (!normalizedQuery) {
+      return [];
     }
-    if (params.title) {
-      where.push('s.title = ?');
-      queryParams.push(params.title);
-    }
-    if (params.location) {
-      where.push('s.location = ?');
-      queryParams.push(params.location);
-    }
-    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-    const rows = this.contentDb.prepare(`
-      SELECT
-        sd.hit_id,
-        sd.sermon_id,
-        s.sermon_code,
-        s.title,
-        s.summary,
-        s.date,
-        s.location,
-        s.tags_json,
-        sd.paragraph_number,
-        sd.printed_paragraph_number,
-        sd.chunk_index,
-        sd.chunk_total,
-        sd.match_source,
-        sd.searchable_text,
-        sd.normalized_text,
-        sd.snippet_text
-      FROM search_documents sd
-      INNER JOIN sermons s ON s.id = sd.sermon_id
-      ${whereClause}
-    `).all(...queryParams) as unknown as SearchCandidate[];
+    const candidates = fetchSearchCandidates(this.contentDb, {
+      ...params,
+      query: normalizedQuery,
+    });
 
-    return rankSearchCandidates(rows, params);
+    return rankSearchCandidates(candidates, params);
+  }
+
+  async getSearchSuggestions(params: SearchSuggestionsParams): Promise<string[]> {
+    return buildSearchSuggestions(this.contentDb, params);
   }
 
   async getSermonDetail(id: string): Promise<any | null> {

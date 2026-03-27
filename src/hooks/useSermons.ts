@@ -34,6 +34,7 @@ interface UseSermonsResult {
   isSearchMode: boolean;
   total: number;
   loading: boolean;
+  searchSuggestions: string[];
   filters: UseSermonFilters;
   setFilters: (patch: Partial<UseSermonFilters>) => void;
   setFilter: (key: keyof UseSermonFilters, value: string | number | boolean) => void;
@@ -61,6 +62,7 @@ export function useSermons(): UseSermonsResult {
   const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [years, setYears] = useState<number[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
@@ -182,6 +184,7 @@ export function useSermons(): UseSermonsResult {
       setSermons([]);
       setSearchHits([]);
       setTotal(0);
+      setSearchSuggestions([]);
       setLoading(false);
     };
 
@@ -193,13 +196,14 @@ export function useSermons(): UseSermonsResult {
     }
 
     setLoading(true);
+    setSearchSuggestions([]);
 
     const timeoutId = window.setTimeout(() => {
       void (async () => {
         try {
           const from = (filters.page - 1) * PAGE_SIZE;
           const port = await getDataPort();
-          const data = await port.searchSermonHits({
+          const searchParams = {
             query: filters.q.trim(),
             year: filters.year ? parseInt(filters.year, 10) : null,
             title: filters.title || null,
@@ -210,7 +214,9 @@ export function useSermons(): UseSermonsResult {
             matchCase: filters.fuzzy ? false : filters.matchCase,
             wholeWord: filters.fuzzy ? false : filters.wholeWord,
             fuzzy: filters.fuzzy,
-          });
+          };
+
+          const data = await port.searchSermonHits(searchParams);
 
           if (!isActiveRequest()) {
             return;
@@ -220,6 +226,17 @@ export function useSermons(): UseSermonsResult {
             setSearchHits(data as SearchHit[]);
             setSermons([]);
             setTotal(data[0]?.total_count ?? 0);
+            if (!filters.fuzzy && data.length === 0) {
+              const suggestions = await port.getSearchSuggestions({
+                query: searchParams.query,
+                maxSuggestions: 3,
+              });
+              if (isActiveRequest()) {
+                setSearchSuggestions(
+                  suggestions.filter((suggestion) => suggestion.trim() && suggestion !== searchParams.query),
+                );
+              }
+            }
           } else {
             setSearchHits([]);
             setSermons([]);
@@ -230,6 +247,7 @@ export function useSermons(): UseSermonsResult {
             return;
           }
 
+          setSearchSuggestions([]);
           setSearchHits([]);
           setSermons([]);
           setTotal(0);
@@ -253,6 +271,7 @@ export function useSermons(): UseSermonsResult {
     isSearchMode,
     total,
     loading,
+    searchSuggestions,
     filters,
     setFilters,
     setFilter,
