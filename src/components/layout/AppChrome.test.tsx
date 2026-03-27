@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppChrome from './AppChrome';
@@ -99,6 +99,11 @@ describe('AppChrome', () => {
 
     expect(screen.getByText('Downloading sermons...')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();
+    const downloadButton = screen.getByRole('button', { name: 'Download now' });
+    expect(downloadButton).toBeInTheDocument();
+
+    fireEvent.click(downloadButton);
+    expect(mockRetryDownload).toHaveBeenCalledTimes(1);
   });
 
   it('shows retry banner when fallback data is active because bootstrap errored', () => {

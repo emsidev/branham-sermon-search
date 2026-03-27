@@ -15,6 +15,7 @@ docker run --rm \
   -e ELECTRON_CACHE=/root/.cache/electron \
   -e ELECTRON_BUILDER_CACHE=/root/.cache/electron-builder \
   -v "${ROOT_DIR}:/project" \
+  -v /project/node_modules \
   -v "${CACHE_DIR}/electron:/root/.cache/electron" \
   -v "${CACHE_DIR}/electron-builder:/root/.cache/electron-builder" \
   -w /project \

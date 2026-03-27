@@ -48,6 +48,7 @@ interface ContentManifest {
   sha256: string;
   size: number;
   url: string;
+  downloadUrl?: string;
 }
 
 const DB_NAME = 'the-table-search-sqlite';
@@ -165,6 +166,23 @@ async function tryFetchManifest(): Promise<ContentManifest | null> {
   }
 }
 
+function resolveManifestContentUrl(manifest: ContentManifest): string | null {
+  const candidate = manifest.downloadUrl ?? manifest.url;
+  if (!candidate) {
+    return null;
+  }
+
+  if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
+    return candidate;
+  }
+
+  if (candidate.startsWith('/')) {
+    return candidate;
+  }
+
+  return null;
+}
+
 async function tryDownloadContentBytes(url: string): Promise<Uint8Array | null> {
   try {
     const response = await fetch(url, { cache: 'no-store' });
@@ -179,6 +197,7 @@ async function tryDownloadContentBytes(url: string): Promise<Uint8Array | null> 
 
 async function loadContentDb(runtime: SqlJsStatic): Promise<Database> {
   const manifest = await tryFetchManifest();
+  const manifestUrl = manifest ? resolveManifestContentUrl(manifest) : null;
   const storedContent = await readStoredFile(CONTENT_KEY);
   if (storedContent && storedContent.length > 0) {
     if (!manifest?.sha256) {
@@ -190,7 +209,7 @@ async function loadContentDb(runtime: SqlJsStatic): Promise<Database> {
       return new runtime.Database(storedContent);
     }
 
-    const downloaded = await tryDownloadContentBytes(manifest.url);
+    const downloaded = manifestUrl ? await tryDownloadContentBytes(manifestUrl) : null;
     if (downloaded && downloaded.length > 0) {
       await writeStoredFile(CONTENT_KEY, downloaded);
       return new runtime.Database(downloaded);
@@ -199,8 +218,8 @@ async function loadContentDb(runtime: SqlJsStatic): Promise<Database> {
     return new runtime.Database(storedContent);
   }
 
-  if (manifest) {
-    const downloaded = await tryDownloadContentBytes(manifest.url);
+  if (manifest && manifestUrl) {
+    const downloaded = await tryDownloadContentBytes(manifestUrl);
     if (downloaded && downloaded.length > 0) {
       await writeStoredFile(CONTENT_KEY, downloaded);
       return new runtime.Database(downloaded);

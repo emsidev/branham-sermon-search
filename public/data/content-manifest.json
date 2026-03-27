@@ -3,5 +3,6 @@
   "schemaVersion": 1,
   "sha256": "6ad53171b44132939059d8ffe44ae5f8960a1b48f12924e6c60e5db738970853",
   "size": 747216896,
-  "url": "/data/content.sqlite"
+  "url": "/data/content.sqlite",
+  "downloadUrl": "https://github.com/emsidev/branham-sermon-search/releases/download/content-db/content.sqlite"
 }

@@ -105,15 +105,25 @@ npm run build:content-sqlite -- \
   --out artifacts/content.sqlite \
   --manifest-out public/data/content-manifest.json \
   --manifest-url /data/content.sqlite \
-  --download-url https://github.com/emsidev/branham-sermon-search/releases/latest/download/content.sqlite \
+  --download-url https://github.com/emsidev/branham-sermon-search/releases/download/content-db/content.sqlite \
   --db-version 2026-03-27
 ```
 
 ### Release runbook (recommended)
 
-1. Run the GitHub workflow **Publish Content SQLite** (`.github/workflows/publish-content-db.yml`).
-2. Download the workflow artifact `content-manifest/content-manifest.json`.
-3. Replace local `public/data/content-manifest.json` with that artifact.
+1. Build DB + manifest locally:
+
+```sh
+npm run build:content-sqlite -- \
+  --out artifacts/content.sqlite \
+  --manifest-out public/data/content-manifest.json \
+  --manifest-url /data/content.sqlite \
+  --download-url https://github.com/emsidev/branham-sermon-search/releases/download/content-db/content.sqlite \
+  --db-version 2026-03-27
+```
+
+2. Edit the GitHub release tagged `content-db` and replace/upload the asset named exactly `content.sqlite`.
+3. Commit/push `public/data/content-manifest.json`.
 4. Build and distribute installer (`npm run dist:desktop`).
 
 Desktop startup behavior:
