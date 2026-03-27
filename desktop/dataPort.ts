@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
@@ -114,6 +114,23 @@ interface ContentManifest {
   sha256: string;
   size: number;
   url: string;
+  downloadUrl?: string;
+}
+
+export type DesktopBootstrapPhase = 'checking' | 'downloading' | 'ready' | 'error';
+
+export interface DesktopBootstrapStatus {
+  phase: DesktopBootstrapPhase;
+  receivedBytes: number;
+  totalBytes: number | null;
+  error: string | null;
+  usingFallbackData: boolean;
+}
+
+interface DesktopDataPortInitializeOptions {
+  forceDownload?: boolean;
+  allowEmptyOnFailure?: boolean;
+  onStatus?: (status: DesktopBootstrapStatus) => void;
 }
 
 interface SearchSermonsParams {
@@ -658,6 +675,133 @@ function sha256OfFile(absolutePath: string): string {
   return createHash('sha256').update(readFileSync(absolutePath)).digest('hex');
 }
 
+function emitBootstrapStatus(
+  callback: ((status: DesktopBootstrapStatus) => void) | undefined,
+  status: DesktopBootstrapStatus
+): void {
+  callback?.(status);
+}
+
+export function resolveRemoteContentUrl(
+  manifest: Pick<ContentManifest, 'url' | 'downloadUrl'> | null
+): string | null {
+  const candidate = manifest?.downloadUrl ?? manifest?.url ?? null;
+  if (!candidate) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(candidate);
+    if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+      return parsedUrl.toString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function isSeededContentCurrent(seededContentPath: string, manifest: ContentManifest | null): boolean {
+  if (!existsSync(seededContentPath)) {
+    return false;
+  }
+
+  if (!manifest?.sha256) {
+    return true;
+  }
+
+  try {
+    return sha256OfFile(seededContentPath) === manifest.sha256;
+  } catch {
+    return false;
+  }
+}
+
+function validateSeededContent(seededContentPath: string, manifest: ContentManifest | null): void {
+  if (!manifest) {
+    return;
+  }
+
+  if (manifest.size > 0) {
+    const actualSize = statSync(seededContentPath).size;
+    if (actualSize !== manifest.size) {
+      throw new Error(
+        `Downloaded content DB size mismatch: expected ${manifest.size} bytes, received ${actualSize} bytes.`,
+      );
+    }
+  }
+
+  if (manifest.sha256) {
+    const actualHash = sha256OfFile(seededContentPath);
+    if (actualHash !== manifest.sha256) {
+      throw new Error('Downloaded content DB SHA-256 mismatch.');
+    }
+  }
+}
+
+async function downloadContentDatabase(
+  remoteUrl: string,
+  seededContentPath: string,
+  manifest: ContentManifest | null,
+  onProgress?: (receivedBytes: number, totalBytes: number | null) => void
+): Promise<void> {
+  const tempPath = `${seededContentPath}.download`;
+  rmSync(tempPath, { force: true });
+
+  const response = await fetch(remoteUrl);
+  if (!response.ok || !response.body) {
+    throw new Error(`Failed to download content DB from ${remoteUrl}: HTTP ${response.status}.`);
+  }
+
+  const contentLengthHeader = response.headers.get('content-length');
+  const totalBytesFromHeader = contentLengthHeader ? Number.parseInt(contentLengthHeader, 10) : NaN;
+  const totalBytes = Number.isFinite(totalBytesFromHeader) && totalBytesFromHeader > 0
+    ? totalBytesFromHeader
+    : (manifest?.size && manifest.size > 0 ? manifest.size : null);
+  const reader = response.body.getReader();
+  const writer = createWriteStream(tempPath);
+
+  try {
+    let receivedBytes = 0;
+    onProgress?.(receivedBytes, totalBytes);
+
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        break;
+      }
+
+      const value = chunk.value;
+      if (!value) {
+        continue;
+      }
+
+      receivedBytes += value.byteLength;
+      const chunkBuffer = Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+      if (!writer.write(chunkBuffer)) {
+        await new Promise<void>((resolve, reject) => {
+          writer.once('drain', resolve);
+          writer.once('error', reject);
+        });
+      }
+      onProgress?.(receivedBytes, totalBytes);
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      writer.end(() => resolve());
+      writer.once('error', reject);
+    });
+    validateSeededContent(tempPath, manifest);
+    renameSync(tempPath, seededContentPath);
+  } catch (error) {
+    writer.destroy();
+    rmSync(tempPath, { force: true });
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export class DesktopDataPort {
   private readonly contentDb: DatabaseSync;
   private readonly userDb: DatabaseSync;
@@ -670,7 +814,25 @@ export class DesktopDataPort {
     ensureSearchIndexesReady(this.contentDb);
   }
 
-  static initialize(projectRoot: string, isDevelopment: boolean): DesktopDataPort {
+  static async initialize(
+    projectRoot: string,
+    isDevelopment: boolean,
+    options: DesktopDataPortInitializeOptions = {}
+  ): Promise<DesktopDataPort> {
+    const {
+      forceDownload = false,
+      allowEmptyOnFailure = false,
+      onStatus,
+    } = options;
+
+    emitBootstrapStatus(onStatus, {
+      phase: 'checking',
+      receivedBytes: 0,
+      totalBytes: null,
+      error: null,
+      usingFallbackData: false,
+    });
+
     const bundledDataDir = isDevelopment
       ? path.join(projectRoot, 'public', 'data')
       : path.join(projectRoot, 'dist', 'data');
@@ -682,24 +844,81 @@ export class DesktopDataPort {
     ensureDirectory(contentVersionDir);
     const seededContentPath = path.join(contentVersionDir, 'content.sqlite');
     const bundledContentPath = path.join(bundledDataDir, 'content.sqlite');
+    const remoteUrl = resolveRemoteContentUrl(manifest);
+    const userDbPath = path.join(userDataPath, 'user.sqlite');
 
-    if (existsSync(bundledContentPath)) {
-      let shouldSeed = !existsSync(seededContentPath);
-      if (!shouldSeed && manifest?.sha256) {
-        try {
-          shouldSeed = sha256OfFile(seededContentPath) !== manifest.sha256;
-        } catch {
-          shouldSeed = true;
+    const createFallbackPort = (errorMessage: string): DesktopDataPort => {
+      emitBootstrapStatus(onStatus, {
+        phase: 'error',
+        receivedBytes: 0,
+        totalBytes: null,
+        error: errorMessage,
+        usingFallbackData: true,
+      });
+      return new DesktopDataPort(seededContentPath, userDbPath);
+    };
+
+    try {
+      const shouldUseLocalSeed = !forceDownload && isSeededContentCurrent(seededContentPath, manifest);
+      if (!shouldUseLocalSeed) {
+        if (!forceDownload && existsSync(bundledContentPath)) {
+          copyFileSync(bundledContentPath, seededContentPath);
+        }
+
+        const needsRemoteDownload = !isSeededContentCurrent(seededContentPath, manifest);
+        if (needsRemoteDownload) {
+          if (remoteUrl) {
+            emitBootstrapStatus(onStatus, {
+              phase: 'downloading',
+              receivedBytes: 0,
+              totalBytes: manifest?.size ?? null,
+              error: null,
+              usingFallbackData: false,
+            });
+
+            await downloadContentDatabase(
+              remoteUrl,
+              seededContentPath,
+              manifest,
+              (receivedBytes, totalBytes) => {
+                emitBootstrapStatus(onStatus, {
+                  phase: 'downloading',
+                  receivedBytes,
+                  totalBytes,
+                  error: null,
+                  usingFallbackData: false,
+                });
+              }
+            );
+          } else if (!existsSync(seededContentPath)) {
+            throw new Error(
+              'No local content database found and no HTTP(S) download URL is configured in content-manifest.json.',
+            );
+          }
         }
       }
 
-      if (shouldSeed) {
-        copyFileSync(bundledContentPath, seededContentPath);
+      emitBootstrapStatus(onStatus, {
+        phase: 'ready',
+        receivedBytes: 0,
+        totalBytes: null,
+        error: null,
+        usingFallbackData: false,
+      });
+      return new DesktopDataPort(seededContentPath, userDbPath);
+    } catch (error) {
+      if (!allowEmptyOnFailure) {
+        throw error;
       }
-    }
 
-    const userDbPath = path.join(userDataPath, 'user.sqlite');
-    return new DesktopDataPort(seededContentPath, userDbPath);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return createFallbackPort(errorMessage);
+    }
+  }
+
+  close(): void {
+    this.contentDb.close();
+    this.userDb.close();
   }
 
   async getSearchMeta(): Promise<{ years: number[]; titles: string[]; locations: string[] }> {

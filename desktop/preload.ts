@@ -20,3 +20,22 @@ const desktopData = Object.freeze({
 });
 
 contextBridge.exposeInMainWorld('desktopData', desktopData);
+
+const DESKTOP_BOOTSTRAP_STATUS_CHANNEL = 'desktop-bootstrap:status';
+
+const desktopBootstrap = Object.freeze({
+  getStatus: () => ipcRenderer.invoke('desktop-bootstrap:getStatus'),
+  retryDownload: () => ipcRenderer.invoke('desktop-bootstrap:retryDownload'),
+  subscribe: (listener: (status: unknown) => void) => {
+    const eventHandler = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+      listener(payload);
+    };
+
+    ipcRenderer.on(DESKTOP_BOOTSTRAP_STATUS_CHANNEL, eventHandler);
+    return () => {
+      ipcRenderer.off(DESKTOP_BOOTSTRAP_STATUS_CHANNEL, eventHandler);
+    };
+  },
+});
+
+contextBridge.exposeInMainWorld('desktopBootstrap', desktopBootstrap);

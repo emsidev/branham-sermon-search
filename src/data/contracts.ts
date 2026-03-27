@@ -98,3 +98,5 @@ export interface DataPort {
   getShortcutBindings(): Promise<ShortcutBindingRow[]>;
   saveShortcutBindings(bindings: ShortcutBindingRow[]): Promise<void>;
 }
+
+export type { BootstrapPhase, BootstrapStatus } from '@/data/desktopBootstrap';

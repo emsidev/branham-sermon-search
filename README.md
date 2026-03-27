@@ -92,6 +92,35 @@ npm run build:content-sqlite
 ```
 
 - `build:content-sqlite` creates `public/data/content.sqlite` and `public/data/content-manifest.json`.
+- Optional flags for desktop-first distribution:
+  - `--out <path>`: write DB anywhere (for example `artifacts/content.sqlite`).
+  - `--manifest-out <path>`: where to write manifest (keep this at `public/data/content-manifest.json` for desktop builds).
+  - `--manifest-url <url-or-path>`: sets manifest `url` value.
+  - `--download-url <https-url>`: sets manifest `downloadUrl` for desktop bootstrap download.
+
+Example (GitHub Release asset, ship installer without bundled DB):
+
+```sh
+npm run build:content-sqlite -- \
+  --out artifacts/content.sqlite \
+  --manifest-out public/data/content-manifest.json \
+  --manifest-url /data/content.sqlite \
+  --download-url https://github.com/emsidev/branham-sermon-search/releases/latest/download/content.sqlite \
+  --db-version 2026-03-27
+```
+
+### Release runbook (recommended)
+
+1. Run the GitHub workflow **Publish Content SQLite** (`.github/workflows/publish-content-db.yml`).
+2. Download the workflow artifact `content-manifest/content-manifest.json`.
+3. Replace local `public/data/content-manifest.json` with that artifact.
+4. Build and distribute installer (`npm run dist:desktop`).
+
+Desktop startup behavior:
+
+- If local cached DB matches manifest hash: use it.
+- Otherwise it downloads from `downloadUrl`, validates SHA-256/size, and stores at `app.getPath('userData')/content/<dbVersion>/content.sqlite`.
+- If first launch is offline and no DB exists, app starts with fallback empty data and shows a retry download banner.
 
 ## How can I deploy this project?
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,7 @@ import {
   registerAppProtocolHandler,
   registerAppProtocolScheme,
 } from './protocol.js';
-import { DesktopDataPort } from './dataPort.js';
+import { DesktopDataPort, type DesktopBootstrapStatus } from './dataPort.js';
 
 const DEV_SERVER_ORIGIN = 'http://127.0.0.1:8080';
 const WINDOW_MIN_WIDTH = 1024;
@@ -22,6 +22,22 @@ const preloadPath = path.resolve(__dirname, 'preload.js');
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 let desktopDataPort: DesktopDataPort | null = null;
+let desktopDataPortReady: Promise<DesktopDataPort> | null = null;
+let retryDownloadInFlight: Promise<void> | null = null;
+type DesktopListSermonsParams = Parameters<DesktopDataPort['listSermons']>[0];
+type DesktopSearchSermonHitsParams = Parameters<DesktopDataPort['searchSermonHits']>[0];
+type DesktopSearchSuggestionsParams = Parameters<DesktopDataPort['getSearchSuggestions']>[0];
+type DesktopShortcutBindings = Parameters<DesktopDataPort['saveShortcutBindings']>[0];
+
+const DEFAULT_BOOTSTRAP_STATUS: DesktopBootstrapStatus = {
+  phase: 'checking',
+  receivedBytes: 0,
+  totalBytes: null,
+  error: null,
+  usingFallbackData: false,
+};
+
+let bootstrapStatus: DesktopBootstrapStatus = DEFAULT_BOOTSTRAP_STATUS;
 
 registerAppProtocolScheme();
 
@@ -132,6 +148,73 @@ function createMainWindow(): BrowserWindow {
   return mainWindow;
 }
 
+function emitBootstrapStatus(nextStatus: DesktopBootstrapStatus): void {
+  bootstrapStatus = nextStatus;
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send('desktop-bootstrap:status', bootstrapStatus);
+  }
+}
+
+async function initializeDesktopDataPort(
+  forceDownload = false,
+  allowEmptyOnFailure = true
+): Promise<DesktopDataPort> {
+  const nextPort = await DesktopDataPort.initialize(projectRoot, isDevelopment, {
+    forceDownload,
+    allowEmptyOnFailure,
+    onStatus: emitBootstrapStatus,
+  });
+
+  const previousPort = desktopDataPort;
+  desktopDataPort = nextPort;
+
+  if (previousPort && previousPort !== nextPort) {
+    previousPort.close();
+  }
+
+  return nextPort;
+}
+
+function ensureDesktopDataPortReady(): Promise<DesktopDataPort> {
+  if (desktopDataPort) {
+    return Promise.resolve(desktopDataPort);
+  }
+
+  if (!desktopDataPortReady) {
+    desktopDataPortReady = initializeDesktopDataPort(false);
+  }
+
+  return desktopDataPortReady;
+}
+
+async function retryDesktopDownload(): Promise<void> {
+  if (retryDownloadInFlight) {
+    return retryDownloadInFlight;
+  }
+
+  retryDownloadInFlight = (async () => {
+    try {
+      desktopDataPortReady = initializeDesktopDataPort(true, false);
+      await desktopDataPortReady;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      emitBootstrapStatus({
+        phase: 'error',
+        receivedBytes: 0,
+        totalBytes: null,
+        error: errorMessage,
+        usingFallbackData: true,
+      });
+    }
+  })();
+
+  try {
+    await retryDownloadInFlight;
+  } finally {
+    retryDownloadInFlight = null;
+  }
+}
+
 async function clearDevelopmentRendererState(mainWindow: BrowserWindow): Promise<void> {
   if (!isDevelopment) {
     return;
@@ -171,24 +254,33 @@ async function bootstrap(): Promise<void> {
     registerAppProtocolHandler(distDirectory);
   }
 
-  desktopDataPort = DesktopDataPort.initialize(projectRoot, isDevelopment);
-  ipcMain.handle('desktop-data:getSearchMeta', () => desktopDataPort?.getSearchMeta());
-  ipcMain.handle('desktop-data:listSermons', (_event, params: unknown) => desktopDataPort?.listSermons(params as any));
-  ipcMain.handle('desktop-data:searchSermonHits', (_event, params: unknown) => desktopDataPort?.searchSermonHits(params as any));
-  ipcMain.handle('desktop-data:getSearchSuggestions', (_event, params: unknown) => desktopDataPort?.getSearchSuggestions(params as any));
-  ipcMain.handle('desktop-data:getSermonDetail', (_event, id: string) => desktopDataPort?.getSermonDetail(id));
-  ipcMain.handle('desktop-data:getAdjacentSermons', (_event, date: string) => desktopDataPort?.getAdjacentSermons(date));
-  ipcMain.handle('desktop-data:getBoundarySermons', () => desktopDataPort?.getBoundarySermons());
-  ipcMain.handle('desktop-data:getShortcutBindings', () => desktopDataPort?.getShortcutBindings());
-  ipcMain.handle('desktop-data:saveShortcutBindings', (_event, rows: unknown) => desktopDataPort?.saveShortcutBindings(rows as any));
+  ipcMain.handle('desktop-bootstrap:getStatus', () => bootstrapStatus);
+  ipcMain.handle('desktop-bootstrap:retryDownload', async () => {
+    await retryDesktopDownload();
+    return bootstrapStatus;
+  });
+
+  ipcMain.handle('desktop-data:getSearchMeta', async () => (await ensureDesktopDataPortReady()).getSearchMeta());
+  ipcMain.handle('desktop-data:listSermons', async (_event, params: unknown) => (await ensureDesktopDataPortReady()).listSermons(params as DesktopListSermonsParams));
+  ipcMain.handle('desktop-data:searchSermonHits', async (_event, params: unknown) => (await ensureDesktopDataPortReady()).searchSermonHits(params as DesktopSearchSermonHitsParams));
+  ipcMain.handle('desktop-data:getSearchSuggestions', async (_event, params: unknown) => (await ensureDesktopDataPortReady()).getSearchSuggestions(params as DesktopSearchSuggestionsParams));
+  ipcMain.handle('desktop-data:getSermonDetail', async (_event, id: string) => (await ensureDesktopDataPortReady()).getSermonDetail(id));
+  ipcMain.handle('desktop-data:getAdjacentSermons', async (_event, date: string) => (await ensureDesktopDataPortReady()).getAdjacentSermons(date));
+  ipcMain.handle('desktop-data:getBoundarySermons', async () => (await ensureDesktopDataPortReady()).getBoundarySermons());
+  ipcMain.handle('desktop-data:getShortcutBindings', async () => (await ensureDesktopDataPortReady()).getShortcutBindings());
+  ipcMain.handle('desktop-data:saveShortcutBindings', async (_event, rows: unknown) => (await ensureDesktopDataPortReady()).saveShortcutBindings(rows as DesktopShortcutBindings));
 
   const mainWindow = createMainWindow();
   await loadMainWindow(mainWindow);
+  emitBootstrapStatus(bootstrapStatus);
+  desktopDataPortReady = initializeDesktopDataPort(false, true);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       const nextWindow = createMainWindow();
-      void loadMainWindow(nextWindow);
+      void loadMainWindow(nextWindow).then(() => {
+        nextWindow.webContents.send('desktop-bootstrap:status', bootstrapStatus);
+      });
     }
   });
 }
@@ -199,4 +291,14 @@ app.on('window-all-closed', () => {
   }
 });
 
-void bootstrap();
+void bootstrap().catch(async (error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error('Desktop bootstrap failed:', error);
+
+  try {
+    await app.whenReady();
+    dialog.showErrorBox('Startup failed', message);
+  } finally {
+    app.quit();
+  }
+});

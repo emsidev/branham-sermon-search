@@ -114,6 +114,9 @@
     "productName": "the table search",
     "files": [
       "dist/**/*",
+      "!dist/data/content.sqlite",
+      "!dist/data/content.sqlite-shm",
+      "!dist/data/content.sqlite-wal",
       "dist-electron/**/*",
       "package.json"
     ],

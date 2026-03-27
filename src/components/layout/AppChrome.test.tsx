@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppChrome from './AppChrome';
+import type { BootstrapStatus } from '@/data/desktopBootstrap';
 
 vi.mock('@/hooks/useKeyboardShortcuts', () => ({
   useKeyboardShortcuts: () => ({
@@ -31,6 +32,26 @@ vi.mock('@/hooks/useKeyboardShortcuts', () => ({
   useShortcutSearchInputRegistration: vi.fn(),
 }));
 
+const defaultBootstrapStatus: BootstrapStatus = {
+  phase: 'ready',
+  receivedBytes: 0,
+  totalBytes: null,
+  error: null,
+  usingFallbackData: false,
+};
+
+const mockRetryDownload = vi.fn();
+const mockUseDesktopBootstrapStatus = vi.fn(() => ({
+  isDesktop: true,
+  status: defaultBootstrapStatus,
+  retryDownload: mockRetryDownload,
+  isRetrying: false,
+}));
+
+vi.mock('@/hooks/useDesktopBootstrapStatus', () => ({
+  useDesktopBootstrapStatus: () => mockUseDesktopBootstrapStatus(),
+}));
+
 function renderAtPath(pathname: string) {
   return render(
     <MemoryRouter initialEntries={[pathname]}>
@@ -49,7 +70,65 @@ function renderAtPath(pathname: string) {
 }
 
 describe('AppChrome', () => {
+  beforeEach(() => {
+    mockRetryDownload.mockReset();
+    mockUseDesktopBootstrapStatus.mockReset();
+    mockUseDesktopBootstrapStatus.mockReturnValue({
+      isDesktop: true,
+      status: defaultBootstrapStatus,
+      retryDownload: mockRetryDownload,
+      isRetrying: false,
+    });
+  });
+
+  it('shows downloading sermons status while desktop bootstrap is downloading', () => {
+    mockUseDesktopBootstrapStatus.mockReturnValue({
+      isDesktop: true,
+      status: {
+        phase: 'downloading',
+        receivedBytes: 50,
+        totalBytes: 100,
+        error: null,
+        usingFallbackData: false,
+      },
+      retryDownload: mockRetryDownload,
+      isRetrying: false,
+    });
+
+    renderAtPath('/search');
+
+    expect(screen.getByText('Downloading sermons...')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+  });
+
+  it('shows retry banner when fallback data is active because bootstrap errored', () => {
+    mockUseDesktopBootstrapStatus.mockReturnValue({
+      isDesktop: true,
+      status: {
+        phase: 'error',
+        receivedBytes: 0,
+        totalBytes: null,
+        error: 'Network unavailable',
+        usingFallbackData: true,
+      },
+      retryDownload: mockRetryDownload,
+      isRetrying: false,
+    });
+
+    renderAtPath('/search');
+
+    expect(screen.getByText('Sermons database unavailable offline. Connect to the internet, then retry download.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry download' })).toBeInTheDocument();
+  });
+
   it('renders navbar links and footer on home route without header search input', () => {
+    mockUseDesktopBootstrapStatus.mockReturnValue({
+      isDesktop: true,
+      status: defaultBootstrapStatus,
+      retryDownload: mockRetryDownload,
+      isRetrying: false,
+    });
+
     renderAtPath('/');
 
     expect(screen.queryByLabelText('Search sermons')).not.toBeInTheDocument();
@@ -62,6 +141,13 @@ describe('AppChrome', () => {
   it.each(['/books', '/settings', '/about', '/sermons/42'])(
     'renders global navbar and footer on %s',
     (path) => {
+      mockUseDesktopBootstrapStatus.mockReturnValue({
+        isDesktop: true,
+        status: defaultBootstrapStatus,
+        retryDownload: mockRetryDownload,
+        isRetrying: false,
+      });
+
       renderAtPath(path);
 
       expect(screen.getByLabelText('Search sermons')).toBeInTheDocument();
@@ -74,6 +160,13 @@ describe('AppChrome', () => {
   );
 
   it('hides global navbar and footer on sermon reading mode route', () => {
+    mockUseDesktopBootstrapStatus.mockReturnValue({
+      isDesktop: true,
+      status: defaultBootstrapStatus,
+      retryDownload: mockRetryDownload,
+      isRetrying: false,
+    });
+
     renderAtPath('/sermons/42?reading=1');
 
     expect(screen.queryByLabelText('Search sermons')).not.toBeInTheDocument();

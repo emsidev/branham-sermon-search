@@ -18,6 +18,9 @@ type SeedPayload = {
 
 interface ParsedArgs {
   outPath: string;
+  manifestOutPath: string;
+  manifestUrl: string | null;
+  manifestDownloadUrl: string | null;
   seedPath: string | null;
   dbVersion: string;
   schemaVersion: number;
@@ -40,6 +43,9 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   return {
     outPath: args.get('--out') ?? path.resolve(process.cwd(), 'public', 'data', 'content.sqlite'),
+    manifestOutPath: args.get('--manifest-out') ?? path.resolve(process.cwd(), 'public', 'data', 'content-manifest.json'),
+    manifestUrl: args.get('--manifest-url') ?? null,
+    manifestDownloadUrl: args.get('--download-url') ?? null,
     seedPath: args.get('--seed') ?? null,
     dbVersion: args.get('--db-version') ?? new Date().toISOString().slice(0, 10),
     schemaVersion: Number.parseInt(args.get('--schema-version') ?? String(CONTENT_SCHEMA_VERSION), 10),
@@ -254,22 +260,30 @@ function bulkInsert(db: DatabaseSync, table: string, rows: any[]): void {
   }
 }
 
-function writeManifest(outPath: string, dbVersion: string, schemaVersion: number): void {
-  const outputDir = path.dirname(outPath);
+function writeManifest(
+  outPath: string,
+  manifestOutPath: string,
+  dbVersion: string,
+  schemaVersion: number,
+  manifestUrl: string | null,
+  manifestDownloadUrl: string | null
+): void {
+  const outputDir = path.dirname(manifestOutPath);
   const relativeUrl = `/${path.relative(path.resolve(process.cwd(), 'public'), outPath).replace(/\\/g, '/')}`;
   const bytes = readFileSync(outPath);
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   const size = statSync(outPath).size;
-  const manifestPath = path.join(outputDir, 'content-manifest.json');
   const payload = {
     dbVersion,
     schemaVersion,
     sha256,
     size,
-    url: relativeUrl.startsWith('/') ? relativeUrl : `/data/content.sqlite`,
+    url: manifestUrl ?? (relativeUrl.startsWith('/') ? relativeUrl : '/data/content.sqlite'),
+    ...(manifestDownloadUrl ? { downloadUrl: manifestDownloadUrl } : {}),
   };
 
-  writeFileSync(manifestPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  mkdirSync(outputDir, { recursive: true });
+  writeFileSync(manifestOutPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }
 
 function run(): void {
@@ -297,7 +311,14 @@ function run(): void {
   upsertMetadata(db, 'content_schema_version', String(args.schemaVersion));
   db.close();
 
-  writeManifest(outPath, args.dbVersion, args.schemaVersion);
+  writeManifest(
+    outPath,
+    path.resolve(args.manifestOutPath),
+    args.dbVersion,
+    args.schemaVersion,
+    args.manifestUrl,
+    args.manifestDownloadUrl
+  );
   console.log(`SQLite content DB built: ${outPath}`);
 }
 
