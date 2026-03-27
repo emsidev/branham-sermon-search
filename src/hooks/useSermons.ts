@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getDataPort } from '@/data/dataPort';
 import type {
@@ -45,6 +45,7 @@ interface UseSermonsResult {
 }
 
 const PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 180;
 
 function parseWholeWordParam(rawValue: string | null): boolean {
   if (rawValue == null) {
@@ -63,6 +64,7 @@ export function useSermons(): UseSermonsResult {
   const [years, setYears] = useState<number[]>([]);
   const [titles, setTitles] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
+  const activeRequestIdRef = useRef(0);
 
   const filters: UseSermonFilters = useMemo(() => ({
     q: searchParams.get('q') || '',
@@ -170,62 +172,79 @@ export function useSermons(): UseSermonsResult {
     fetchMeta();
   }, []);
 
-  // Fetch sermons
+  // Fetch search hits (idle when no query)
   useEffect(() => {
-    async function fetchSermons() {
-      setLoading(true);
-      const from = (filters.page - 1) * PAGE_SIZE;
-      const port = await getDataPort();
+    const requestId = ++activeRequestIdRef.current;
+    let cancelled = false;
 
-      if (isSearchMode) {
-        const data = await port.searchSermonHits({
-          query: filters.q.trim(),
-          year: filters.year ? parseInt(filters.year, 10) : null,
-          title: filters.title || null,
-          location: filters.location || null,
-          limit: PAGE_SIZE,
-          offset: from,
-          sort: filters.sort,
-          matchCase: filters.fuzzy ? false : filters.matchCase,
-          wholeWord: filters.fuzzy ? false : filters.wholeWord,
-          fuzzy: filters.fuzzy,
-        });
+    const isActiveRequest = () => !cancelled && requestId === activeRequestIdRef.current;
+    const commitIdleState = () => {
+      setSermons([]);
+      setSearchHits([]);
+      setTotal(0);
+      setLoading(false);
+    };
 
-        if (data) {
-          setSearchHits(data as SearchHit[]);
-          setSermons([]);
-          setTotal(data[0]?.total_count ?? 0);
-        } else {
+    if (!isSearchMode) {
+      commitIdleState();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoading(true);
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const from = (filters.page - 1) * PAGE_SIZE;
+          const port = await getDataPort();
+          const data = await port.searchSermonHits({
+            query: filters.q.trim(),
+            year: filters.year ? parseInt(filters.year, 10) : null,
+            title: filters.title || null,
+            location: filters.location || null,
+            limit: PAGE_SIZE,
+            offset: from,
+            sort: filters.sort,
+            matchCase: filters.fuzzy ? false : filters.matchCase,
+            wholeWord: filters.fuzzy ? false : filters.wholeWord,
+            fuzzy: filters.fuzzy,
+          });
+
+          if (!isActiveRequest()) {
+            return;
+          }
+
+          if (data) {
+            setSearchHits(data as SearchHit[]);
+            setSermons([]);
+            setTotal(data[0]?.total_count ?? 0);
+          } else {
+            setSearchHits([]);
+            setSermons([]);
+            setTotal(0);
+          }
+        } catch {
+          if (!isActiveRequest()) {
+            return;
+          }
+
           setSearchHits([]);
           setSermons([]);
           setTotal(0);
+        } finally {
+          if (isActiveRequest()) {
+            setLoading(false);
+          }
         }
+      })();
+    }, SEARCH_DEBOUNCE_MS);
 
-        setLoading(false);
-        return;
-      }
-
-      const { rows, total: totalCount } = await port.listSermons({
-        year: filters.year ? parseInt(filters.year, 10) : null,
-        title: filters.title || null,
-        location: filters.location || null,
-        limit: PAGE_SIZE,
-        offset: from,
-        sort: filters.sort,
-      });
-
-      if (rows) {
-        setSermons(rows as Sermon[]);
-        setSearchHits([]);
-        setTotal(totalCount || 0);
-      } else {
-        setSermons([]);
-        setSearchHits([]);
-        setTotal(0);
-      }
-      setLoading(false);
-    }
-    fetchSermons();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [filters, isSearchMode]);
 
   return {

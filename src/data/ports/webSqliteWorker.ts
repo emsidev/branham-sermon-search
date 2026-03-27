@@ -66,6 +66,13 @@ async function writeStoredFile(key: string, value: Uint8Array): Promise<void> {
   await db.put(DB_STORE, value, key);
 }
 
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function ensureRuntime(): SqlJsStatic {
   if (!sqlRuntime) {
     throw new Error('SQLite runtime is not initialized');
@@ -145,12 +152,27 @@ async function tryDownloadContentBytes(url: string): Promise<Uint8Array | null> 
 }
 
 async function loadContentDb(runtime: SqlJsStatic): Promise<Database> {
+  const manifest = await tryFetchManifest();
   const storedContent = await readStoredFile(CONTENT_KEY);
   if (storedContent && storedContent.length > 0) {
+    if (!manifest?.sha256) {
+      return new runtime.Database(storedContent);
+    }
+
+    const storedHash = await sha256Hex(storedContent);
+    if (storedHash === manifest.sha256) {
+      return new runtime.Database(storedContent);
+    }
+
+    const downloaded = await tryDownloadContentBytes(manifest.url);
+    if (downloaded && downloaded.length > 0) {
+      await writeStoredFile(CONTENT_KEY, downloaded);
+      return new runtime.Database(downloaded);
+    }
+
     return new runtime.Database(storedContent);
   }
 
-  const manifest = await tryFetchManifest();
   if (manifest) {
     const downloaded = await tryDownloadContentBytes(manifest.url);
     if (downloaded && downloaded.length > 0) {
@@ -461,4 +483,3 @@ self.onmessage = async (event: MessageEvent<RpcRequest>) => {
 };
 
 export {};
-

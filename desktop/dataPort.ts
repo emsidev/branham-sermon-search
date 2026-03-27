@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
@@ -308,6 +309,10 @@ function ensureDirectory(absolutePath: string): void {
   }
 }
 
+function sha256OfFile(absolutePath: string): string {
+  return createHash('sha256').update(readFileSync(absolutePath)).digest('hex');
+}
+
 export class DesktopDataPort {
   private readonly contentDb: DatabaseSync;
   private readonly userDb: DatabaseSync;
@@ -332,8 +337,19 @@ export class DesktopDataPort {
     const seededContentPath = path.join(contentVersionDir, 'content.sqlite');
     const bundledContentPath = path.join(bundledDataDir, 'content.sqlite');
 
-    if (!existsSync(seededContentPath) && existsSync(bundledContentPath)) {
-      copyFileSync(bundledContentPath, seededContentPath);
+    if (existsSync(bundledContentPath)) {
+      let shouldSeed = !existsSync(seededContentPath);
+      if (!shouldSeed && manifest?.sha256) {
+        try {
+          shouldSeed = sha256OfFile(seededContentPath) !== manifest.sha256;
+        } catch {
+          shouldSeed = true;
+        }
+      }
+
+      if (shouldSeed) {
+        copyFileSync(bundledContentPath, seededContentPath);
+      }
     }
 
     const userDbPath = path.join(userDataPath, 'user.sqlite');

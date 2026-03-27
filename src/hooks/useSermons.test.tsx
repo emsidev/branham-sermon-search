@@ -1,6 +1,6 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useSermons } from './useSermons';
+import { useSermons, type SearchHit } from './useSermons';
 
 let currentParams = new URLSearchParams();
 const setSearchParamsMock = vi.fn();
@@ -8,6 +8,19 @@ const setSearchParamsMock = vi.fn();
 const getSearchMetaMock = vi.fn();
 const listSermonsMock = vi.fn();
 const searchSermonHitsMock = vi.fn();
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
+}
 
 function getLatestSearchParamsUpdater(): ((prev: URLSearchParams) => URLSearchParams) {
   const updater = setSearchParamsMock.mock.calls.at(-1)?.[0];
@@ -77,7 +90,7 @@ describe('useSermons', () => {
     searchSermonHitsMock.mockResolvedValue([]);
   });
 
-  it('uses normal sermons query when q is empty', async () => {
+  it('returns idle results when q is empty', async () => {
     const { result } = renderHook(() => useSermons());
 
     await waitFor(() => {
@@ -86,15 +99,10 @@ describe('useSermons', () => {
 
     expect(result.current.isSearchMode).toBe(false);
     expect(searchSermonHitsMock).not.toHaveBeenCalled();
-    expect(listSermonsMock).toHaveBeenCalledWith({
-      year: null,
-      title: null,
-      location: null,
-      limit: 25,
-      offset: 0,
-      sort: 'relevance-desc',
-    });
-    expect(result.current.sermons).toHaveLength(1);
+    expect(listSermonsMock).not.toHaveBeenCalled();
+    expect(result.current.sermons).toEqual([]);
+    expect(result.current.searchHits).toEqual([]);
+    expect(result.current.total).toBe(0);
   });
 
   it('uses search mode and total_count when q is present', async () => {
@@ -181,7 +189,7 @@ describe('useSermons', () => {
     });
   });
 
-  it('applies structured filters on non-search query path', async () => {
+  it('keeps idle mode when only structured filters are present with no query', async () => {
     currentParams = new URLSearchParams('year=1963&title=God+Hiding+Himself&location=Jeffersonville%2C+IN');
 
     const { result } = renderHook(() => useSermons());
@@ -191,15 +199,131 @@ describe('useSermons', () => {
     });
 
     expect(result.current.isSearchMode).toBe(false);
-    expect(listSermonsMock).toHaveBeenCalledWith({
-      year: 1963,
-      title: 'God Hiding Himself',
-      location: 'Jeffersonville, IN',
-      limit: 25,
-      offset: 0,
-      sort: 'relevance-desc',
+    expect(searchSermonHitsMock).not.toHaveBeenCalled();
+    expect(listSermonsMock).not.toHaveBeenCalled();
+    expect(result.current.sermons).toEqual([]);
+    expect(result.current.searchHits).toEqual([]);
+    expect(result.current.total).toBe(0);
+  });
+
+  it('ignores stale out-of-order search responses and keeps newest result set', async () => {
+    const firstResponse = createDeferred<SearchHit[]>();
+    const secondResponse = createDeferred<SearchHit[]>();
+
+    searchSermonHitsMock
+      .mockImplementationOnce(() => firstResponse.promise)
+      .mockImplementationOnce(() => secondResponse.promise);
+
+    currentParams = new URLSearchParams('q=first');
+    const { result, rerender } = renderHook(() => useSermons());
+
+    await waitFor(() => {
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(1);
     });
-    expect(result.current.sermons).toHaveLength(1);
+
+    currentParams = new URLSearchParams('q=second');
+    rerender();
+
+    await waitFor(() => {
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(2);
+    });
+
+    secondResponse.resolve([
+      {
+        hit_id: 'second-hit',
+        sermon_id: 'second-sermon',
+        sermon_code: '65-0101',
+        title: 'Second Result',
+        summary: null,
+        date: '1965-01-01',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 1,
+        printed_paragraph_number: 1,
+        chunk_index: 1,
+        chunk_total: 1,
+        match_source: 'paragraph_text',
+        snippet: 'second result',
+        relevance: 1,
+        is_exact_match: false,
+        tags: [],
+        total_count: 1,
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+      expect(result.current.searchHits[0]?.title).toBe('Second Result');
+    });
+
+    firstResponse.resolve([
+      {
+        hit_id: 'first-hit',
+        sermon_id: 'first-sermon',
+        sermon_code: '64-0101',
+        title: 'First Result',
+        summary: null,
+        date: '1964-01-01',
+        location: 'Jeffersonville, IN',
+        paragraph_number: 1,
+        printed_paragraph_number: 1,
+        chunk_index: 1,
+        chunk_total: 1,
+        match_source: 'paragraph_text',
+        snippet: 'first result',
+        relevance: 1,
+        is_exact_match: false,
+        tags: [],
+        total_count: 1,
+      },
+    ]);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.searchHits[0]?.title).toBe('Second Result');
+  });
+
+  it('debounces rapid query changes and runs only the final search request', async () => {
+    vi.useFakeTimers();
+
+    try {
+      currentParams = new URLSearchParams('q=f');
+      const { rerender } = renderHook(() => useSermons());
+
+      currentParams = new URLSearchParams('q=fa');
+      rerender();
+      currentParams = new URLSearchParams('q=fai');
+      rerender();
+
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(0);
+
+      await act(async () => {
+        vi.advanceTimersByTime(179);
+      });
+
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(0);
+
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(searchSermonHitsMock).toHaveBeenCalledTimes(1);
+      expect(searchSermonHitsMock).toHaveBeenCalledWith({
+        query: 'fai',
+        year: null,
+        title: null,
+        location: null,
+        limit: 25,
+        offset: 0,
+        sort: 'relevance-desc',
+        matchCase: false,
+        wholeWord: true,
+        fuzzy: false,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('clearFilters removes only structured filters and page', async () => {
@@ -226,4 +350,3 @@ describe('useSermons', () => {
     expect(nextParams.get('page')).toBeNull();
   });
 });
-
