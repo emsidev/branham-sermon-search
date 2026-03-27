@@ -21,6 +21,11 @@ coverage/
 .nyc_output/
 *.tsbuildinfo
 
+# Generated local content database
+public/data/content.sqlite
+public/data/content.sqlite-shm
+public/data/content.sqlite-wal
+
 # Logs and diagnostics
 logs/
 *.log
