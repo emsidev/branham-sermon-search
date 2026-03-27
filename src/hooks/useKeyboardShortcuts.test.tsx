@@ -2,12 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KeyboardShortcutsProvider, useKeyboardShortcuts } from './useKeyboardShortcuts';
 
-let authUserId: string | null = 'user-1';
-let signInUserId: string | null = 'anon-1';
-let cloudRows: Array<{ action: string; key: string; updated_at: string }> = [];
-let cloudSelectError: unknown = null;
-let upsertError: unknown = null;
-const upsertCalls: unknown[] = [];
+const getShortcutBindingsMock = vi.fn();
+const saveShortcutBindingsMock = vi.fn();
 const localStorageState = new Map<string, string>();
 
 const localStorageMock: Storage = {
@@ -27,42 +23,25 @@ const localStorageMock: Storage = {
   },
 };
 
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    auth: {
-      getUser: vi.fn(async () => ({
-        data: {
-          user: authUserId ? { id: authUserId } : null,
-        },
-      })),
-      signInAnonymously: vi.fn(async () => ({
-        data: {
-          user: signInUserId ? { id: signInUserId } : null,
-        },
-        error: signInUserId ? null : new Error('Anonymous auth disabled'),
-      })),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(async () => ({
-          data: cloudSelectError ? null : cloudRows,
-          error: cloudSelectError,
-        })),
-      })),
-      upsert: vi.fn(async (rows: unknown) => {
-        upsertCalls.push(rows);
-        return { error: upsertError };
-      }),
-    })),
-  },
+vi.mock('@/data/dataPort', () => ({
+  getDataPort: vi.fn(async () => ({
+    getSearchMeta: vi.fn(),
+    listSermons: vi.fn(),
+    searchSermonHits: vi.fn(),
+    getSermonDetail: vi.fn(),
+    getAdjacentSermons: vi.fn(),
+    getBoundarySermons: vi.fn(),
+    getShortcutBindings: (...args: unknown[]) => getShortcutBindingsMock(...args),
+    saveShortcutBindings: (...args: unknown[]) => saveShortcutBindingsMock(...args),
+  })),
 }));
 
 function ShortcutSnapshot() {
-  const { bindings, syncStatus } = useKeyboardShortcuts();
+  const { bindings, storageStatus } = useKeyboardShortcuts();
   return (
     <>
       <div data-testid="books-shortcut">{bindings.open_books}</div>
-      <div data-testid="sync-status">{syncStatus}</div>
+      <div data-testid="storage-status">{storageStatus}</div>
     </>
   );
 }
@@ -84,17 +63,16 @@ describe('KeyboardShortcutsProvider', () => {
       writable: true,
     });
 
-    authUserId = 'user-1';
-    signInUserId = 'anon-1';
-    cloudRows = [];
-    cloudSelectError = null;
-    upsertError = null;
-    upsertCalls.splice(0, upsertCalls.length);
+    getShortcutBindingsMock.mockReset();
+    saveShortcutBindingsMock.mockReset();
     localStorageState.clear();
+
+    getShortcutBindingsMock.mockResolvedValue([]);
+    saveShortcutBindingsMock.mockResolvedValue(undefined);
   });
 
-  it('loads cloud bindings and keeps synced status', async () => {
-    cloudRows = [
+  it('loads stored bindings and reports local status', async () => {
+    getShortcutBindingsMock.mockResolvedValue([
       { action: 'open_books', key: 'n', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'focus_search', key: '/', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'open_settings', key: ',', updated_at: '2026-03-11T09:00:00.000Z' },
@@ -106,7 +84,7 @@ describe('KeyboardShortcutsProvider', () => {
       { action: 'cycle_highlight_mode', key: 'h', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'reader_extend_selection', key: 'ArrowRight', updated_at: '2026-03-11T09:00:00.000Z' },
       { action: 'reader_shrink_selection', key: 'ArrowLeft', updated_at: '2026-03-11T09:00:00.000Z' },
-    ];
+    ]);
 
     render(
       <KeyboardShortcutsProvider>
@@ -117,72 +95,11 @@ describe('KeyboardShortcutsProvider', () => {
     await waitFor(() => {
       expect(screen.getByTestId('books-shortcut')).toHaveTextContent('n');
     });
-    expect(screen.getByTestId('sync-status')).toHaveTextContent('synced');
-    expect(upsertCalls).toHaveLength(0);
+    expect(screen.getByTestId('storage-status')).toHaveTextContent('local');
   });
 
-  it('falls back to local cache when cloud read fails', async () => {
-    cloudSelectError = new Error('network down');
-    window.localStorage.setItem('message-search.keyboard-shortcuts.cache.v1', JSON.stringify({
-      bindings: {
-        focus_search: '/',
-        open_books: 'n',
-        open_settings: ',',
-        result_next: 'x',
-        result_prev: 'm',
-        toggle_reading_mode: 'r',
-        toggle_slide_view: 'p',
-        add_slide_highlight: 'g',
-        cycle_highlight_mode: 'h',
-        reader_extend_selection: 'ArrowRight',
-        reader_shrink_selection: 'ArrowLeft',
-      },
-      updatedAt: Date.now(),
-    }));
-
-    render(
-      <KeyboardShortcutsProvider>
-        <ShortcutSnapshot />
-      </KeyboardShortcutsProvider>
-    );
-
-    expect(screen.getByTestId('books-shortcut')).toHaveTextContent('n');
-    await waitFor(() => {
-      expect(screen.getByTestId('sync-status')).toHaveTextContent('local_fallback');
-    });
-  });
-
-  it('uploads newer local bindings to cloud during sync', async () => {
-    window.localStorage.setItem('message-search.keyboard-shortcuts.cache.v1', JSON.stringify({
-      bindings: {
-        focus_search: '/',
-        open_books: 'n',
-        open_settings: ',',
-        result_next: 'x',
-        result_prev: 'm',
-        toggle_reading_mode: 'r',
-        toggle_slide_view: 'p',
-        add_slide_highlight: 'g',
-        cycle_highlight_mode: 'h',
-        reader_extend_selection: 'ArrowRight',
-        reader_shrink_selection: 'ArrowLeft',
-      },
-      updatedAt: Date.parse('2026-03-11T11:00:00.000Z'),
-    }));
-
-    cloudRows = [
-      { action: 'open_books', key: 'b', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'focus_search', key: '/', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'open_settings', key: ',', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'result_next', key: 'x', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'result_prev', key: 'm', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'toggle_reading_mode', key: 'r', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'toggle_slide_view', key: 'p', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'add_slide_highlight', key: 'g', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'cycle_highlight_mode', key: 'h', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'reader_extend_selection', key: 'ArrowRight', updated_at: '2026-03-11T10:00:00.000Z' },
-      { action: 'reader_shrink_selection', key: 'ArrowLeft', updated_at: '2026-03-11T10:00:00.000Z' },
-    ];
+  it('falls back to error status when storage read fails', async () => {
+    getShortcutBindingsMock.mockRejectedValue(new Error('storage unavailable'));
 
     render(
       <KeyboardShortcutsProvider>
@@ -191,27 +108,11 @@ describe('KeyboardShortcutsProvider', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('books-shortcut')).toHaveTextContent('n');
+      expect(screen.getByTestId('storage-status')).toHaveTextContent('error');
     });
-
-    await waitFor(() => {
-      expect(upsertCalls.length).toBeGreaterThan(0);
-    });
-
-    const latestRows = upsertCalls.at(-1) as Array<{ action: string; key: string }>;
-    const openBooksRow = latestRows.find((row) => row.action === 'open_books');
-    expect(openBooksRow?.key).toBe('n');
-    const readingModeRow = latestRows.find((row) => row.action === 'toggle_reading_mode');
-    expect(readingModeRow?.key).toBe('r');
-    const slideViewRow = latestRows.find((row) => row.action === 'toggle_slide_view');
-    expect(slideViewRow?.key).toBe('p');
-    const addSlideRow = latestRows.find((row) => row.action === 'add_slide_highlight');
-    expect(addSlideRow?.key).toBe('g');
-    const cycleHighlightRow = latestRows.find((row) => row.action === 'cycle_highlight_mode');
-    expect(cycleHighlightRow?.key).toBe('h');
   });
 
-  it('applies shortcut edits immediately while preserving sync status', async () => {
+  it('applies shortcut edits immediately and persists changes', async () => {
     render(
       <KeyboardShortcutsProvider>
         <ShortcutEditor />
@@ -221,5 +122,9 @@ describe('KeyboardShortcutsProvider', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /set books shortcut/i }));
     expect(screen.getByTestId('books-shortcut')).toHaveTextContent('x');
+    await waitFor(() => {
+      expect(saveShortcutBindingsMock).toHaveBeenCalled();
+    });
   });
 });
+

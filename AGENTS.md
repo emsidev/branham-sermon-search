@@ -80,10 +80,6 @@ Use this file to route work through the local `.claude` assets in this repo.
   File: `.claude/agents/frontend-developer.md`
 - `prompt-engineer`: Prompt system design, optimization, and evaluation specialist.  
   File: `.claude/agents/prompt-engineer.md`
-- `supabase-realtime-optimizer`: Supabase realtime performance and connection specialist.  
-  File: `.claude/agents/supabase-realtime-optimizer.md`
-- `supabase-schema-architect`: Supabase schema, migrations, and RLS specialist.  
-  File: `.claude/agents/supabase-schema-architect.md`
 - `task-decomposition-expert`: Complex-goal decomposition and workflow orchestration specialist.  
   File: `.claude/agents/task-decomposition-expert.md`
 - `Thinking-Beast-Mode`: Deep autonomous problem-solving agent profile.  

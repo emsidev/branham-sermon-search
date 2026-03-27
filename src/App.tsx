@@ -8,6 +8,7 @@ import { AudioProvider } from "@/hooks/useAudioPlayer";
 import { KeyboardShortcutsProvider } from "@/hooks/useKeyboardShortcuts";
 import AudioPlayerBar from "@/components/AudioPlayerBar";
 import GlobalKeyboardShortcuts from "@/components/GlobalKeyboardShortcuts";
+import DataStorageBanner from "@/components/DataStorageBanner";
 import AppChrome from "@/components/layout/AppChrome";
 import { THEME_STORAGE_KEY } from "@/lib/preferences";
 import Index from "./pages/Index";
@@ -22,6 +23,7 @@ const queryClient = new QueryClient();
 
 const AppRoutes = () => (
   <>
+    <DataStorageBanner />
     <GlobalKeyboardShortcuts />
     <Routes>
       <Route element={<AppChrome />}>

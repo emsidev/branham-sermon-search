@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { format, parseISO } from 'date-fns';
 import type { SearchHit } from '@/hooks/useSermons';
 import {
   buildSermonHitHref,
@@ -11,6 +10,7 @@ import {
   splitTextByTerms,
   type SearchMatchOptions,
 } from '@/lib/search';
+import { formatDate } from '@/lib/utils';
 
 interface SearchHitsTableProps {
   hits: SearchHit[];
@@ -192,12 +192,4 @@ function renderHighlightedSnippet(
     }
     return <React.Fragment key={idx}>{part.text}</React.Fragment>;
   });
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return format(parseISO(dateStr), 'MMM d, yyyy');
-  } catch {
-    return dateStr;
-  }
 }

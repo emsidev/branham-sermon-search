@@ -40,14 +40,6 @@ lerna-debug.log*
 !.env.*.example
 *.local
 
-# Supabase local state
-supabase/.temp/
-supabase/.branches/
-supabase/.cache/
-supabase/.local/
-supabase/functions/.env
-supabase/functions/.env.*
-
 # Test artifacts
 playwright-report/
 test-results/

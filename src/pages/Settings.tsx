@@ -34,8 +34,8 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const {
     bindings,
-    syncStatus,
-    syncWarning,
+    storageStatus,
+    storageWarning,
     setShortcutBinding,
     resetShortcutBinding,
     resetAllShortcutBindings,
@@ -341,10 +341,10 @@ export default function Settings() {
             </div>
 
             <p className="mt-3 font-mono text-xs text-muted-foreground">
-              Sync status: {syncStatus === 'synced' ? 'synced' : 'local fallback'}
+              Storage status: {storageStatus === 'local' ? 'ready' : 'error'}
             </p>
-            {syncWarning && (
-              <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">{syncWarning}</p>
+            {storageWarning && (
+              <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">{storageWarning}</p>
             )}
           </div>
         </section>

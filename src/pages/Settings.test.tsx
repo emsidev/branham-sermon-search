@@ -62,7 +62,9 @@ vi.mock('@/lib/preferences', () => ({
 vi.mock('@/hooks/useKeyboardShortcuts', () => ({
   useKeyboardShortcuts: () => ({
     bindings: shortcutBindingsMock,
-    syncStatus: 'synced',
+    storageStatus: 'local',
+    storageWarning: null,
+    syncStatus: 'local',
     syncWarning: null,
     setShortcutBinding: setShortcutBindingMock,
     resetShortcutBinding: resetShortcutBindingMock,

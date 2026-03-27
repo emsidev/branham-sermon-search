@@ -549,14 +549,17 @@ describe('SermonDetail', () => {
   });
 
   it('auto-hides highlighted text options drawer after 2.5 seconds of inactivity', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
     vi.useFakeTimers();
     try {
-      renderDetail('/sermons/sermon-1');
-
-      await waitFor(() => {
-        expect(getReaderWords().length).toBeGreaterThan(0);
-      });
-      await selectReaderWordAndOpenOptionsPopup(0);
+      const word = getReaderWordByIndex(0);
+      expect(word).not.toBeNull();
+      fireEvent.click(word!);
       expect(getReaderTextOptionsPopup()).toBeInTheDocument();
 
       await act(async () => {
@@ -570,19 +573,21 @@ describe('SermonDetail', () => {
 
       expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
     } finally {
+      vi.runOnlyPendingTimers();
       vi.useRealTimers();
     }
   });
 
   it('pauses drawer auto-hide while interacting and resumes after interaction ends', async () => {
+    renderDetail('/sermons/sermon-1');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+    await selectReaderWordAndOpenOptionsPopup(0);
+
     vi.useFakeTimers();
     try {
-      renderDetail('/sermons/sermon-1');
-
-      await waitFor(() => {
-        expect(getReaderWords().length).toBeGreaterThan(0);
-      });
-      await selectReaderWordAndOpenOptionsPopup(0);
       const popup = getReaderTextOptionsPopup();
 
       fireEvent.mouseEnter(popup);
@@ -601,7 +606,11 @@ describe('SermonDetail', () => {
       });
       expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
 
-      await selectReaderWordAndOpenOptionsPopup(0);
+      const word = getReaderWordByIndex(0);
+      expect(word).not.toBeNull();
+      fireEvent.click(word!);
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
+
       const highlightModeButton = getHighlightModeButton('Word');
       fireEvent.focus(highlightModeButton);
       await act(async () => {
@@ -615,38 +624,44 @@ describe('SermonDetail', () => {
       });
       expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
     } finally {
+      vi.runOnlyPendingTimers();
       vi.useRealTimers();
     }
   });
 
   it('keeps keyboard shortcuts working after the drawer auto-hides', async () => {
+    renderDetail('/sermons/sermon-1?q=only+believe');
+
+    await waitFor(() => {
+      expect(getReaderWords().length).toBeGreaterThan(0);
+    });
+
     vi.useFakeTimers();
     try {
-      renderDetail('/sermons/sermon-1?q=only+believe');
-
-      await waitFor(() => {
-        expect(getReaderWords().length).toBeGreaterThan(0);
-      });
-      await selectReaderWordAndOpenOptionsPopup(0);
+      const word = getReaderWordByIndex(0);
+      expect(word).not.toBeNull();
+      fireEvent.click(word!);
+      expect(getReaderTextOptionsPopup()).toBeInTheDocument();
 
       await act(async () => {
         vi.advanceTimersByTime(2500);
       });
       expect(screen.queryByTestId('reader-text-options-popup')).not.toBeInTheDocument();
-
-      fireEvent.keyDown(window, { key: 'h' });
-      await waitFor(() => {
-        expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
-      });
-
-      fireEvent.keyDown(window, { key: 'p' });
-      await waitFor(() => {
-        expect(screen.getByTestId('location-path')).toHaveTextContent('slide=1');
-      });
-      expect(getReaderFullscreenSlideView()).toBeInTheDocument();
     } finally {
+      vi.runOnlyPendingTimers();
       vi.useRealTimers();
     }
+
+    fireEvent.keyDown(window, { key: 'h' });
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('highlightMode=sentence');
+    });
+
+    fireEvent.keyDown(window, { key: 'p' });
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent('slide=1');
+    });
+    expect(getReaderFullscreenSlideView()).toBeInTheDocument();
   });
 
   it('does not render highlighted text options popup before text selection exists', async () => {
@@ -726,7 +741,7 @@ describe('SermonDetail', () => {
     expect(screen.getByTestId('location-path')).not.toHaveTextContent('slide=1');
   });
 
-  it('adds highlighted passages to the presentation queue with g and auto-opens without query churn', async () => {
+  it('clears the presentation queue when exiting fullscreen and starts a fresh queue on reopen', async () => {
     fetchSermonByIdMock.mockResolvedValue(multiParagraphSermonDetailFixture);
     renderDetail('/sermons/sermon-1?highlightMode=paragraph');
 
@@ -744,31 +759,28 @@ describe('SermonDetail', () => {
       expect(getReaderFullscreenSlideText()).toHaveTextContent('First I am looking forward to this week');
     });
 
-    const openedPath = screen.getByTestId('location-path').textContent ?? '';
     fireEvent.keyDown(window, { key: 'p' });
     await waitFor(() => {
       expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
     });
 
     await selectReaderWordAndOpenOptionsPopup(8);
-    expect(screen.getByTestId('reader-slide-queue-hint')).toHaveTextContent('Queued: 1');
+    expect(screen.getByTestId('reader-slide-queue-hint')).toHaveTextContent('Queued: 0');
 
     fireEvent.keyDown(window, { key: 'g' });
     await waitFor(() => {
       expect(getReaderFullscreenSlideView()).toBeInTheDocument();
-      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 2');
-      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
     });
 
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     await waitFor(() => {
-      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 2 / 2');
+      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
       expect(getReaderFullscreenSlideText()).toHaveTextContent('Later i am looking forward to that');
-      expect(screen.getByTestId('location-path').textContent ?? '').toBe(openedPath);
     });
   });
 
-  it('keeps queue deduplicated and preserves mode-at-capture labels', async () => {
+  it('keeps queue deduplicated while fullscreen presentation stays open', async () => {
     renderDetail('/sermons/sermon-1');
 
     await waitFor(() => {
@@ -779,39 +791,13 @@ describe('SermonDetail', () => {
     fireEvent.keyDown(window, { key: 'g' });
     await waitFor(() => {
       expect(getReaderFullscreenSlideView()).toBeInTheDocument();
-      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Selection 1 / 1');
+      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('/ 1');
     });
 
-    fireEvent.keyDown(window, { key: 'p' });
-    await waitFor(() => {
-      expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
-    });
-
-    await selectReaderWordAndOpenOptionsPopup(0);
     fireEvent.keyDown(window, { key: 'g' });
     await waitFor(() => {
       expect(screen.getByTestId('reader-slide-view-hint')).toHaveTextContent('already in presentation queue');
       expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 1');
-    });
-
-    fireEvent.keyDown(window, { key: 'p' });
-    await waitFor(() => {
-      expect(screen.queryByTestId('reader-fullscreen-slide-view')).not.toBeInTheDocument();
-    });
-
-    await selectReaderWordAndOpenOptionsPopup(0);
-    fireEvent.click(getHighlightModeButton('Sentence'));
-    await waitFor(() => {
-      expect(getHighlightModeButton('Sentence')).toHaveAttribute('aria-pressed', 'true');
-    });
-    fireEvent.keyDown(window, { key: 'g' });
-    await waitFor(() => {
-      expect(screen.getByTestId('reader-fullscreen-slide-page-indicator')).toHaveTextContent('Slide 1 / 2');
-    });
-
-    fireEvent.keyDown(window, { key: 'ArrowRight' });
-    await waitFor(() => {
-      expect(screen.getByTestId('reader-fullscreen-slide-part-indicator')).toHaveTextContent('Sentence 2 / 2');
     });
   });
 

@@ -7,14 +7,16 @@ export default function AppChrome() {
   const isSermonDetailRoute = Boolean(matchPath({ path: '/sermons/:id', end: true }, location.pathname));
   const isReadingModeEnabled = new URLSearchParams(location.search).get('reading') === '1';
   const shouldHideGlobalChrome = isSermonDetailRoute && isReadingModeEnabled;
+  const shouldShowGlobalNavbar = !shouldHideGlobalChrome;
+  const shouldShowGlobalFooter = !shouldHideGlobalChrome;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {!shouldHideGlobalChrome && <GlobalNavbar />}
+      {shouldShowGlobalNavbar && <GlobalNavbar />}
       <main className="flex-1">
         <Outlet />
       </main>
-      {!shouldHideGlobalChrome && <GlobalFooter />}
+      {shouldShowGlobalFooter && <GlobalFooter />}
     </div>
   );
 }

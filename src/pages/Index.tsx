@@ -7,6 +7,8 @@ import { formatShortcutKey } from '@/lib/keyboardShortcuts';
 import { runWithViewTransition } from '@/lib/viewTransition';
 import { getInstantSearchEnabled, setInstantSearchEnabled } from '@/lib/preferences';
 import type { HomeSearchTransitionState } from '@/lib/searchNavigation';
+import { useTheme } from 'next-themes';
+import { getLogoUrl } from '@/lib/utils';
 
 export default function Index() {
   const navigate = useNavigate();
@@ -166,14 +168,25 @@ export default function Index() {
     });
   }, [fuzzy, instantSearchEnabled, matchCase, navigateToSearch, query, wholeWord]);
 
+  
   return (
     <main className="mx-auto w-full max-w-[860px] px-6 pb-12 pt-20">
       <div className="mx-auto w-full max-w-[640px] text-center">
-        <h1 className="font-mono text-4xl font-medium tracking-tight text-foreground sm:text-5xl">
-          the table search
-        </h1>
+        <div className="mx-auto flex w-fit items-center gap-4 sm:gap-5">
+          <img
+            src={getLogoUrl()}
+            alt="the table search logo"
+            className="h-auto w-[68px] sm:w-[84px]"
+            loading="eager"
+            decoding="async"
+          />
+          <h1 className="font-sans text-5xl font-medium tracking-tight text-foreground sm:text-6xl">
+            the table search
+          </h1>
+        </div>
+
         <p className="mt-5 text-lg text-muted-foreground">
-          A fast, modern browser for the table search
+          A fast, modern browser for the table
         </p>
 
         <div className="mt-10">

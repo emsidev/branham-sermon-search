@@ -8,6 +8,7 @@ import {
   isHomeSearchTransitionState,
   isSearchAutofocusTransitionState,
 } from '@/lib/searchNavigation';
+import { getLogoUrl } from '@/lib/utils';
 
 const SCROLL_DELTA_THRESHOLD = 8;
 const MIN_SCROLL_TO_HIDE = 64;
@@ -333,10 +334,25 @@ export default function GlobalNavbar() {
         isVisible ? 'translate-y-0' : '-translate-y-full',
       ].join(' ')}
     >
-      <div className={`mx-auto w-full max-w-[1200px] px-6 py-3 ${shouldShowHeaderSearch ? 'grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-4' : 'flex items-center justify-end'}`}>
+      <div className={`mx-auto w-full max-w-[1200px] px-6 py-3 ${shouldShowHeaderSearch ? 'grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-8' : 'flex items-center justify-end'}`}>
         {shouldShowHeaderSearch && (
-          <NavLink to="/" className="shrink-0 font-mono text-sm font-medium text-foreground hover:text-link">
-            the table search
+          <NavLink
+            to="/"
+            className="shrink-0 transition-opacity hover:opacity-80"
+            aria-label="the table search"
+          >
+            <div className="flex items-center gap-4 sm:gap-3">
+              <img
+                src={getLogoUrl()}
+                alt="the table search"
+                className="h-7 w-7"
+                loading="eager"
+                decoding="async"
+              />
+              <h1 className="font-sans text-xl font-medium tracking-tight text-foreground sm:text-2xl">
+                the table search
+              </h1>
+            </div>
           </NavLink>
         )}
 

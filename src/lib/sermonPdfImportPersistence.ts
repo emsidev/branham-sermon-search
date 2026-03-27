@@ -2,6 +2,7 @@ export type SermonPayload = {
   sermon_code: string;
   title: string;
   date: string;
+  year: number | null;
   location: string | null;
   scripture: string | null;
   city: string | null;

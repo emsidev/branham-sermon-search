@@ -91,4 +91,27 @@ The Spoken Word
     expect(parsed.paragraphs.map((paragraph) => paragraph.paragraph_text).join(' ')).not.toContain('The Spoken Word');
     expect(parsed.paragraphs.map((paragraph) => paragraph.paragraph_text).join(' ')).not.toContain('Have Faith In God 3');
   });
+
+  it('treats the icon line as paragraph one and strips spaced title/header text', () => {
+    const parsed = parseSermonParagraphsFromExtractedPages([
+      `FA ITH IS THE SUBSTA N CE
+\uF6E1 We’re getting some new gadgets for recording.
+2 We’re hardly sure where we are each night.`,
+      `2 THE SPOKEN WOR D
+9 Now, we do not have much time.`,
+      `FAITH IS THE SUBS TA NCE 3
+18 And friends, I can only help you if you believe me.`,
+    ]);
+
+    expect(parsed.title_from_pdf).toBe('FA ITH IS THE SUBSTA N CE');
+    expect(parsed.paragraphs[0]).toEqual({
+      paragraph_number: 1,
+      printed_paragraph_number: null,
+      paragraph_text: 'We’re getting some new gadgets for recording.',
+    });
+
+    const combinedText = parsed.paragraphs.map((paragraph) => paragraph.paragraph_text).join(' ');
+    expect(combinedText).not.toContain('FA ITH IS THE SUBSTA N CE');
+    expect(combinedText).not.toContain('THE SPOKEN WOR D');
+  });
 });

@@ -16,7 +16,7 @@ export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 
 export type ShortcutBindings = Record<ShortcutAction, string>;
 
-export type ShortcutSyncStatus = 'synced' | 'local_fallback';
+export type ShortcutStorageStatus = 'local' | 'error';
 
 export interface ShortcutDefinition {
   action: ShortcutAction;

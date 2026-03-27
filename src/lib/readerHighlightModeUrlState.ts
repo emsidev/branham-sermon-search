@@ -1,7 +1,7 @@
 import type { ReaderHighlightMode } from './readerWordNavigation';
 
 export const READER_HIGHLIGHT_MODE_QUERY_PARAM = 'highlightMode';
-export const DEFAULT_READER_HIGHLIGHT_MODE: ReaderHighlightMode = 'word';
+export const DEFAULT_READER_HIGHLIGHT_MODE: ReaderHighlightMode = 'sentence';
 
 const READER_HIGHLIGHT_MODES = new Set<ReaderHighlightMode>([
   'word',

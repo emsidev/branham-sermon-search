@@ -77,6 +77,22 @@ Notes:
 - `dist:desktop` builds a Windows NSIS installer into `release/` via Docker (`electronuserland/builder:wine`).
 - Optional share-link mapping from desktop URLs to web URLs is controlled by `VITE_PUBLIC_WEB_BASE_URL`.
 
+## Local-first data
+
+The app now supports a local-first data flow through a shared `DataPort` abstraction.
+
+- Desktop uses Electron IPC (`window.desktopData`) backed by SQLite files in `app.getPath('userData')`.
+- Web uses a worker-backed SQLite store with local persistence. If local storage initialization fails for a tab, that tab runs without offline sermon data.
+- Media (`pdf_source_path`, `audio_url`) remains remote in v1 and requires internet access.
+
+### SQLite data scripts
+
+```sh
+npm run build:content-sqlite
+```
+
+- `build:content-sqlite` creates `public/data/content.sqlite` and `public/data/content-manifest.json`.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.

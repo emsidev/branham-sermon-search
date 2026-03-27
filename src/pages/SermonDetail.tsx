@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Play, Share2, Check, FileText, Search as SearchIcon } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
 import { fetchSermonById, fetchAdjacentSermons, fetchBoundarySermons, type SermonDetail as Sermon } from '@/hooks/useSermons';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -62,6 +61,7 @@ import {
   withReaderSlideSelectionSearchParams,
 } from '@/lib/readerSlideViewUrlState';
 import { buildShareUrl } from '@/lib/shareUrl';
+import { formatLongDate } from '@/lib/utils';
 
 interface AdjacentSermon {
   id: string;
@@ -946,6 +946,7 @@ export default function SermonDetail() {
   });
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
   const [selectedWordRange, setSelectedWordRange] = useState<ReaderWordSelectionRange | null>(null);
   const [isReaderTextOptionsDrawerVisible, setIsReaderTextOptionsDrawerVisible] = useState(false);
   const [isSlideShortcutHintVisible, setIsSlideShortcutHintVisible] = useState(false);
@@ -962,8 +963,20 @@ export default function SermonDetail() {
   const slideShortcutHintTimeoutRef = useRef<number | null>(null);
   const readingModeToggleAnchorRef = useRef<ReadingModeToggleAnchorSnapshot | null>(null);
   const presentationHighlightQueueRef = useRef<ReaderSlideQueueEntry[]>([]);
+  const wasReaderSlideViewEnabledRef = useRef(false);
   const { play, url: activeAudioUrl } = useAudioPlayer();
   const { bindings } = useKeyboardShortcuts();
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const searchQuery = searchParams.get('q')?.trim() ?? '';
   const matchSource = searchParams.get('source');
@@ -1422,10 +1435,8 @@ export default function SermonDetail() {
     });
   }, [setReaderSlideViewEnabled]);
 
-  const closeReaderSlideView = useCallback((replace = false, resetQueue = false) => {
-    if (resetQueue) {
-      setPresentationHighlightQueue([]);
-    }
+  const closeReaderSlideView = useCallback((replace = false) => {
+    setPresentationHighlightQueue([]);
     setReaderSlideViewEnabled(false, { replace });
   }, [setReaderSlideViewEnabled]);
 
@@ -1683,7 +1694,7 @@ export default function SermonDetail() {
       bodyWordRegionMap.totalWords,
     );
     if (!hydratedRange) {
-      closeReaderSlideView(true, true);
+      closeReaderSlideView(true);
       return;
     }
 
@@ -1714,7 +1725,7 @@ export default function SermonDetail() {
       ?? createReaderSlideQueueEntryFromRange(bodyWordRegions, selectedWordRange, readerHighlightMode);
     if (!primaryQueueEntry) {
       if (!readerSlideSelectionFromSearchParams && activePresentationHighlightQueue.length === 0) {
-        closeReaderSlideView(true, true);
+        closeReaderSlideView(true);
       }
       return;
     }
@@ -1753,6 +1764,14 @@ export default function SermonDetail() {
     }
 
     setReaderSlidePage(READER_SLIDE_DEFAULT_PAGE);
+  }, [isReaderSlideViewEnabled]);
+
+  useEffect(() => {
+    if (wasReaderSlideViewEnabledRef.current && !isReaderSlideViewEnabled) {
+      setPresentationHighlightQueue([]);
+    }
+
+    wasReaderSlideViewEnabledRef.current = isReaderSlideViewEnabled;
   }, [isReaderSlideViewEnabled]);
 
   useEffect(() => {
@@ -2097,7 +2116,7 @@ export default function SermonDetail() {
       pathname: window.location.pathname,
       search: window.location.search,
       hash: window.location.hash,
-      desktopRuntime: window.desktopRuntime,
+      desktopRuntime: typeof window !== 'undefined' && 'desktopRuntime' in window ? (window as any).desktopRuntime : undefined,
       publicWebBaseUrl: import.meta.env.VITE_PUBLIC_WEB_BASE_URL,
     });
 
@@ -2234,7 +2253,7 @@ export default function SermonDetail() {
                   className="text-[11px] uppercase tracking-[0.16em] text-white/62"
                   data-testid="reader-fullscreen-slide-part-indicator"
                 >
-                  {getReaderSlideSourceLabel(activeReaderSlidePage?.modeAtCapture ?? 'word')} {activeReaderSlidePage?.sourceIndex ?? 1}
+                  {getReaderSlideSourceLabel(activeReaderSlidePage?.modeAtCapture ?? 'sentence')} {activeReaderSlidePage?.sourceIndex ?? 1}
                   {' / '}
                   {Math.max(1, activeReaderSlidePage?.sourceTotal ?? 1)}
                   {(activeReaderSlidePage?.continuationTotal ?? 1) > 1
@@ -2393,7 +2412,13 @@ export default function SermonDetail() {
               <div className="inline-flex overflow-hidden rounded-lg border border-border bg-background text-xs font-mono">
                 {sermon.audio_url && (
                 <button
-                  onClick={() => play(sermon.audio_url, sermon.title)}
+                  onClick={() => {
+                    if (!isOnline) {
+                      return;
+                    }
+                    play(sermon.audio_url, sermon.title);
+                  }}
+                  disabled={!isOnline}
                   className="inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row"
                 >
                   <Play className="h-3 w-3" />
@@ -2405,7 +2430,13 @@ export default function SermonDetail() {
                     href={sermon.pdf_source_path}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row ${sermon.audio_url ? 'border-l border-border' : ''}`}
+                    aria-disabled={!isOnline}
+                    onClick={(event) => {
+                      if (!isOnline) {
+                        event.preventDefault();
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-foreground hover:bg-hover-row ${!isOnline ? 'cursor-not-allowed opacity-60' : ''} ${sermon.audio_url ? 'border-l border-border' : ''}`}
                   >
                     <FileText className="h-3 w-3" />
                     PDF
@@ -2433,6 +2464,11 @@ export default function SermonDetail() {
                   {shared ? 'Copied!' : 'Share'}
                 </button>
               </div>
+              {!isOnline && (sermon.audio_url || sermon.pdf_source_path) ? (
+                <p className="mt-2 text-right text-[11px] font-mono text-muted-foreground">
+                  Internet required for audio/PDF.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -2556,14 +2592,6 @@ function MetaField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatLongDate(dateStr: string): string {
-  try {
-    return format(parseISO(dateStr), 'MMMM d, yyyy');
-  } catch {
-    return dateStr;
-  }
-}
-
 function formatDuration(durationSeconds: number | null): string | null {
   if (durationSeconds == null || durationSeconds < 0) {
     return null;
@@ -2580,4 +2608,3 @@ function formatDuration(durationSeconds: number | null): string | null {
 
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
-

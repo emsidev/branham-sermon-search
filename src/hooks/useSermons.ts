@@ -1,23 +1,19 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import type { Database, Tables } from '@/integrations/supabase/types';
+import { getDataPort } from '@/data/dataPort';
+import type {
+  AdjacentSermonRecord,
+  SearchHitRecord,
+  SermonDetailRecord,
+  SermonParagraphRecord,
+  SermonRecord,
+} from '@/data/contracts';
 
-export type Sermon = Tables<'sermons'>;
-export type SearchHit = Database['public']['Functions']['search_sermon_chunks']['Returns'][number];
-type SermonDocument = Tables<'sermon_documents'>;
-type SermonAudio = Tables<'sermon_audio'>;
-export type SermonParagraph = Pick<
-  Tables<'sermon_paragraphs'>,
-  'paragraph_number' | 'printed_paragraph_number' | 'paragraph_text'
->;
+export type Sermon = SermonRecord;
+export type SearchHit = SearchHitRecord;
+export type SermonParagraph = SermonParagraphRecord;
 
-export interface SermonDetail extends Sermon {
-  pdf_source_path: string | null;
-  audio_url: string | null;
-  duration_seconds: number | null;
-  paragraphs: SermonParagraph[];
-}
+export type SermonDetail = SermonDetailRecord;
 
 interface UseSermonFilters {
   q: string;
@@ -165,23 +161,11 @@ export function useSermons(): UseSermonsResult {
   // Fetch meta (years, titles, locations)
   useEffect(() => {
     async function fetchMeta() {
-      const [yearsRes, titlesRes, locationsRes] = await Promise.all([
-        supabase.from('sermons').select('year').order('year', { ascending: false }),
-        supabase.from('sermons').select('title').order('title', { ascending: true }),
-        supabase.from('sermons').select('location'),
-      ]);
-      if (yearsRes.data) {
-        const uniqueYears = [...new Set(yearsRes.data.map(r => r.year).filter(Boolean))] as number[];
-        setYears(uniqueYears.sort((a, b) => b - a));
-      }
-      if (titlesRes.data) {
-        const uniqueTitles = [...new Set(titlesRes.data.map(r => r.title).filter(Boolean))] as string[];
-        setTitles(uniqueTitles.sort((a, b) => a.localeCompare(b)));
-      }
-      if (locationsRes.data) {
-        const uniqueLocations = [...new Set(locationsRes.data.map(r => r.location).filter(Boolean))] as string[];
-        setLocations(uniqueLocations.sort());
-      }
+      const port = await getDataPort();
+      const meta = await port.getSearchMeta();
+      setYears(meta.years);
+      setTitles(meta.titles);
+      setLocations(meta.locations);
     }
     fetchMeta();
   }, []);
@@ -191,23 +175,24 @@ export function useSermons(): UseSermonsResult {
     async function fetchSermons() {
       setLoading(true);
       const from = (filters.page - 1) * PAGE_SIZE;
+      const port = await getDataPort();
 
       if (isSearchMode) {
-        const { data, error } = await supabase.rpc('search_sermon_chunks', {
-          p_query: filters.q.trim(),
-          p_year: filters.year ? parseInt(filters.year, 10) : null,
-          p_title: filters.title || null,
-          p_location: filters.location || null,
-          p_limit: PAGE_SIZE,
-          p_offset: from,
-          p_sort: filters.sort,
-          p_match_case: filters.fuzzy ? false : filters.matchCase,
-          p_match_whole_word: filters.fuzzy ? false : filters.wholeWord,
-          p_enable_fuzzy: filters.fuzzy,
+        const data = await port.searchSermonHits({
+          query: filters.q.trim(),
+          year: filters.year ? parseInt(filters.year, 10) : null,
+          title: filters.title || null,
+          location: filters.location || null,
+          limit: PAGE_SIZE,
+          offset: from,
+          sort: filters.sort,
+          matchCase: filters.fuzzy ? false : filters.matchCase,
+          wholeWord: filters.fuzzy ? false : filters.wholeWord,
+          fuzzy: filters.fuzzy,
         });
 
-        if (!error && data) {
-          setSearchHits(data);
+        if (data) {
+          setSearchHits(data as SearchHit[]);
           setSermons([]);
           setTotal(data[0]?.total_count ?? 0);
         } else {
@@ -220,37 +205,19 @@ export function useSermons(): UseSermonsResult {
         return;
       }
 
-      let query = supabase.from('sermons').select('*', { count: 'exact' });
+      const { rows, total: totalCount } = await port.listSermons({
+        year: filters.year ? parseInt(filters.year, 10) : null,
+        title: filters.title || null,
+        location: filters.location || null,
+        limit: PAGE_SIZE,
+        offset: from,
+        sort: filters.sort,
+      });
 
-      // Filters
-      if (filters.year) {
-        query = query.eq('year', parseInt(filters.year, 10));
-      }
-      if (filters.title) {
-        query = query.eq('title', filters.title);
-      }
-      if (filters.location) {
-        query = query.eq('location', filters.location);
-      }
-
-      // Sorting
-      const [sortField, sortDir] = filters.sort.split('-') as [string, string];
-      if (sortField === 'date') {
-        query = query.order('date', { ascending: sortDir === 'asc' });
-      } else if (sortField === 'title') {
-        query = query.order('title', { ascending: sortDir === 'asc' });
-      } else {
-        query = query.order('date', { ascending: false });
-      }
-
-      query = query.range(from, from + PAGE_SIZE - 1);
-
-      const { data, count, error } = await query;
-
-      if (!error && data) {
-        setSermons(data);
+      if (rows) {
+        setSermons(rows as Sermon[]);
         setSearchHits([]);
-        setTotal(count || 0);
+        setTotal(totalCount || 0);
       } else {
         setSermons([]);
         setSearchHits([]);
@@ -279,58 +246,16 @@ export function useSermons(): UseSermonsResult {
 }
 
 export async function fetchSermonById(id: string): Promise<SermonDetail | null> {
-  const [{ data: sermon }, { data: doc }, { data: audio }, { data: paragraphs }] = await Promise.all([
-    supabase.from('sermons').select('*').eq('id', id).single(),
-    supabase.from('sermon_documents').select('pdf_source_path').eq('sermon_id', id).maybeSingle(),
-    supabase.from('sermon_audio').select('audio_url,duration_seconds').eq('sermon_id', id).maybeSingle(),
-    supabase
-      .from('sermon_paragraphs')
-      .select('paragraph_number,printed_paragraph_number,paragraph_text')
-      .eq('sermon_id', id)
-      .order('paragraph_number', { ascending: true }),
-  ]);
-
-  if (!sermon) {
-    return null;
-  }
-
-  const typedDoc = doc as Pick<SermonDocument, 'pdf_source_path'> | null;
-  const typedAudio = audio as Pick<SermonAudio, 'audio_url' | 'duration_seconds'> | null;
-
-  return {
-    ...sermon,
-    pdf_source_path: typedDoc?.pdf_source_path ?? null,
-    audio_url: typedAudio?.audio_url ?? null,
-    duration_seconds: typedAudio?.duration_seconds ?? null,
-    paragraphs: (paragraphs as SermonParagraph[] | null) ?? [],
-  };
+  const port = await getDataPort();
+  return port.getSermonDetail(id);
 }
 
-interface AdjacentSermon {
-  id: string;
-  title: string;
-  date: string;
+export async function fetchAdjacentSermons(date: string): Promise<{ prev: AdjacentSermonRecord | null; next: AdjacentSermonRecord | null }> {
+  const port = await getDataPort();
+  return port.getAdjacentSermons(date);
 }
 
-export async function fetchAdjacentSermons(date: string): Promise<{ prev: AdjacentSermon | null; next: AdjacentSermon | null }> {
-  const [prevRes, nextRes] = await Promise.all([
-    supabase.from('sermons').select('id,title,date').lt('date', date).order('date', { ascending: false }).limit(1),
-    supabase.from('sermons').select('id,title,date').gt('date', date).order('date', { ascending: true }).limit(1),
-  ]);
-  return {
-    prev: (prevRes.data?.[0] as AdjacentSermon) || null,
-    next: (nextRes.data?.[0] as AdjacentSermon) || null,
-  };
-}
-
-export async function fetchBoundarySermons(): Promise<{ first: AdjacentSermon | null; last: AdjacentSermon | null }> {
-  const [firstRes, lastRes] = await Promise.all([
-    supabase.from('sermons').select('id,title,date').order('date', { ascending: true }).limit(1),
-    supabase.from('sermons').select('id,title,date').order('date', { ascending: false }).limit(1),
-  ]);
-
-  return {
-    first: (firstRes.data?.[0] as AdjacentSermon) || null,
-    last: (lastRes.data?.[0] as AdjacentSermon) || null,
-  };
+export async function fetchBoundarySermons(): Promise<{ first: AdjacentSermonRecord | null; last: AdjacentSermonRecord | null }> {
+  const port = await getDataPort();
+  return port.getBoundarySermons();
 }

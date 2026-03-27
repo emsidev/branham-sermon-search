@@ -10,6 +10,7 @@ function buildSermonPayload(overrides: Partial<SermonPayload> = {}): SermonPaylo
     sermon_code: '47-0412',
     title: 'Faith Is The Substance',
     date: '1947-04-12',
+    year: 1947,
     location: null,
     scripture: null,
     city: null,

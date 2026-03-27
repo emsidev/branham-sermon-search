@@ -5,7 +5,7 @@ export default function About() {
     <SubpageLayout title="about" description="About this sermon search experience.">
       <section className="surface-card p-6">
         <p className="text-lg text-muted-foreground">
-          the table search is a fast, modern browser for the table search.
+          the table search is A fast, modern browser for the table.
         </p>
       </section>
     </SubpageLayout>
