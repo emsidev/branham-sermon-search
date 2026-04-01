@@ -1,16 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getResolvedDataPortMode, type ResolvedDataPortMode } from '@/data/dataPort';
 
-const DEFAULT_CONTENT_SQLITE_DOWNLOAD_URL = 'https://github.com/emsidev/branham-sermon-search/releases/download/content-db/content.sqlite';
-
-interface ContentManifest {
-  downloadUrl?: string;
-  url?: string;
-}
-
 export default function DataStorageBanner() {
   const [mode, setMode] = useState<ResolvedDataPortMode | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string>(DEFAULT_CONTENT_SQLITE_DOWNLOAD_URL);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,43 +16,6 @@ export default function DataStorageBanner() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (mode !== 'web-sqlite-unavailable') {
-      return;
-    }
-
-    let cancelled = false;
-    void fetch('/data/content-manifest.json', { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) {
-          return null;
-        }
-
-        return (await response.json()) as ContentManifest;
-      })
-      .then((manifest) => {
-        if (cancelled || !manifest) {
-          return;
-        }
-
-        const candidate = manifest.downloadUrl ?? manifest.url;
-        if (!candidate) {
-          return;
-        }
-
-        if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
-          setDownloadUrl(candidate);
-        }
-      })
-      .catch(() => {
-        // Keep default download URL when manifest lookup fails.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode]);
 
   if (mode !== 'web-sqlite-unavailable') {
     return null;
@@ -82,13 +37,6 @@ export default function DataStorageBanner() {
             className="rounded border border-amber-500/40 bg-transparent px-2 py-1 text-[11px] hover:bg-amber-200/50 dark:hover:bg-amber-900/40"
           >
             Retry check
-          </button>
-          <button
-            type="button"
-            onClick={() => window.open(downloadUrl, '_blank', 'noopener,noreferrer')}
-            className="rounded border border-amber-500/40 bg-transparent px-2 py-1 text-[11px] hover:bg-amber-200/50 dark:hover:bg-amber-900/40"
-          >
-            Download DB file
           </button>
         </div>
       </div>

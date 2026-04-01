@@ -18,19 +18,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const distDirectory = path.resolve(projectRoot, 'dist');
-const preloadPath = path.resolve(__dirname, 'preload.js');
+const preloadPath = resolvePreloadPath();
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 let desktopDataPort: DesktopDataPort | null = null;
 let desktopDataPortReady: Promise<DesktopDataPort> | null = null;
-let retryDownloadInFlight: Promise<void> | null = null;
+let startDownloadInFlight: Promise<void> | null = null;
 type DesktopListSermonsParams = Parameters<DesktopDataPort['listSermons']>[0];
 type DesktopSearchSermonHitsParams = Parameters<DesktopDataPort['searchSermonHits']>[0];
 type DesktopSearchSuggestionsParams = Parameters<DesktopDataPort['getSearchSuggestions']>[0];
 type DesktopShortcutBindings = Parameters<DesktopDataPort['saveShortcutBindings']>[0];
 
 const DEFAULT_BOOTSTRAP_STATUS: DesktopBootstrapStatus = {
-  phase: 'checking',
+  phase: 'ready',
   receivedBytes: 0,
   totalBytes: null,
   error: null,
@@ -73,12 +73,21 @@ configureAppStoragePaths();
 
 function resolveBrowserIconPath(): string  {
   const iconCandidates = [
+    path.resolve(projectRoot, 'dist', 'favicon.ico'),
     path.resolve(projectRoot, 'public', 'favicon.ico'),
     path.resolve(process.resourcesPath, 'favicon.ico'),
     path.resolve(process.resourcesPath, 'public', 'favicon.ico'),
   ];
 
   return iconCandidates.find((candidatePath) => existsSync(candidatePath)) ?? '';
+}
+
+function resolvePreloadPath(): string {
+  const preloadCandidates = [
+    path.resolve(__dirname, 'preload.cjs'),
+    path.resolve(__dirname, 'preload.js'),
+  ];
+  return preloadCandidates.find((candidatePath) => existsSync(candidatePath)) ?? preloadCandidates[0];
 }
 
 function isHttpUrl(url: string): boolean {
@@ -157,11 +166,11 @@ function emitBootstrapStatus(nextStatus: DesktopBootstrapStatus): void {
 
 async function initializeDesktopDataPort(
   forceDownload = false,
-  allowEmptyOnFailure = true
+  allowFallbackOnFailure = true
 ): Promise<DesktopDataPort> {
   const nextPort = await DesktopDataPort.initialize(projectRoot, isDevelopment, {
     forceDownload,
-    allowEmptyOnFailure,
+    allowFallbackOnFailure,
     onStatus: emitBootstrapStatus,
   });
 
@@ -187,12 +196,12 @@ function ensureDesktopDataPortReady(): Promise<DesktopDataPort> {
   return desktopDataPortReady;
 }
 
-async function retryDesktopDownload(): Promise<void> {
-  if (retryDownloadInFlight) {
-    return retryDownloadInFlight;
+async function startDesktopDownload(): Promise<void> {
+  if (startDownloadInFlight) {
+    return startDownloadInFlight;
   }
 
-  retryDownloadInFlight = (async () => {
+  startDownloadInFlight = (async () => {
     try {
       desktopDataPortReady = initializeDesktopDataPort(true, false);
       await desktopDataPortReady;
@@ -209,23 +218,19 @@ async function retryDesktopDownload(): Promise<void> {
   })();
 
   try {
-    await retryDownloadInFlight;
+    await startDownloadInFlight;
   } finally {
-    retryDownloadInFlight = null;
+    startDownloadInFlight = null;
   }
 }
 
-async function clearDevelopmentRendererState(mainWindow: BrowserWindow): Promise<void> {
-  if (!isDevelopment) {
-    return;
-  }
-
+async function clearRendererCachedState(mainWindow: BrowserWindow): Promise<void> {
   const rendererSession = mainWindow.webContents.session;
 
   try {
     await rendererSession.clearCache();
   } catch {
-    // Ignore cache cleanup failures in development mode.
+    // Ignore cache cleanup failures.
   }
 
   try {
@@ -233,18 +238,57 @@ async function clearDevelopmentRendererState(mainWindow: BrowserWindow): Promise
       storages: ['serviceworkers', 'cachestorage'],
     });
   } catch {
-    // Ignore storage cleanup failures in development mode.
+    // Ignore storage cleanup failures.
   }
 }
 
 async function loadMainWindow(mainWindow: BrowserWindow): Promise<void> {
+  await clearRendererCachedState(mainWindow);
+
   if (isDevelopment) {
-    await clearDevelopmentRendererState(mainWindow);
     await mainWindow.loadURL(DEV_SERVER_ORIGIN);
     return;
   }
 
   await mainWindow.loadURL(`${APP_SCHEME}://${APP_HOST}/`);
+}
+
+function getBridgeFailureStatus(message: string): DesktopBootstrapStatus {
+  return {
+    phase: 'error',
+    receivedBytes: 0,
+    totalBytes: null,
+    error: message,
+    usingFallbackData: true,
+  };
+}
+
+async function verifyDesktopBridgeAvailability(mainWindow: BrowserWindow): Promise<boolean> {
+  try {
+    const hasBridge = await mainWindow.webContents.executeJavaScript(
+      'Boolean(window.desktopRuntime?.isElectron && window.desktopData && window.desktopBootstrap)',
+      true
+    );
+
+    if (!hasBridge) {
+      emitBootstrapStatus(
+        getBridgeFailureStatus(
+          'Desktop bridge unavailable. Please reinstall or update the desktop app.'
+        )
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    emitBootstrapStatus(
+      getBridgeFailureStatus(
+        `Desktop bridge unavailable. Please reinstall or update the desktop app. (${detail})`
+      )
+    );
+    return false;
+  }
 }
 
 async function bootstrap(): Promise<void> {
@@ -255,8 +299,8 @@ async function bootstrap(): Promise<void> {
   }
 
   ipcMain.handle('desktop-bootstrap:getStatus', () => bootstrapStatus);
-  ipcMain.handle('desktop-bootstrap:retryDownload', async () => {
-    await retryDesktopDownload();
+  ipcMain.handle('desktop-bootstrap:startDownload', async () => {
+    await startDesktopDownload();
     return bootstrapStatus;
   });
 
@@ -272,14 +316,19 @@ async function bootstrap(): Promise<void> {
 
   const mainWindow = createMainWindow();
   await loadMainWindow(mainWindow);
-  emitBootstrapStatus(bootstrapStatus);
-  desktopDataPortReady = initializeDesktopDataPort(false, true);
+  const desktopBridgeReady = await verifyDesktopBridgeAvailability(mainWindow);
+  if (desktopBridgeReady) {
+    emitBootstrapStatus(bootstrapStatus);
+    desktopDataPortReady = initializeDesktopDataPort(false, true);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       const nextWindow = createMainWindow();
       void loadMainWindow(nextWindow).then(() => {
-        nextWindow.webContents.send('desktop-bootstrap:status', bootstrapStatus);
+        void verifyDesktopBridgeAvailability(nextWindow).then(() => {
+          nextWindow.webContents.send('desktop-bootstrap:status', bootstrapStatus);
+        });
       });
     }
   });

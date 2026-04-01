@@ -12,10 +12,12 @@
     "dev:electron": "concurrently -k -n TSC,ELECTRON \"npm run dev:electron:watch\" \"npm run dev:electron:start\"",
     "dev:desktop": "concurrently -k -n WEB,ELECTRON_TSC,ELECTRON \"vite\" \"npm run dev:electron:watch\" \"wait-on tcp:127.0.0.1:8080 dist-electron/main.js && npm run dev:electron:start\"",
     "build": "vite build",
-    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:electron": "tsc -p tsconfig.electron.json && node ./scripts/copy-electron-assets.mjs",
     "build:desktop": "npm run build && npm run build:electron",
     "build:dev": "vite build --mode development",
-    "dist:desktop": "bash ./scripts/dist-desktop-wsl.sh",
+    "dist:desktop": "node ./scripts/dist-desktop.mjs",
+    "dist:desktop:wsl": "bash ./scripts/dist-desktop-wsl.sh",
+    "dist:desktop:win": "npm run build:desktop && electron-builder --win nsis --publish never --config.win.signAndEditExecutable=false",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -125,7 +127,7 @@
       "buildResources": "public"
     },
     "win": {
-      "icon": "favicon.ico",
+      "icon": "public/favicon.ico",
       "target": [
         {
           "target": "nsis",
@@ -134,6 +136,12 @@
           ]
         }
       ]
-    }
+    },
+    "extraResources": [
+      {
+        "from": "public/favicon.ico",
+        "to": "favicon.ico"
+      }
+    ]
   }
 }

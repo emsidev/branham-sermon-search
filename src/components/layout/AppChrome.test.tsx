@@ -44,8 +44,8 @@ const mockRetryDownload = vi.fn();
 const mockUseDesktopBootstrapStatus = vi.fn(() => ({
   isDesktop: true,
   status: defaultBootstrapStatus,
-  retryDownload: mockRetryDownload,
-  isRetrying: false,
+  startDownload: mockRetryDownload,
+  isStartingDownload: false,
 }));
 
 vi.mock('@/hooks/useDesktopBootstrapStatus', () => ({
@@ -76,9 +76,33 @@ describe('AppChrome', () => {
     mockUseDesktopBootstrapStatus.mockReturnValue({
       isDesktop: true,
       status: defaultBootstrapStatus,
-      retryDownload: mockRetryDownload,
-      isRetrying: false,
+      startDownload: mockRetryDownload,
+      isStartingDownload: false,
     });
+  });
+
+  it('shows download prompt while desktop bootstrap needs a DB', () => {
+    mockUseDesktopBootstrapStatus.mockReturnValue({
+      isDesktop: true,
+      status: {
+        phase: 'needs-download',
+        receivedBytes: 0,
+        totalBytes: null,
+        error: null,
+        usingFallbackData: true,
+      },
+      startDownload: mockRetryDownload,
+      isStartingDownload: false,
+    });
+
+    renderAtPath('/search');
+
+    expect(screen.getByText('Download sermons')).toBeInTheDocument();
+    const downloadButton = screen.getByRole('button', { name: 'Download' });
+    expect(downloadButton).toBeInTheDocument();
+
+    fireEvent.click(downloadButton);
+    expect(mockRetryDownload).toHaveBeenCalledTimes(1);
   });
 
   it('shows downloading sermons status while desktop bootstrap is downloading', () => {
@@ -91,22 +115,20 @@ describe('AppChrome', () => {
         error: null,
         usingFallbackData: false,
       },
-      retryDownload: mockRetryDownload,
-      isRetrying: false,
+      startDownload: mockRetryDownload,
+      isStartingDownload: false,
     });
 
     renderAtPath('/search');
 
-    expect(screen.getByText('Downloading sermons...')).toBeInTheDocument();
+    expect(screen.getByText('Downloading sermons')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();
-    const downloadButton = screen.getByRole('button', { name: 'Download now' });
+    const downloadButton = screen.getByRole('button', { name: 'Downloading...' });
     expect(downloadButton).toBeInTheDocument();
-
-    fireEvent.click(downloadButton);
-    expect(mockRetryDownload).toHaveBeenCalledTimes(1);
+    expect(downloadButton).toBeDisabled();
   });
 
-  it('shows retry banner when fallback data is active because bootstrap errored', () => {
+  it('shows retry-capable error banner when download failed', () => {
     mockUseDesktopBootstrapStatus.mockReturnValue({
       isDesktop: true,
       status: {
@@ -116,22 +138,22 @@ describe('AppChrome', () => {
         error: 'Network unavailable',
         usingFallbackData: true,
       },
-      retryDownload: mockRetryDownload,
-      isRetrying: false,
+      startDownload: mockRetryDownload,
+      isStartingDownload: false,
     });
 
     renderAtPath('/search');
 
-    expect(screen.getByText('Sermons database unavailable offline. Connect to the internet, then retry download.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry download' })).toBeInTheDocument();
+    expect(screen.getByText('Network unavailable')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument();
   });
 
   it('renders navbar links and footer on home route without header search input', () => {
     mockUseDesktopBootstrapStatus.mockReturnValue({
       isDesktop: true,
       status: defaultBootstrapStatus,
-      retryDownload: mockRetryDownload,
-      isRetrying: false,
+      startDownload: mockRetryDownload,
+      isStartingDownload: false,
     });
 
     renderAtPath('/');
@@ -149,8 +171,8 @@ describe('AppChrome', () => {
       mockUseDesktopBootstrapStatus.mockReturnValue({
         isDesktop: true,
         status: defaultBootstrapStatus,
-        retryDownload: mockRetryDownload,
-        isRetrying: false,
+        startDownload: mockRetryDownload,
+        isStartingDownload: false,
       });
 
       renderAtPath(path);
@@ -168,8 +190,8 @@ describe('AppChrome', () => {
     mockUseDesktopBootstrapStatus.mockReturnValue({
       isDesktop: true,
       status: defaultBootstrapStatus,
-      retryDownload: mockRetryDownload,
-      isRetrying: false,
+      startDownload: mockRetryDownload,
+      isStartingDownload: false,
     });
 
     renderAtPath('/sermons/42?reading=1');

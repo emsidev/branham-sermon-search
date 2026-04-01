@@ -42,20 +42,10 @@ interface WorkerRpcResponse {
   error?: string;
 }
 
-interface ContentManifest {
-  dbVersion: string;
-  schemaVersion: number;
-  sha256: string;
-  size: number;
-  url: string;
-  downloadUrl?: string;
-}
-
 const DB_NAME = 'the-table-search-sqlite';
 const DB_STORE = 'files';
 const CONTENT_KEY = 'content.sqlite';
 const USER_KEY = 'user.sqlite';
-const DEFAULT_MANIFEST_URL = '/data/content-manifest.json';
 const FUZZY_PREFILTER_LIMIT = 3000;
 const FUZZY_TERM_EXPANSION_LIMIT = 8;
 const SUGGESTION_TERM_EXPANSION_LIMIT = 40;
@@ -91,13 +81,6 @@ async function readStoredFile(key: string): Promise<Uint8Array | null> {
 async function writeStoredFile(key: string, value: Uint8Array): Promise<void> {
   const db = await getStorage();
   await db.put(DB_STORE, value, key);
-}
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('');
 }
 
 function ensureRuntime(): SqlJsStatic {
@@ -148,86 +131,14 @@ function initUserMetadata(db: Database): void {
   statement.free();
 }
 
-async function tryFetchManifest(): Promise<ContentManifest | null> {
-  try {
-    const response = await fetch(DEFAULT_MANIFEST_URL, { cache: 'no-store' });
-    if (!response.ok) {
-      return null;
-    }
-
-    const manifest = (await response.json()) as ContentManifest;
-    if (!manifest?.url) {
-      return null;
-    }
-
-    return manifest;
-  } catch {
-    return null;
-  }
-}
-
-function resolveManifestContentUrl(manifest: ContentManifest): string | null {
-  const candidate = manifest.downloadUrl ?? manifest.url;
-  if (!candidate) {
-    return null;
-  }
-
-  if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
-    return candidate;
-  }
-
-  if (candidate.startsWith('/')) {
-    return candidate;
-  }
-
-  return null;
-}
-
-async function tryDownloadContentBytes(url: string): Promise<Uint8Array | null> {
-  try {
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) {
-      return null;
-    }
-    return new Uint8Array(await response.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
-
 async function loadContentDb(runtime: SqlJsStatic): Promise<Database> {
-  const manifest = await tryFetchManifest();
-  const manifestUrl = manifest ? resolveManifestContentUrl(manifest) : null;
   const storedContent = await readStoredFile(CONTENT_KEY);
   if (storedContent && storedContent.length > 0) {
-    if (!manifest?.sha256) {
-      return new runtime.Database(storedContent);
-    }
-
-    const storedHash = await sha256Hex(storedContent);
-    if (storedHash === manifest.sha256) {
-      return new runtime.Database(storedContent);
-    }
-
-    const downloaded = manifestUrl ? await tryDownloadContentBytes(manifestUrl) : null;
-    if (downloaded && downloaded.length > 0) {
-      await writeStoredFile(CONTENT_KEY, downloaded);
-      return new runtime.Database(downloaded);
-    }
-
     return new runtime.Database(storedContent);
   }
 
-  if (manifest && manifestUrl) {
-    const downloaded = await tryDownloadContentBytes(manifestUrl);
-    if (downloaded && downloaded.length > 0) {
-      await writeStoredFile(CONTENT_KEY, downloaded);
-      return new runtime.Database(downloaded);
-    }
-  }
-
   const db = new runtime.Database();
-  initContentMetadata(db, manifest?.dbVersion ?? 'local-dev');
+  initContentMetadata(db, 'local-dev');
   await writeStoredFile(CONTENT_KEY, db.export());
   return db;
 }

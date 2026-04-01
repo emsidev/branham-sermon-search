@@ -1,4 +1,4 @@
-export type BootstrapPhase = 'checking' | 'downloading' | 'ready' | 'error';
+export type BootstrapPhase = 'needs-download' | 'downloading' | 'ready' | 'error';
 
 export interface BootstrapStatus {
   phase: BootstrapPhase;
@@ -11,7 +11,7 @@ export interface BootstrapStatus {
 export interface DesktopBootstrapBridge {
   getStatus(): Promise<BootstrapStatus>;
   subscribe(listener: (status: BootstrapStatus) => void): () => void;
-  retryDownload(): Promise<BootstrapStatus>;
+  startDownload(): Promise<BootstrapStatus>;
 }
 
 export const READY_BOOTSTRAP_STATUS: BootstrapStatus = {

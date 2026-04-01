@@ -63,7 +63,7 @@ This project is built with:
 
 ## Desktop (WSL)
 
-Use WSL as the primary shell for desktop commands.
+Desktop packaging now auto-detects your OS:
 
 ```sh
 npm run dev:desktop
@@ -71,10 +71,17 @@ npm run build:desktop
 npm run dist:desktop
 ```
 
+If you want an explicit Windows-only packaging command:
+
+```powershell
+npm run dist:desktop:win
+```
+
 Notes:
 
 - `dev:desktop` runs Vite + Electron.
-- `dist:desktop` builds a Windows NSIS installer into `release/` via Docker (`electronuserland/builder:wine`).
+- `dist:desktop` routes to `dist:desktop:win` on Windows and `dist:desktop:wsl` elsewhere.
+- `dist:desktop:wsl` builds a Windows NSIS installer into `release/` via Docker (`electronuserland/builder:wine`).
 - Optional share-link mapping from desktop URLs to web URLs is controlled by `VITE_PUBLIC_WEB_BASE_URL`.
 
 ## Local-first data
@@ -96,7 +103,7 @@ npm run build:content-sqlite
   - `--out <path>`: write DB anywhere (for example `artifacts/content.sqlite`).
   - `--manifest-out <path>`: where to write manifest (keep this at `public/data/content-manifest.json` for desktop builds).
   - `--manifest-url <url-or-path>`: sets manifest `url` value.
-  - `--download-url <https-url>`: sets manifest `downloadUrl` for desktop bootstrap download.
+  - `--download-url <https-url>`: sets manifest `downloadUrl` value (browser metadata only; desktop runtime uses a fixed GitHub URL).
 
 Example (GitHub Release asset, ship installer without bundled DB):
 
@@ -111,26 +118,22 @@ npm run build:content-sqlite -- \
 
 ### Release runbook (recommended)
 
-1. Build DB + manifest locally:
+1. Build DB locally:
 
 ```sh
 npm run build:content-sqlite -- \
   --out artifacts/content.sqlite \
-  --manifest-out public/data/content-manifest.json \
-  --manifest-url /data/content.sqlite \
-  --download-url https://github.com/emsidev/branham-sermon-search/releases/download/content-db/content.sqlite \
   --db-version 2026-03-27
 ```
 
 2. Edit the GitHub release tagged `content-db` and replace/upload the asset named exactly `content.sqlite`.
-3. Commit/push `public/data/content-manifest.json`.
-4. Build and distribute installer (`npm run dist:desktop`).
+3. Build and distribute installer (`npm run dist:desktop`).
 
 Desktop startup behavior:
 
-- If local cached DB matches manifest hash: use it.
-- Otherwise it downloads from `downloadUrl`, validates SHA-256/size, and stores at `app.getPath('userData')/content/<dbVersion>/content.sqlite`.
-- If first launch is offline and no DB exists, app starts with fallback empty data and shows a retry download banner.
+- If local DB exists at `app.getPath('userData')/content/content.sqlite`: use it.
+- If local DB is missing: app starts with fallback empty data and shows a top `Download sermons` banner.
+- Clicking `Download` streams the DB from `https://github.com/emsidev/branham-sermon-search/releases/download/content-db/content.sqlite` with progress and saves to `app.getPath('userData')/content/content.sqlite`.
 
 ## How can I deploy this project?
 

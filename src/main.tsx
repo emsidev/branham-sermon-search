@@ -3,9 +3,10 @@ import App from "./App.tsx";
 import "./index.css";
 
 const APP_SHELL_CACHE_PREFIX = 'the-table-search-shell-';
+const isDesktopRuntime = typeof window !== 'undefined' && Boolean(window.desktopRuntime?.isElectron);
 
-async function clearDevelopmentOfflineState(): Promise<void> {
-  if (typeof window === 'undefined' || !import.meta.env.DEV) {
+async function clearAppShellOfflineState(): Promise<void> {
+  if (typeof window === 'undefined') {
     return;
   }
 
@@ -32,14 +33,16 @@ async function clearDevelopmentOfflineState(): Promise<void> {
   }
 }
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if (isDesktopRuntime) {
+  void clearAppShellOfflineState();
+} else if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   void window.addEventListener('load', () => {
     void navigator.serviceWorker.register('/service-worker.js').catch(() => {
       // Ignore registration failures; app can still run online.
     });
   });
 } else if (import.meta.env.DEV) {
-  void clearDevelopmentOfflineState();
+  void clearAppShellOfflineState();
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

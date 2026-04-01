@@ -4,12 +4,27 @@ import {
   READY_BOOTSTRAP_STATUS,
 } from '@/data/desktopBootstrap';
 
+const DESKTOP_BRIDGE_UNAVAILABLE_MESSAGE =
+  'Desktop bridge unavailable. Please reinstall or update the desktop app.';
+
+function hasElectronUserAgent(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  return /electron/i.test(navigator.userAgent);
+}
+
 function isDesktopRuntimeAvailable(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.desktopRuntime?.isElectron);
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return Boolean(window.desktopRuntime?.isElectron) || hasElectronUserAgent();
 }
 
 function getDesktopBootstrapBridge() {
-  if (!isDesktopRuntimeAvailable()) {
+  if (typeof window === 'undefined') {
     return null;
   }
 
@@ -19,17 +34,27 @@ function getDesktopBootstrapBridge() {
 export function useDesktopBootstrapStatus(): {
   isDesktop: boolean;
   status: BootstrapStatus;
-  retryDownload: () => Promise<void>;
-  isRetrying: boolean;
+  startDownload: () => Promise<void>;
+  isStartingDownload: boolean;
 } {
   const [status, setStatus] = useState<BootstrapStatus>(READY_BOOTSTRAP_STATUS);
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [isStartingDownload, setIsStartingDownload] = useState(false);
   const isDesktop = useMemo(() => isDesktopRuntimeAvailable(), []);
 
   useEffect(() => {
     const bridge = getDesktopBootstrapBridge();
     if (!bridge) {
-      setStatus(READY_BOOTSTRAP_STATUS);
+      if (isDesktop) {
+        setStatus({
+          phase: 'error',
+          receivedBytes: 0,
+          totalBytes: null,
+          error: DESKTOP_BRIDGE_UNAVAILABLE_MESSAGE,
+          usingFallbackData: true,
+        });
+      } else {
+        setStatus(READY_BOOTSTRAP_STATUS);
+      }
       return;
     }
 
@@ -46,7 +71,7 @@ export function useDesktopBootstrapStatus(): {
             phase: 'error',
             receivedBytes: 0,
             totalBytes: null,
-            error: 'Failed to read desktop bootstrap status.',
+            error: DESKTOP_BRIDGE_UNAVAILABLE_MESSAGE,
             usingFallbackData: true,
           });
         }
@@ -62,27 +87,36 @@ export function useDesktopBootstrapStatus(): {
       cancelled = true;
       unsubscribe();
     };
-  }, []);
+  }, [isDesktop]);
 
-  const retryDownload = useCallback(async () => {
+  const startDownload = useCallback(async () => {
     const bridge = getDesktopBootstrapBridge();
     if (!bridge) {
+      if (isDesktop) {
+        setStatus({
+          phase: 'error',
+          receivedBytes: 0,
+          totalBytes: null,
+          error: DESKTOP_BRIDGE_UNAVAILABLE_MESSAGE,
+          usingFallbackData: true,
+        });
+      }
       return;
     }
 
-    setIsRetrying(true);
+    setIsStartingDownload(true);
     try {
-      const nextStatus = await bridge.retryDownload();
+      const nextStatus = await bridge.startDownload();
       setStatus(nextStatus);
     } finally {
-      setIsRetrying(false);
+      setIsStartingDownload(false);
     }
-  }, []);
+  }, [isDesktop]);
 
   return {
     isDesktop,
     status,
-    retryDownload,
-    isRetrying,
+    startDownload,
+    isStartingDownload,
   };
 }
